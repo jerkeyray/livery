@@ -3,17 +3,21 @@ import {
   computeFlowScene,
   computeStoryState,
   type LiverySource,
+  type LiveryArtifact,
   type SemanticTone,
   type StoryStep,
   type StoryState,
 } from "@livery/core";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
+import { resolveRenderRevision } from "./revision.js";
+
 export type LiveryProps = {
   autoPlay?: boolean;
   source: LiverySource;
   motion?: boolean;
   onStoryStepChange?: (index: number, step?: StoryStep) => void;
+  retainLastValid?: boolean;
   story?: boolean;
   storyDelay?: number;
 };
@@ -96,11 +100,13 @@ export function Livery({
   autoPlay = false,
   motion = true,
   onStoryStepChange,
+  retainLastValid = true,
   source,
   story = true,
   storyDelay = 900,
 }: LiveryProps) {
   const containerRef = useRef<HTMLElement>(null);
+  const lastValidArtifact = useRef<LiveryArtifact>(undefined);
   const onStoryStepChangeRef = useRef(onStoryStepChange);
   const storyAnimations = useRef<Animation[]>([]);
   const previousStoryStep = useRef(-1);
@@ -108,7 +114,10 @@ export function Livery({
   const [storyStep, setStoryStep] = useState(-1);
   const [playing, setPlaying] = useState(autoPlay);
   const result = useMemo(() => compile(source), [source]);
-  const storyLength = story ? (result.artifact?.story.length ?? 0) : 0;
+  const revision = resolveRenderRevision(result, lastValidArtifact.current, retainLastValid);
+  const artifact = revision.artifact;
+  if (result.artifact) lastValidArtifact.current = result.artifact;
+  const storyLength = story && !revision.retained ? (artifact?.story.length ?? 0) : 0;
   onStoryStepChangeRef.current = onStoryStepChange;
 
   useEffect(() => {
@@ -118,8 +127,8 @@ export function Livery({
   }, [autoPlay, source, story]);
 
   useEffect(() => {
-    onStoryStepChangeRef.current?.(storyStep, result.artifact?.story[storyStep]);
-  }, [result.artifact, storyStep]);
+    onStoryStepChangeRef.current?.(storyStep, artifact?.story[storyStep]);
+  }, [artifact, storyStep]);
 
   useEffect(() => {
     if (!playing) return;
@@ -146,16 +155,16 @@ export function Livery({
     storyAnimations.current.forEach((animation) => animation.cancel());
     storyAnimations.current = [];
     const container = containerRef.current;
-    const step = result.artifact?.story[storyStep];
+    const step = revision.retained ? undefined : artifact?.story[storyStep];
     const movingForward = storyStep === previousStoryStep.current + 1;
     previousStoryStep.current = storyStep;
     if (!container || !step || !motion || !movingForward || matchMedia("(prefers-reduced-motion: reduce)").matches) {
       return;
     }
     storyAnimations.current = animateStoryStep(container, step);
-  }, [motion, result.artifact, storyStep]);
+  }, [artifact, motion, revision.retained, storyStep]);
 
-  if (!result.artifact) {
+  if (!artifact) {
     return (
       <div className="livery-error" data-livery-state="invalid" role="alert">
         <strong>Unable to compile visual</strong>
@@ -168,14 +177,14 @@ export function Livery({
     );
   }
 
-  const scene = computeFlowScene(result.artifact, { width });
-  const hasStory = story && result.artifact.story.length > 0;
-  const storyState = hasStory ? computeStoryState(result.artifact, storyStep) : undefined;
-  const markerId = `livery-arrow-${result.artifact.id.replaceAll(/[^A-Za-z0-9_-]/g, "-")}`;
-  const atEnd = storyStep >= result.artifact.story.length - 1;
+  const scene = computeFlowScene(artifact, { width });
+  const hasStory = story && !revision.retained && artifact.story.length > 0;
+  const storyState = hasStory ? computeStoryState(artifact, storyStep) : undefined;
+  const markerId = `livery-arrow-${artifact.id.replaceAll(/[^A-Za-z0-9_-]/g, "-")}`;
+  const atEnd = storyStep >= artifact.story.length - 1;
   const changeStoryStep = (step: number) => {
     setPlaying(false);
-    setStoryStep(Math.max(-1, Math.min(step, result.artifact!.story.length - 1)));
+    setStoryStep(Math.max(-1, Math.min(step, artifact.story.length - 1)));
   };
   const replay = () => {
     previousStoryStep.current = -1;
@@ -187,9 +196,19 @@ export function Livery({
     <figure
       aria-label={scene.accessibility.summary}
       className={`livery livery-${scene.direction}`}
-      data-livery-state={result.incomplete ? "incomplete" : "ready"}
+      data-livery-state={revision.retained ? "retained" : result.incomplete ? "incomplete" : "ready"}
       ref={containerRef}
     >
+      {revision.retained ? (
+        <div aria-live="polite" className="livery-diagnostics" role="status">
+          <strong>Showing last valid visual</strong>
+          <ul>
+            {result.diagnostics.slice(0, 3).map((item, index) => (
+              <li key={`${item.code}-${index}`}>{item.message}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {scene.title ? <figcaption className="livery-title">{scene.title}</figcaption> : null}
       <div className="livery-scene" style={{ height: scene.height }}>
         <svg
@@ -241,7 +260,7 @@ export function Livery({
             if (event.key === "ArrowLeft") changeStoryStep(storyStep - 1);
             else if (event.key === "ArrowRight") changeStoryStep(storyStep + 1);
             else if (event.key === "Home") changeStoryStep(-1);
-            else if (event.key === "End") changeStoryStep(result.artifact!.story.length - 1);
+            else if (event.key === "End") changeStoryStep(artifact.story.length - 1);
             else if (event.key === " ") atEnd ? replay() : setPlaying((value) => !value);
             else return;
             event.preventDefault();
@@ -269,13 +288,13 @@ export function Livery({
           <span aria-live="polite">
             {storyStep < 0
               ? "Ready"
-              : `${storyStep + 1} of ${result.artifact.story.length}: ${result.artifact.story[storyStep]!.action} ${result.artifact.story[storyStep]!.targets.map(({ id }) => id).join(", ")}`}
+              : `${storyStep + 1} of ${artifact.story.length}: ${artifact.story[storyStep]!.action} ${artifact.story[storyStep]!.targets.map(({ id }) => id).join(", ")}`}
           </span>
         </div>
       ) : null}
 
       <ul className="livery-sr-only">
-        {result.artifact.relationships.map((relationship) => (
+        {artifact.relationships.map((relationship) => (
           <li key={relationship.id}>
             {relationship.from} to {relationship.to}
             {relationship.label ? `: ${relationship.label}` : ""}

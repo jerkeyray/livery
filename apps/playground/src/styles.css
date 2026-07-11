@@ -14,7 +14,7 @@ body {
 }
 
 main {
-  width: min(960px, calc(100% - 32px));
+  width: min(1240px, calc(100% - 32px));
   margin: 48px auto;
 }
 
@@ -26,7 +26,61 @@ header span {
 }
 
 h1 {
-  margin: 6px 0 32px;
+  margin: 6px 0 24px;
   font-size: 28px;
   letter-spacing: 0;
+}
+
+.workbench {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.8fr) minmax(480px, 1.2fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.editor-pane label {
+  display: block;
+  margin-bottom: 8px;
+  color: #525252;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.editor-pane textarea {
+  display: block;
+  width: 100%;
+  min-height: 520px;
+  padding: 14px;
+  resize: vertical;
+  border: 1px solid #d4d4d4;
+  border-radius: 6px;
+  outline: none;
+  background: #ffffff;
+  color: #171717;
+  font: 13px/1.55 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  letter-spacing: 0;
+  tab-size: 2;
+}
+
+.editor-pane textarea:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgb(37 99 235 / 12%);
+}
+
+.preview-pane {
+  min-width: 0;
+}
+
+@media (max-width: 840px) {
+  main {
+    margin-block: 24px;
+  }
+
+  .workbench {
+    grid-template-columns: 1fr;
+  }
+
+  .editor-pane textarea {
+    min-height: 340px;
+  }
 }

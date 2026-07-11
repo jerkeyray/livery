@@ -22,6 +22,21 @@
   letter-spacing: 0;
 }
 
+.livery-diagnostics {
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border: 1px solid #fcd34d;
+  background: #fffbeb;
+  color: #854d0e;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.livery-diagnostics ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
 .livery-scene {
   position: relative;
   width: 100%;
@@ -227,6 +242,12 @@
     --livery-muted: #a1a1aa;
     --livery-border: #3f3f46;
     --livery-edge: #71717a;
+  }
+
+  .livery-diagnostics {
+    border-color: #854d0e;
+    background: #292524;
+    color: #fde68a;
   }
 }
 
