@@ -1,7 +1,7 @@
 {
   "id": "excessive-nesting",
   "category": "resource",
-  "source": "flow nested\n  group a\n    group b\n      group c\n        group d\n          group e\n            entity node \"Too deep\"",
+  "source": "flow nested {\n  story {\n    parallel {\n      sequence {\n        group {\n          focus(node)\n        }\n      }\n    }\n  }\n}",
   "expectedCode": "resource.max_nesting_depth",
   "recoverable": false
 }

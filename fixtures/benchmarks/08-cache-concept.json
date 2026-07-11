@@ -10,6 +10,22 @@
     ["database", "application"],
     ["application", "cache"]
   ],
+  "relationshipCases": [
+    {
+      "id": "cache_miss",
+      "from": "application",
+      "to": "cache",
+      "meaning": "miss",
+      "order": 1
+    },
+    {
+      "id": "cache_hit",
+      "from": "application",
+      "to": "cache",
+      "meaning": "hit",
+      "order": 5
+    }
+  ],
   "requiredActions": ["reveal", "trace", "transform", "indicate"],
   "viewports": [360, 768, 1280],
   "assertions": [

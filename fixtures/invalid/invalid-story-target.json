@@ -1,7 +1,7 @@
 {
   "id": "invalid-story-target",
   "category": "semantic",
-  "source": "flow checkout\n  customer -> api\nstory\n  focus payment",
-  "expectedCode": "semantic.unknown_story_target",
+  "source": "flow checkout {\n  customer -> api\n  story {\n    trace(customer -> payment)\n  }\n}",
+  "expectedCode": "semantic.unknown_relationship_target",
   "recoverable": false
 }

@@ -1,7 +1,7 @@
 {
   "id": "unknown-reference",
   "category": "semantic",
-  "source": "flow broken\n  api -> missing \"call\"",
-  "expectedCode": "semantic.unknown_entity_reference",
+  "source": "flow broken {\n  call = api -> worker(\"call\")\n  story {\n    focus(missing)\n  }\n}",
+  "expectedCode": "semantic.unknown_story_target",
   "recoverable": false
 }

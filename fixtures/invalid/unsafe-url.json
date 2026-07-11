@@ -1,7 +1,7 @@
 {
   "id": "unsafe-url",
   "category": "security",
-  "source": "flow unsafe\n  entity docs \"Docs\" source=javascript:alert(1)",
+  "source": "flow unsafe {\n  docs = document(\"Docs\", source: \"javascript:alert(1)\")\n}",
   "expectedCode": "security.unsafe_url",
   "recoverable": false
 }

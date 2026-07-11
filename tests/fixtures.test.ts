@@ -25,6 +25,17 @@ const benchmarkSchema = z.object({
   intent: z.string().min(1),
   requiredEntities: z.array(z.string()).min(2),
   requiredRelationships: z.array(z.tuple([z.string(), z.string()])).min(1),
+  relationshipCases: z
+    .array(
+      z.object({
+        id: z.string(),
+        from: z.string(),
+        to: z.string(),
+        meaning: z.string(),
+        order: z.number().int().nonnegative(),
+      }),
+    )
+    .optional(),
   requiredActions: z.array(actionSchema),
   viewports: z.array(z.number().int().positive()).min(1),
   assertions: z.array(z.string().min(1)).min(1),
