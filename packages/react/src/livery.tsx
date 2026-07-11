@@ -10,9 +10,12 @@ import {
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 export type LiveryProps = {
+  autoPlay?: boolean;
   source: LiverySource;
   motion?: boolean;
+  onStoryStepChange?: (index: number, step?: StoryStep) => void;
   story?: boolean;
+  storyDelay?: number;
 };
 
 function toneClass(tone?: SemanticTone) {
@@ -44,26 +47,30 @@ function animateStoryStep(container: HTMLElement, step: StoryStep) {
     if (!element) continue;
 
     if ((step.action === "reveal" || step.action === "enter") && target.type === "entity") {
-      animations.push(element.animate(
-        [
-          { opacity: 0, transform: "translateY(6px) scale(0.98)" },
-          { opacity: 1, transform: "translateY(0) scale(1)" },
-        ],
-        { duration: 240, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" },
-      ));
+      animations.push(
+        element.animate(
+          [
+            { opacity: 0, transform: "translateY(6px) scale(0.98)" },
+            { opacity: 1, transform: "translateY(0) scale(1)" },
+          ],
+          { duration: 240, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" },
+        ),
+      );
       continue;
     }
 
     const path = target.type === "relationship" ? element.querySelector<SVGPathElement>(":scope > path") : undefined;
     if (step.action === "trace" && path) {
       const length = path.getTotalLength();
-      animations.push(path.animate(
-        [
-          { strokeDasharray: `${length}`, strokeDashoffset: length },
-          { strokeDasharray: `${length}`, strokeDashoffset: 0 },
-        ],
-        { duration: 420, easing: "ease-out" },
-      ));
+      animations.push(
+        path.animate(
+          [
+            { strokeDasharray: `${length}`, strokeDashoffset: length },
+            { strokeDasharray: `${length}`, strokeDashoffset: 0 },
+          ],
+          { duration: 420, easing: "ease-out" },
+        ),
+      );
       continue;
     }
 
@@ -85,18 +92,44 @@ function animateStoryStep(container: HTMLElement, step: StoryStep) {
   return animations;
 }
 
-export function Livery({ motion = true, source, story = true }: LiveryProps) {
+export function Livery({
+  autoPlay = false,
+  motion = true,
+  onStoryStepChange,
+  source,
+  story = true,
+  storyDelay = 900,
+}: LiveryProps) {
   const containerRef = useRef<HTMLElement>(null);
+  const onStoryStepChangeRef = useRef(onStoryStepChange);
   const storyAnimations = useRef<Animation[]>([]);
   const previousStoryStep = useRef(-1);
   const [width, setWidth] = useState(720);
   const [storyStep, setStoryStep] = useState(-1);
+  const [playing, setPlaying] = useState(autoPlay);
   const result = useMemo(() => compile(source), [source]);
+  const storyLength = story ? (result.artifact?.story.length ?? 0) : 0;
+  onStoryStepChangeRef.current = onStoryStepChange;
 
   useEffect(() => {
     previousStoryStep.current = -1;
     setStoryStep(-1);
-  }, [source]);
+    setPlaying(autoPlay && story);
+  }, [autoPlay, source, story]);
+
+  useEffect(() => {
+    onStoryStepChangeRef.current?.(storyStep, result.artifact?.story[storyStep]);
+  }, [result.artifact, storyStep]);
+
+  useEffect(() => {
+    if (!playing) return;
+    if (storyStep >= storyLength - 1) {
+      setPlaying(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setStoryStep((step) => step + 1), Math.max(250, storyDelay));
+    return () => window.clearTimeout(timer);
+  }, [playing, storyDelay, storyLength, storyStep]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -139,6 +172,16 @@ export function Livery({ motion = true, source, story = true }: LiveryProps) {
   const hasStory = story && result.artifact.story.length > 0;
   const storyState = hasStory ? computeStoryState(result.artifact, storyStep) : undefined;
   const markerId = `livery-arrow-${result.artifact.id.replaceAll(/[^A-Za-z0-9_-]/g, "-")}`;
+  const atEnd = storyStep >= result.artifact.story.length - 1;
+  const changeStoryStep = (step: number) => {
+    setPlaying(false);
+    setStoryStep(Math.max(-1, Math.min(step, result.artifact!.story.length - 1)));
+  };
+  const replay = () => {
+    previousStoryStep.current = -1;
+    setStoryStep(-1);
+    setPlaying(true);
+  };
 
   return (
     <figure
@@ -190,22 +233,44 @@ export function Livery({ motion = true, source, story = true }: LiveryProps) {
       </div>
 
       {hasStory ? (
-        <div aria-label="Story controls" className="livery-story-controls" role="group">
-          <button disabled={storyStep < 0} onClick={() => setStoryStep((step) => Math.max(-1, step - 1))} type="button">
-            Previous
-          </button>
+        <div
+          aria-label="Story controls"
+          className="livery-story-controls"
+          onKeyDown={(event) => {
+            if (event.target !== event.currentTarget) return;
+            if (event.key === "ArrowLeft") changeStoryStep(storyStep - 1);
+            else if (event.key === "ArrowRight") changeStoryStep(storyStep + 1);
+            else if (event.key === "Home") changeStoryStep(-1);
+            else if (event.key === "End") changeStoryStep(result.artifact!.story.length - 1);
+            else if (event.key === " ") atEnd ? replay() : setPlaying((value) => !value);
+            else return;
+            event.preventDefault();
+          }}
+          role="group"
+          tabIndex={0}
+        >
+          <div className="livery-story-buttons">
+            <button disabled={storyStep < 0} onClick={() => changeStoryStep(storyStep - 1)} type="button">
+              Previous
+            </button>
+            {atEnd ? (
+              <button onClick={replay} type="button">
+                Replay
+              </button>
+            ) : (
+              <button aria-pressed={playing} onClick={() => setPlaying((value) => !value)} type="button">
+                {playing ? "Pause" : "Play"}
+              </button>
+            )}
+            <button disabled={atEnd} onClick={() => changeStoryStep(storyStep + 1)} type="button">
+              Next
+            </button>
+          </div>
           <span aria-live="polite">
             {storyStep < 0
               ? "Ready"
               : `${storyStep + 1} of ${result.artifact.story.length}: ${result.artifact.story[storyStep]!.action} ${result.artifact.story[storyStep]!.targets.map(({ id }) => id).join(", ")}`}
           </span>
-          <button
-            disabled={storyStep >= result.artifact.story.length - 1}
-            onClick={() => setStoryStep((step) => Math.min(result.artifact!.story.length - 1, step + 1))}
-            type="button"
-          >
-            Next
-          </button>
         </div>
       ) : null}
 

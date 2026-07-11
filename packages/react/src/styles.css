@@ -104,11 +104,18 @@
 }
 
 .livery-story-controls {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
+  display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
   margin-top: 10px;
+  outline: none;
+}
+
+.livery-story-buttons {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
 }
 
 .livery-story-controls span {
@@ -136,6 +143,22 @@
 .livery-story-controls button:focus-visible {
   outline: 2px solid var(--livery-accent);
   outline-offset: 2px;
+}
+
+.livery-story-controls:focus-visible {
+  outline: 2px solid var(--livery-accent);
+  outline-offset: 4px;
+}
+
+@media (max-width: 480px) {
+  .livery-story-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .livery-story-buttons button {
+    flex: 1;
+  }
 }
 
 .livery-node strong {
