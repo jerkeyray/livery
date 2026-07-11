@@ -1,0 +1,8 @@
+flowchart LR
+  customer[Customer] -->|submit order| api[Checkout API]
+  api -->|authorize| payment[Payment provider]
+  payment -->|approved| api
+  api -->|persist| orders[(Orders database)]
+
+  classDef success fill:#dcfce7,stroke:#16a34a,color:#14532d
+  class payment success

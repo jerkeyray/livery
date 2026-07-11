@@ -1,0 +1,21 @@
+{
+  "id": "api-request-sequence",
+  "title": "API request sequence",
+  "composition": "sequence",
+  "intent": "Show authentication, parallel profile and permissions reads, and the final response in causal order.",
+  "requiredEntities": ["browser", "gateway", "auth", "profile", "permissions"],
+  "requiredRelationships": [
+    ["browser", "gateway"],
+    ["gateway", "auth"],
+    ["gateway", "profile"],
+    ["gateway", "permissions"],
+    ["gateway", "browser"]
+  ],
+  "requiredActions": ["trace", "focus"],
+  "viewports": [360, 768, 1280],
+  "assertions": [
+    "Parallel calls are distinguishable from sequential calls.",
+    "Response direction remains clear on mobile.",
+    "Sequence ordering is represented in the textual fallback."
+  ]
+}

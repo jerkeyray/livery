@@ -1,0 +1,20 @@
+{
+  "id": "data-transformation",
+  "title": "Data transformation pipeline",
+  "composition": "explainer",
+  "intent": "Show a raw event being validated, enriched, normalized, and written as an analytics record.",
+  "requiredEntities": ["raw_event", "validated_event", "enriched_event", "normalized_record", "warehouse"],
+  "requiredRelationships": [
+    ["raw_event", "validated_event"],
+    ["validated_event", "enriched_event"],
+    ["enriched_event", "normalized_record"],
+    ["normalized_record", "warehouse"]
+  ],
+  "requiredActions": ["reveal", "transform", "compare"],
+  "viewports": [360, 768, 1280],
+  "assertions": [
+    "Field additions and removals are semantically attributable to a stage.",
+    "Transformations preserve object identity where appropriate.",
+    "The narrow presentation remains readable without scaling down the entire figure."
+  ]
+}

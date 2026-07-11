@@ -1,0 +1,20 @@
+{
+  "id": "before-after-transform",
+  "title": "Before-and-after semantic transformation",
+  "composition": "explainer",
+  "intent": "Compare a monolithic deployment with a queued worker architecture while preserving shared concepts.",
+  "requiredEntities": ["api", "work", "queue", "worker", "result"],
+  "requiredRelationships": [
+    ["api", "work"],
+    ["api", "queue"],
+    ["queue", "worker"],
+    ["worker", "result"]
+  ],
+  "requiredActions": ["compare", "transform", "focus"],
+  "viewports": [360, 768, 1280],
+  "assertions": [
+    "Shared semantic objects retain identity through the transformation.",
+    "Removed and added relationships are distinguishable.",
+    "Static output can present the comparison without animation."
+  ]
+}

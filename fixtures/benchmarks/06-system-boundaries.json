@@ -1,0 +1,21 @@
+{
+  "id": "system-boundaries",
+  "title": "Grouped system boundaries",
+  "composition": "flow",
+  "intent": "Differentiate browser, company services, data infrastructure, and third-party systems.",
+  "requiredEntities": ["browser", "api", "worker", "database", "queue", "email_provider"],
+  "requiredRelationships": [
+    ["browser", "api"],
+    ["api", "database"],
+    ["api", "queue"],
+    ["queue", "worker"],
+    ["worker", "email_provider"]
+  ],
+  "requiredActions": ["reveal", "focus"],
+  "viewports": [360, 768, 1280],
+  "assertions": [
+    "Group membership remains unambiguous after responsive reflow.",
+    "Cross-boundary relationships are visibly distinct.",
+    "Collapsed groups retain their relationship summaries."
+  ]
+}

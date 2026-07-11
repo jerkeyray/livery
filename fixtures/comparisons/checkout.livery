@@ -1,0 +1,12 @@
+flow checkout "Checkout request"
+  customer -> api "submit order"
+  api -> payment "authorize"
+  payment -> api "approved" tone=success
+  api -> orders "persist"
+
+story
+  reveal customer api
+  trace customer -> api
+  focus payment
+  trace payment -> api
+  reveal orders

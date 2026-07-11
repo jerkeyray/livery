@@ -1,0 +1,7 @@
+{
+  "id": "duplicate-id",
+  "category": "semantic",
+  "source": "flow broken\n  entity api \"API\"\n  entity api \"Other API\"",
+  "expectedCode": "semantic.duplicate_id",
+  "recoverable": false
+}

@@ -1,0 +1,27 @@
+{
+  "id": "mobile-dense-flow",
+  "title": "Dense flow adapting to mobile",
+  "composition": "flow",
+  "intent": "Stress responsive composition using twelve entities, groups, branches, and labeled relationships.",
+  "requiredEntities": ["client", "cdn", "gateway", "auth", "catalog", "pricing", "inventory", "checkout", "payment", "orders", "events", "analytics"],
+  "requiredRelationships": [
+    ["client", "cdn"],
+    ["cdn", "gateway"],
+    ["gateway", "auth"],
+    ["gateway", "catalog"],
+    ["catalog", "pricing"],
+    ["catalog", "inventory"],
+    ["gateway", "checkout"],
+    ["checkout", "payment"],
+    ["checkout", "orders"],
+    ["orders", "events"],
+    ["events", "analytics"]
+  ],
+  "requiredActions": ["focus", "hide", "reveal"],
+  "viewports": [360, 768, 1280],
+  "assertions": [
+    "The 360px layout changes composition instead of uniformly shrinking.",
+    "The primary checkout path can be isolated.",
+    "No relationship becomes attached to the wrong entity during reflow."
+  ]
+}

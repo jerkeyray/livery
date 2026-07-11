@@ -1,0 +1,20 @@
+{
+  "id": "agent-tool-trace",
+  "title": "Agent and parallel tool trace",
+  "composition": "sequence",
+  "intent": "Explain an agent searching code and documentation in parallel before producing an answer.",
+  "requiredEntities": ["user", "agent", "code_search", "docs_search", "answer"],
+  "requiredRelationships": [
+    ["user", "agent"],
+    ["agent", "code_search"],
+    ["agent", "docs_search"],
+    ["agent", "answer"]
+  ],
+  "requiredActions": ["reveal", "trace", "set_state"],
+  "viewports": [360, 768, 1280],
+  "assertions": [
+    "Tool calls are visibly parallel.",
+    "Pending, successful, and failed states do not rely on color alone.",
+    "The final answer is downstream of both tool results."
+  ]
+}

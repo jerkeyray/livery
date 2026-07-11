@@ -1,0 +1,7 @@
+{
+  "id": "invalid-story-target",
+  "category": "semantic",
+  "source": "flow checkout\n  customer -> api\nstory\n  focus payment",
+  "expectedCode": "semantic.unknown_story_target",
+  "recoverable": false
+}

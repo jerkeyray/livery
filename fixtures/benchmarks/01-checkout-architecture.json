@@ -1,0 +1,20 @@
+{
+  "id": "checkout-architecture",
+  "title": "Checkout architecture flow",
+  "composition": "flow",
+  "intent": "Explain the successful checkout request across browser, API, payment provider, and order database.",
+  "requiredEntities": ["customer", "api", "payment", "orders"],
+  "requiredRelationships": [
+    ["customer", "api"],
+    ["api", "payment"],
+    ["payment", "api"],
+    ["api", "orders"]
+  ],
+  "requiredActions": ["reveal", "trace", "focus"],
+  "viewports": [360, 768, 1280],
+  "assertions": [
+    "The payment response direction is unambiguous.",
+    "The visual reflows vertically at narrow width.",
+    "No entity label is truncated without an accessible full label."
+  ]
+}

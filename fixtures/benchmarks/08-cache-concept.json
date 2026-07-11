@@ -1,0 +1,20 @@
+{
+  "id": "cache-concept",
+  "title": "Narrated cache concept",
+  "composition": "explainer",
+  "intent": "Teach cache-aside behavior through a miss, database read, cache fill, and later hit.",
+  "requiredEntities": ["application", "cache", "database", "value"],
+  "requiredRelationships": [
+    ["application", "cache"],
+    ["application", "database"],
+    ["database", "application"],
+    ["application", "cache"]
+  ],
+  "requiredActions": ["reveal", "trace", "transform", "indicate"],
+  "viewports": [360, 768, 1280],
+  "assertions": [
+    "The miss and later hit are distinguishable states of the same cache.",
+    "Story progression does not change the underlying causal truth.",
+    "Reduced motion communicates each state change without path animation."
+  ]
+}

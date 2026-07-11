@@ -1,0 +1,7 @@
+{
+  "id": "incomplete-stream",
+  "category": "syntax",
+  "source": "flow checkout \"Checkout\"\n  customer -> api \"sub",
+  "expectedCode": "syntax.incomplete_string",
+  "recoverable": true
+}

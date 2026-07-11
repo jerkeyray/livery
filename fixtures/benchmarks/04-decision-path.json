@@ -1,0 +1,20 @@
+{
+  "id": "decision-path",
+  "title": "Decision path with rejected alternatives",
+  "composition": "flow",
+  "intent": "Explain why a background job is queued instead of handled inline or rejected.",
+  "requiredEntities": ["request", "size_check", "inline", "queue", "reject"],
+  "requiredRelationships": [
+    ["request", "size_check"],
+    ["size_check", "inline"],
+    ["size_check", "queue"],
+    ["size_check", "reject"]
+  ],
+  "requiredActions": ["focus", "compare", "hide"],
+  "viewports": [360, 768, 1280],
+  "assertions": [
+    "Branch conditions are attached to the correct relationships.",
+    "The selected path remains visible when alternatives are deemphasized.",
+    "Rejected alternatives remain available in the textual fallback."
+  ]
+}

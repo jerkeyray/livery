@@ -1,0 +1,21 @@
+{
+  "id": "retry-failure",
+  "title": "Retry queue and failure propagation",
+  "composition": "flow",
+  "intent": "Show a failed payment, exponential retry queue, terminal dead-letter state, and operator alert.",
+  "requiredEntities": ["worker", "payment", "retry_queue", "dead_letter", "operator"],
+  "requiredRelationships": [
+    ["worker", "payment"],
+    ["payment", "retry_queue"],
+    ["retry_queue", "worker"],
+    ["retry_queue", "dead_letter"],
+    ["dead_letter", "operator"]
+  ],
+  "requiredActions": ["trace", "set_state", "indicate"],
+  "viewports": [360, 768, 1280],
+  "assertions": [
+    "The retry cycle is distinguishable from the terminal path.",
+    "Failure severity does not rely on color alone.",
+    "The operator alert is causally connected to dead-lettering."
+  ]
+}
