@@ -1,4 +1,5 @@
 export * from "./artifact.js";
+export * from "./agent.js";
 export * from "./compiler.js";
 export * from "./diagnostics.js";
 export * from "./language/formatter.js";
