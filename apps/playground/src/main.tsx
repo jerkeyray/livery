@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { Livery } from "@livery/react";
 
+import "@livery/react/styles.css";
 import "./styles.css";
 
 const source = `flow checkout("Checkout request") {

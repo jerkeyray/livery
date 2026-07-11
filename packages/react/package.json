@@ -8,7 +8,8 @@
     ".": {
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
-    }
+    },
+    "./styles.css": "./dist/style.css"
   },
   "files": ["dist"],
   "scripts": {
