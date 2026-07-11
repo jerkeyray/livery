@@ -11,6 +11,7 @@ import type {
 import { diagnostic, type Diagnostic } from "./diagnostics.js";
 import { parse } from "./language/parser.js";
 import type { EntitySyntax, RelationshipSyntax, StoryStepSyntax } from "./language/syntax.js";
+import { lintArtifact } from "./lint.js";
 import { liveryArtifactSchema } from "./schema.js";
 
 export type CompileResult = {
@@ -248,6 +249,7 @@ export function compile(source: LiverySource): CompileResult {
   };
 
   const hasErrors = diagnostics.some((item) => item.severity === "error" && !item.code.startsWith("syntax.incomplete"));
+  if (!hasErrors && !syntax.incomplete) diagnostics.push(...lintArtifact(artifact));
   return {
     diagnostics,
     incomplete: syntax.incomplete,
@@ -260,10 +262,12 @@ function compileJson(source: Record<string, unknown>): CompileResult {
   if (result.success) {
     const artifact = result.data as LiveryArtifact;
     const diagnostics = validateArtifactSemantics(artifact);
+    const hasErrors = diagnostics.some((item) => item.severity === "error");
+    if (!hasErrors) diagnostics.push(...lintArtifact(artifact));
     return {
       diagnostics,
       incomplete: false,
-      ...(diagnostics.length === 0 ? { artifact } : {}),
+      ...(!hasErrors ? { artifact } : {}),
     };
   }
 

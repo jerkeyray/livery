@@ -7,6 +7,7 @@ export * from "./language/parser.js";
 export * from "./language/syntax.js";
 export * from "./language/tokenizer.js";
 export * from "./layout.js";
+export * from "./lint.js";
 export * from "./schema.js";
 export * from "./scene.js";
 export * from "./session.js";
