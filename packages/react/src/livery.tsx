@@ -4,12 +4,14 @@ import {
   computeStoryState,
   type LiverySource,
   type SemanticTone,
+  type StoryStep,
   type StoryState,
 } from "@livery/core";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 export type LiveryProps = {
   source: LiverySource;
+  motion?: boolean;
   story?: boolean;
 };
 
@@ -27,13 +29,74 @@ function relationshipStoryClass(id: string, state?: StoryState) {
   return `${!state.visibleRelationships.has(id) ? " livery-story-hidden" : ""}${state.tracedRelationships.has(id) ? " livery-story-traced" : ""}${state.focusedRelationships.has(id) ? " livery-story-focused" : ""}${state.indicatedRelationships.has(id) ? " livery-story-indicated" : ""}`;
 }
 
-export function Livery({ source, story = true }: LiveryProps) {
+function elementForTarget(container: HTMLElement, target: StoryStep["targets"][number]) {
+  const selector = target.type === "entity" ? ".livery-node" : ".livery-edge";
+  return [...container.querySelectorAll<HTMLElement | SVGGElement>(selector)].find(
+    (element) => element.dataset.liveryId === target.id,
+  );
+}
+
+function animateStoryStep(container: HTMLElement, step: StoryStep) {
+  const animations: Animation[] = [];
+
+  for (const target of step.targets) {
+    const element = elementForTarget(container, target);
+    if (!element) continue;
+
+    if ((step.action === "reveal" || step.action === "enter") && target.type === "entity") {
+      animations.push(element.animate(
+        [
+          { opacity: 0, transform: "translateY(6px) scale(0.98)" },
+          { opacity: 1, transform: "translateY(0) scale(1)" },
+        ],
+        { duration: 240, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" },
+      ));
+      continue;
+    }
+
+    const path = target.type === "relationship" ? element.querySelector<SVGPathElement>(":scope > path") : undefined;
+    if (step.action === "trace" && path) {
+      const length = path.getTotalLength();
+      animations.push(path.animate(
+        [
+          { strokeDasharray: `${length}`, strokeDashoffset: length },
+          { strokeDasharray: `${length}`, strokeDashoffset: 0 },
+        ],
+        { duration: 420, easing: "ease-out" },
+      ));
+      continue;
+    }
+
+    if (step.action === "focus") {
+      animations.push(element.animate([{ filter: "brightness(1)" }, { filter: "brightness(1.08)" }], {
+        duration: 220,
+        easing: "ease-out",
+      }));
+    }
+
+    if (step.action === "indicate") {
+      animations.push((path ?? element).animate(
+        [{ opacity: 0.45 }, { opacity: 1 }, { opacity: 0.65 }, { opacity: 1 }],
+        { duration: 360, easing: "ease-out" },
+      ));
+    }
+  }
+
+  return animations;
+}
+
+export function Livery({ motion = true, source, story = true }: LiveryProps) {
   const containerRef = useRef<HTMLElement>(null);
+  const storyAnimations = useRef<Animation[]>([]);
+  const previousStoryStep = useRef(-1);
   const [width, setWidth] = useState(720);
   const [storyStep, setStoryStep] = useState(-1);
   const result = useMemo(() => compile(source), [source]);
 
-  useEffect(() => setStoryStep(-1), [source]);
+  useEffect(() => {
+    previousStoryStep.current = -1;
+    setStoryStep(-1);
+  }, [source]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -45,6 +108,19 @@ export function Livery({ source, story = true }: LiveryProps) {
     observer.observe(container);
     return () => observer.disconnect();
   }, []);
+
+  useLayoutEffect(() => {
+    storyAnimations.current.forEach((animation) => animation.cancel());
+    storyAnimations.current = [];
+    const container = containerRef.current;
+    const step = result.artifact?.story[storyStep];
+    const movingForward = storyStep === previousStoryStep.current + 1;
+    previousStoryStep.current = storyStep;
+    if (!container || !step || !motion || !movingForward || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
+    storyAnimations.current = animateStoryStep(container, step);
+  }, [motion, result.artifact, storyStep]);
 
   if (!result.artifact) {
     return (
@@ -87,6 +163,7 @@ export function Livery({ source, story = true }: LiveryProps) {
           {scene.edges.map((edge) => (
             <g
               className={`livery-edge${toneClass(edge.tone)}${relationshipStoryClass(edge.id, storyState)}`}
+              data-livery-id={edge.id}
               key={edge.id}
             >
               <path d={edge.path} markerEnd={`url(#${markerId})`} />
