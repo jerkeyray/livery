@@ -1,7 +1,8 @@
 import {
-  compile,
+  CompilerSession,
   computeFlowScene,
   computeStoryState,
+  type CompileRevision,
   type LiverySource,
   type LiveryArtifact,
   type SemanticTone,
@@ -14,8 +15,10 @@ import { resolveRenderRevision } from "./revision.js";
 
 export type LiveryProps = {
   autoPlay?: boolean;
+  compileDelay?: number;
   source: LiverySource;
   motion?: boolean;
+  onCompile?: (revision: CompileRevision) => void;
   onStoryStepChange?: (index: number, step?: StoryStep) => void;
   retainLastValid?: boolean;
   story?: boolean;
@@ -24,6 +27,21 @@ export type LiveryProps = {
 
 function toneClass(tone?: SemanticTone) {
   return tone ? ` livery-tone-${tone}` : "";
+}
+
+function useDebouncedSource(source: LiverySource, delay: number) {
+  const [debouncedSource, setDebouncedSource] = useState(source);
+
+  useEffect(() => {
+    if (delay <= 0) {
+      setDebouncedSource(source);
+      return;
+    }
+    const timer = window.setTimeout(() => setDebouncedSource(source), delay);
+    return () => window.clearTimeout(timer);
+  }, [delay, source]);
+
+  return debouncedSource;
 }
 
 function entityStoryClass(id: string, state?: StoryState) {
@@ -98,7 +116,9 @@ function animateStoryStep(container: HTMLElement, step: StoryStep) {
 
 export function Livery({
   autoPlay = false,
+  compileDelay = 80,
   motion = true,
+  onCompile,
   onStoryStepChange,
   retainLastValid = true,
   source,
@@ -106,25 +126,34 @@ export function Livery({
   storyDelay = 900,
 }: LiveryProps) {
   const containerRef = useRef<HTMLElement>(null);
+  const compilerSession = useRef(new CompilerSession());
   const lastValidArtifact = useRef<LiveryArtifact>(undefined);
+  const onCompileRef = useRef(onCompile);
   const onStoryStepChangeRef = useRef(onStoryStepChange);
   const storyAnimations = useRef<Animation[]>([]);
   const previousStoryStep = useRef(-1);
   const [width, setWidth] = useState(720);
   const [storyStep, setStoryStep] = useState(-1);
   const [playing, setPlaying] = useState(autoPlay);
-  const result = useMemo(() => compile(source), [source]);
+  const debouncedSource = useDebouncedSource(source, Math.max(0, compileDelay));
+  const result = useMemo(() => compilerSession.current.compile(debouncedSource), [debouncedSource]);
+  const pending = debouncedSource !== source;
   const revision = resolveRenderRevision(result, lastValidArtifact.current, retainLastValid);
   const artifact = revision.artifact;
   if (result.artifact) lastValidArtifact.current = result.artifact;
   const storyLength = story && !revision.retained ? (artifact?.story.length ?? 0) : 0;
+  onCompileRef.current = onCompile;
   onStoryStepChangeRef.current = onStoryStepChange;
 
   useEffect(() => {
     previousStoryStep.current = -1;
     setStoryStep(-1);
     setPlaying(autoPlay && story);
-  }, [autoPlay, source, story]);
+  }, [autoPlay, debouncedSource, story]);
+
+  useEffect(() => {
+    onCompileRef.current?.(result);
+  }, [result]);
 
   useEffect(() => {
     onStoryStepChangeRef.current?.(storyStep, artifact?.story[storyStep]);
@@ -195,8 +224,10 @@ export function Livery({
   return (
     <figure
       aria-label={scene.accessibility.summary}
+      aria-busy={pending}
       className={`livery livery-${scene.direction}`}
-      data-livery-state={revision.retained ? "retained" : result.incomplete ? "incomplete" : "ready"}
+      data-livery-revision={result.revision}
+      data-livery-state={pending ? "pending" : revision.retained ? "retained" : result.incomplete ? "incomplete" : "ready"}
       ref={containerRef}
     >
       {revision.retained ? (

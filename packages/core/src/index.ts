@@ -8,6 +8,7 @@ export * from "./language/tokenizer.js";
 export * from "./layout.js";
 export * from "./schema.js";
 export * from "./scene.js";
+export * from "./session.js";
 export * from "./story.js";
 export * from "./text.js";
 
