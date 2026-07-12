@@ -3,6 +3,7 @@ export * from "./agent.js";
 export * from "./compiler.js";
 export * from "./diagnostics.js";
 export * from "./elements.js";
+export * from "./export.js";
 export * from "./headless.js";
 export * from "./language/formatter.js";
 export * from "./language/parser.js";
