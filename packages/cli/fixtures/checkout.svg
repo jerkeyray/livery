@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="376" viewBox="0 0 640 376" role="img" aria-labelledby="checkout-title checkout-desc">
+  <title id="checkout-title">Checkout fixture</title>
+  <desc id="checkout-desc">Checkout fixture: 3 entities and 2 relationships.</desc>
+  <rect width="640" height="376" fill="#fff"/>
+  <style>text{font-family:Inter,ui-sans-serif,system-ui,sans-serif;letter-spacing:0}.edge{fill:none;stroke:#a1a1aa;stroke-width:1.5}.edge-label{fill:#71717a;font-size:11px;font-weight:600}.node{fill:#fff;stroke:#d4d4d8}.node-role{fill:#71717a;font-size:10px;font-weight:600}.node-label{fill:#18181b;font-size:13px;font-weight:700}</style>
+  <defs>
+    <marker id="checkout-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M 0 0 L 7 3.5 L 0 7 z" fill="context-stroke"/></marker>
+  </defs>
+  <text x="16" y="24" class="node-label">Checkout fixture</text>
+  <g transform="translate(0 40)">
+    <path class="edge" data-livery-id="submission" d="M 320 92 C 320 128, 320 100, 320 136" marker-end="url(#checkout-arrow)"/>
+    <text class="edge-label" text-anchor="middle" x="330" y="114">submit order</text>
+    <path class="edge" data-livery-id="persistence" d="M 320 200 C 320 236, 320 208, 320 244" marker-end="url(#checkout-arrow)" style="stroke:#15803d"/>
+    <text class="edge-label" text-anchor="middle" x="330" y="222">persist</text>
+    <g data-livery-id="customer">
+      <title>Customer</title>
+      <rect class="node" x="244" y="28" width="152" height="64" rx="6"/>
+      <text class="node-role" text-anchor="middle" x="320" y="51">actor</text>
+      <text class="node-label" text-anchor="middle" x="320" y="69">
+        <tspan x="320" dy="0">Customer</tspan>
+      </text>
+    </g>
+    <g data-livery-id="api">
+      <title>Checkout API</title>
+      <rect class="node" x="244" y="136" width="152" height="64" rx="6"/>
+      <text class="node-role" text-anchor="middle" x="320" y="159">service</text>
+      <text class="node-label" text-anchor="middle" x="320" y="177">
+        <tspan x="320" dy="0">Checkout API</tspan>
+      </text>
+    </g>
+    <g data-livery-id="orders">
+      <title>Orders</title>
+      <rect class="node" x="244" y="244" width="152" height="64" rx="6"/>
+      <text class="node-role" text-anchor="middle" x="320" y="267">database</text>
+      <text class="node-label" text-anchor="middle" x="320" y="285">
+        <tspan x="320" dy="0">Orders</tspan>
+      </text>
+    </g>
+  </g>
+</svg>

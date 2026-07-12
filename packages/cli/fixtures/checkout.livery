@@ -1,0 +1,8 @@
+flow checkout("Checkout fixture") {
+  customer = actor("Customer")
+  api = service("Checkout API")
+  orders = database("Orders")
+
+  submission = customer -> api("submit order")
+  persistence = api -> orders("persist", tone: success)
+}

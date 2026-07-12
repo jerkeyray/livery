@@ -1,0 +1,112 @@
+{
+  "artifact": {
+    "type": "livery",
+    "version": "0.1",
+    "id": "checkout",
+    "composition": "flow",
+    "entities": [
+      {
+        "id": "customer",
+        "label": "Customer",
+        "role": "actor"
+      },
+      {
+        "id": "api",
+        "label": "Checkout API",
+        "role": "service"
+      },
+      {
+        "id": "orders",
+        "label": "Orders",
+        "role": "database"
+      }
+    ],
+    "relationships": [
+      {
+        "id": "submission",
+        "from": "customer",
+        "to": "api",
+        "label": "submit order"
+      },
+      {
+        "id": "persistence",
+        "from": "api",
+        "to": "orders",
+        "label": "persist",
+        "tone": "success"
+      }
+    ],
+    "story": [],
+    "title": "Checkout fixture"
+  },
+  "diagnostics": [],
+  "incomplete": false,
+  "scene": {
+    "id": "checkout",
+    "width": 640,
+    "height": 336,
+    "direction": "vertical",
+    "nodes": [
+      {
+        "id": "customer",
+        "label": "Customer",
+        "x": 244,
+        "y": 28,
+        "width": 152,
+        "height": 64,
+        "role": "actor"
+      },
+      {
+        "id": "api",
+        "label": "Checkout API",
+        "x": 244,
+        "y": 136,
+        "width": 152,
+        "height": 64,
+        "role": "service"
+      },
+      {
+        "id": "orders",
+        "label": "Orders",
+        "x": 244,
+        "y": 244,
+        "width": 152,
+        "height": 64,
+        "role": "database"
+      }
+    ],
+    "edges": [
+      {
+        "id": "submission",
+        "from": "customer",
+        "to": "api",
+        "path": "M 320 92 C 320 128, 320 100, 320 136",
+        "labelX": 330,
+        "labelY": 114,
+        "label": "submit order"
+      },
+      {
+        "id": "persistence",
+        "from": "api",
+        "to": "orders",
+        "path": "M 320 200 C 320 236, 320 208, 320 244",
+        "labelX": 330,
+        "labelY": 222,
+        "label": "persist",
+        "tone": "success"
+      }
+    ],
+    "accessibility": {
+      "summary": "Checkout fixture: 3 entities and 2 relationships.",
+      "readingOrder": [
+        "customer",
+        "api",
+        "orders"
+      ]
+    },
+    "title": "Checkout fixture",
+    "layout": {
+      "adapterId": "livery.fast-flow"
+    }
+  }
+}
