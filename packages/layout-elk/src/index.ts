@@ -1,4 +1,3 @@
-import ELK from "elkjs/lib/elk.bundled.js";
 import ELKApi from "elkjs/lib/elk-api.js";
 
 import {
@@ -49,12 +48,16 @@ export type ElkWorkerLayoutAdapterOptions = {
 };
 
 export function createElkLayoutAdapter(options: ElkLayoutAdapterOptions = {}): LayoutAdapter {
-  const elk = options.elk ?? (new ELK() as unknown as ElkLike);
+  let elk = options.elk;
   const fallback = options.fallback ?? fastFlowLayoutAdapter;
   return {
     id: "livery.elk-layered",
     async layout(request) {
       try {
+        if (!elk) {
+          const { default: ELK } = await import("elkjs/lib/elk.bundled.js");
+          elk = new ELK() as unknown as ElkLike;
+        }
         return await layoutWithElk(elk, request);
       } catch {
         return await fallback.layout(request);

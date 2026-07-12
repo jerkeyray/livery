@@ -8,6 +8,7 @@ import {
 } from "@livery/core";
 import { Livery } from "@livery/react";
 import { mountLivery, type LiveryWebInstance } from "@livery/web";
+import elkWorkerUrl from "@livery/layout-elk/worker?url";
 
 import "@livery/web/styles.css";
 import "@livery/react/styles.css";
@@ -39,8 +40,8 @@ let elkAdapterPromise: Promise<LayoutAdapter> | undefined;
 const lazyElkLayoutAdapter: LayoutAdapter = {
   id: "livery.lazy-elk",
   async layout(request) {
-    elkAdapterPromise ??= import("@livery/layout-elk").then(({ createElkLayoutAdapter }) =>
-      createElkLayoutAdapter(),
+    elkAdapterPromise ??= import("@livery/layout-elk").then(({ createElkWorkerLayoutAdapter }) =>
+      createElkWorkerLayoutAdapter({ workerUrl: elkWorkerUrl }),
     );
     return (await elkAdapterPromise).layout(request);
   },

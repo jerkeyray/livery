@@ -8,11 +8,12 @@
     ".": {
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
-    }
+    },
+    "./worker": "./dist/elk-worker.min.js"
   },
   "files": ["dist"],
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown && bun scripts/copy-assets.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
