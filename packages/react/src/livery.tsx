@@ -1,21 +1,24 @@
 import {
-  computeFlowScene,
   computeStoryState,
+  fastFlowLayoutAdapter,
   resolveArtifactElement,
   type ArtifactElement,
   type CompileRevision,
   type LiverySource,
+  type LayoutAdapter,
   type SemanticTone,
   type StoryStep,
   type StoryState,
 } from "@livery/core";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { LiveryController, type LiveryControllerRevision } from "@livery/web/controller";
+import { LayoutController, type LayoutControllerRevision } from "@livery/web/layout-controller";
 import { animateStoryStep, prefersReducedMotion } from "@livery/web/motion";
 
 export type LiveryProps = {
   autoPlay?: boolean;
   compileDelay?: number;
+  layoutAdapter?: LayoutAdapter;
   source: LiverySource;
   motion?: boolean;
   onCompile?: (revision: CompileRevision) => void;
@@ -58,6 +61,7 @@ function relationshipStoryClass(id: string, state?: StoryState) {
 export function Livery({
   autoPlay = false,
   compileDelay = 80,
+  layoutAdapter = fastFlowLayoutAdapter,
   motion = true,
   onCompile,
   onActivate,
@@ -69,6 +73,7 @@ export function Livery({
 }: LiveryProps) {
   const containerRef = useRef<HTMLElement>(null);
   const controller = useRef(new LiveryController());
+  const layoutController = useRef(new LayoutController());
   const compilationCache = useRef<{
     retainLastValid: boolean;
     revision: LiveryControllerRevision;
@@ -79,6 +84,7 @@ export function Livery({
   const storyAnimations = useRef<Animation[]>([]);
   const previousStoryStep = useRef(-1);
   const [width, setWidth] = useState(720);
+  const [layoutRevision, setLayoutRevision] = useState<LayoutControllerRevision>();
   const [storyStep, setStoryStep] = useState(-1);
   const [playing, setPlaying] = useState(autoPlay);
   const debouncedSource = useDebouncedSource(source, Math.max(0, compileDelay));
@@ -91,7 +97,19 @@ export function Livery({
   }, [debouncedSource, retainLastValid]);
   const pending = debouncedSource !== source;
   const artifact = result.renderArtifact;
-  const storyLength = story && !result.retained ? (artifact?.story.length ?? 0) : 0;
+  const renderArtifact = layoutRevision?.artifact;
+  const scene = layoutRevision?.scene;
+  const layoutPending = Boolean(artifact && (layoutRevision?.pending || renderArtifact !== artifact));
+  const layoutFailed = layoutRevision?.error !== undefined;
+  const hasStory = Boolean(
+    story &&
+      !result.retained &&
+      !layoutPending &&
+      renderArtifact !== undefined &&
+      renderArtifact === artifact &&
+      renderArtifact.story.length,
+  );
+  const storyLength = hasStory ? renderArtifact!.story.length : 0;
   onCompileRef.current = onCompile;
   onStoryStepChangeRef.current = onStoryStepChange;
 
@@ -111,13 +129,30 @@ export function Livery({
 
   useEffect(() => {
     if (!playing) return;
+    if (layoutPending) return;
     if (storyStep >= storyLength - 1) {
       setPlaying(false);
       return;
     }
     const timer = window.setTimeout(() => setStoryStep((step) => step + 1), Math.max(250, storyDelay));
     return () => window.clearTimeout(timer);
-  }, [playing, storyDelay, storyLength, storyStep]);
+  }, [layoutPending, playing, storyDelay, storyLength, storyStep]);
+
+  useLayoutEffect(() => {
+    if (!artifact) {
+      layoutController.current.clear();
+      setLayoutRevision(undefined);
+      return;
+    }
+    setLayoutRevision(
+      layoutController.current.update(
+        layoutAdapter,
+        { artifact, options: { width } },
+        setLayoutRevision,
+      ),
+    );
+    return () => layoutController.current.clear();
+  }, [artifact, layoutAdapter, width]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -128,20 +163,20 @@ export function Livery({
     const observer = new ResizeObserver(updateWidth);
     observer.observe(container);
     return () => observer.disconnect();
-  }, []);
+  }, [Boolean(artifact)]);
 
   useLayoutEffect(() => {
     storyAnimations.current.forEach((animation) => animation.cancel());
     storyAnimations.current = [];
     const container = containerRef.current;
-    const step = result.retained ? undefined : artifact?.story[storyStep];
+    const step = result.retained || layoutPending ? undefined : renderArtifact?.story[storyStep];
     const movingForward = storyStep === previousStoryStep.current + 1;
     previousStoryStep.current = storyStep;
     if (!container || !step || !motion || !movingForward || prefersReducedMotion(container)) {
       return;
     }
     storyAnimations.current = animateStoryStep(container, step);
-  }, [artifact, motion, result.retained, storyStep]);
+  }, [layoutPending, motion, renderArtifact, result.retained, storyStep]);
 
   if (!artifact) {
     return (
@@ -156,14 +191,25 @@ export function Livery({
     );
   }
 
-  const scene = computeFlowScene(artifact, { width });
-  const hasStory = story && !result.retained && artifact.story.length > 0;
-  const storyState = hasStory ? computeStoryState(artifact, storyStep) : undefined;
-  const markerId = `livery-arrow-${artifact.id.replaceAll(/[^A-Za-z0-9_-]/g, "-")}`;
-  const atEnd = storyStep >= artifact.story.length - 1;
+  if (!renderArtifact || !scene) {
+    return (
+      <figure
+        aria-busy={layoutPending}
+        aria-label={layoutFailed ? "Unable to lay out visual" : "Laying out visual"}
+        className={layoutFailed ? "livery-error" : "livery-pending"}
+        data-livery-state={layoutFailed ? "layout-error" : "pending-layout"}
+        ref={containerRef}
+        role={layoutFailed ? "alert" : undefined}
+      />
+    );
+  }
+
+  const storyState = hasStory ? computeStoryState(renderArtifact, storyStep) : undefined;
+  const markerId = `livery-arrow-${renderArtifact.id.replaceAll(/[^A-Za-z0-9_-]/g, "-")}`;
+  const atEnd = storyStep >= renderArtifact.story.length - 1;
   const changeStoryStep = (step: number) => {
     setPlaying(false);
-    setStoryStep(Math.max(-1, Math.min(step, artifact.story.length - 1)));
+    setStoryStep(Math.max(-1, Math.min(step, renderArtifact.story.length - 1)));
   };
   const replay = () => {
     previousStoryStep.current = -1;
@@ -174,10 +220,10 @@ export function Livery({
   return (
     <figure
       aria-label={scene.accessibility.summary}
-      aria-busy={pending}
+      aria-busy={pending || layoutPending}
       className={`livery livery-${scene.direction}`}
       data-livery-revision={result.revision}
-      data-livery-state={pending ? "pending" : result.retained ? "retained" : result.incomplete ? "incomplete" : "ready"}
+      data-livery-state={layoutPending ? "pending-layout" : layoutFailed ? "layout-error" : pending ? "pending" : result.retained ? "retained" : result.incomplete ? "incomplete" : "ready"}
       ref={containerRef}
     >
       {result.retained ? (
@@ -204,7 +250,7 @@ export function Livery({
             </marker>
           </defs>
           {scene.edges.map((edge) => {
-            const semanticElement = resolveArtifactElement(artifact, "relationship", edge.id);
+            const semanticElement = resolveArtifactElement(renderArtifact, "relationship", edge.id);
             const visible = !storyState || storyState.visibleRelationships.has(edge.id);
             return (
               <g
@@ -234,7 +280,7 @@ export function Livery({
         </svg>
 
         {scene.nodes.map((node) => {
-          const semanticElement = resolveArtifactElement(artifact, "entity", node.id);
+          const semanticElement = resolveArtifactElement(renderArtifact, "entity", node.id);
           const visible = !storyState || storyState.visibleEntities.has(node.id);
           return (
             <div
@@ -269,7 +315,7 @@ export function Livery({
             if (event.key === "ArrowLeft") changeStoryStep(storyStep - 1);
             else if (event.key === "ArrowRight") changeStoryStep(storyStep + 1);
             else if (event.key === "Home") changeStoryStep(-1);
-            else if (event.key === "End") changeStoryStep(artifact.story.length - 1);
+            else if (event.key === "End") changeStoryStep(renderArtifact.story.length - 1);
             else if (event.key === " ") atEnd ? replay() : setPlaying((value) => !value);
             else return;
             event.preventDefault();
@@ -297,13 +343,13 @@ export function Livery({
           <span aria-live="polite">
             {storyStep < 0
               ? "Ready"
-              : `${storyStep + 1} of ${artifact.story.length}: ${artifact.story[storyStep]!.action} ${artifact.story[storyStep]!.targets.map(({ id }) => id).join(", ")}`}
+              : `${storyStep + 1} of ${renderArtifact.story.length}: ${renderArtifact.story[storyStep]!.action} ${renderArtifact.story[storyStep]!.targets.map(({ id }) => id).join(", ")}`}
           </span>
         </div>
       ) : null}
 
       <ul className="livery-sr-only">
-        {artifact.relationships.map((relationship) => (
+        {renderArtifact.relationships.map((relationship) => (
           <li key={relationship.id}>
             {relationship.from} to {relationship.to}
             {relationship.label ? `: ${relationship.label}` : ""}
