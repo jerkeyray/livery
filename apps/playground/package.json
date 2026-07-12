@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@livery/core": "workspace:*",
+    "@livery/layout-elk": "workspace:*",
     "@livery/react": "workspace:*",
     "@livery/web": "workspace:*",
     "react": "^19.0.0",

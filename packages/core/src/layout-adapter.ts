@@ -23,6 +23,11 @@ export type LayoutPolicyOptions = {
   maxFastRelationships?: number;
 };
 
+export type LayoutPolicyAdapterOptions = LayoutPolicyOptions & {
+  advanced?: LayoutAdapter;
+  fast?: LayoutAdapter;
+};
+
 export const fastFlowLayoutAdapter: LayoutAdapter = {
   id: "livery.fast-flow",
   layout: ({ artifact, options }) => computeFlowScene(artifact, options),
@@ -50,6 +55,23 @@ export function selectLayoutAdapter(
   const complexity = analyzeLayoutComplexity(artifact, options);
   if (complexity.advanced && adapters.advanced) return adapters.advanced;
   return adapters.fast ?? fastFlowLayoutAdapter;
+}
+
+export function createLayoutPolicyAdapter(options: LayoutPolicyAdapterOptions = {}): LayoutAdapter {
+  const { advanced, fast, ...policy } = options;
+  return {
+    id: "livery.layout-policy",
+    layout(request) {
+      return selectLayoutAdapter(
+        request.artifact,
+        {
+          ...(advanced ? { advanced } : {}),
+          ...(fast ? { fast } : {}),
+        },
+        policy,
+      ).layout(request);
+    },
+  };
 }
 
 export async function layoutWithAdapter(adapter: LayoutAdapter, request: LayoutRequest) {

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { compile } from "./compiler.js";
 import {
   analyzeLayoutComplexity,
+  createLayoutPolicyAdapter,
   fastFlowLayoutAdapter,
   layoutWithAdapter,
   selectLayoutAdapter,
@@ -46,5 +47,22 @@ describe("layout adapters", () => {
 
     expect(layout).toHaveBeenCalledOnce();
     expect(scene.id).toBe("async");
+  });
+
+  it("selects an adapter for each policy request", async () => {
+    const small = compile(`flow small { a -> b }`).artifact!;
+    const cycle = compile(`flow cycle {
+      a -> b
+      b -> a
+    }`).artifact!;
+    const fast = { id: "fast", layout: vi.fn(fastFlowLayoutAdapter.layout) } satisfies LayoutAdapter;
+    const advanced = { id: "advanced", layout: vi.fn(fastFlowLayoutAdapter.layout) } satisfies LayoutAdapter;
+    const policy = createLayoutPolicyAdapter({ advanced, fast });
+
+    await layoutWithAdapter(policy, { artifact: small, options: { width: 720 } });
+    await layoutWithAdapter(policy, { artifact: cycle, options: { width: 720 } });
+
+    expect(fast.layout).toHaveBeenCalledOnce();
+    expect(advanced.layout).toHaveBeenCalledOnce();
   });
 });

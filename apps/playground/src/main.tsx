@@ -1,6 +1,11 @@
 import { StrictMode, useLayoutEffect, useRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import type { ArtifactElement } from "@livery/core";
+import {
+  createLayoutPolicyAdapter,
+  fastFlowLayoutAdapter,
+  type ArtifactElement,
+  type LayoutAdapter,
+} from "@livery/core";
 import { Livery } from "@livery/react";
 import { mountLivery, type LiveryWebInstance } from "@livery/web";
 
@@ -30,10 +35,24 @@ const initialSource = `flow checkout("Checkout request") {
   }
 }`;
 
+let elkAdapterPromise: Promise<LayoutAdapter> | undefined;
+const lazyElkLayoutAdapter: LayoutAdapter = {
+  id: "livery.lazy-elk",
+  async layout(request) {
+    elkAdapterPromise ??= import("@livery/layout-elk").then(({ createElkLayoutAdapter }) =>
+      createElkLayoutAdapter(),
+    );
+    return (await elkAdapterPromise).layout(request);
+  },
+};
+const automaticLayoutAdapter = createLayoutPolicyAdapter({ advanced: lazyElkLayoutAdapter });
+
 function Playground() {
   const [source, setSource] = useState(initialSource);
   const [renderer, setRenderer] = useState<"react" | "web">("react");
+  const [layoutMode, setLayoutMode] = useState<"auto" | "fast">("auto");
   const [selection, setSelection] = useState<ArtifactElement>();
+  const layoutAdapter = layoutMode === "auto" ? automaticLayoutAdapter : fastFlowLayoutAdapter;
 
   return (
     <main>
@@ -53,21 +72,31 @@ function Playground() {
           />
         </section>
         <section aria-label="Preview" className="preview-pane">
-          <div aria-label="Renderer" className="renderer-switch" role="group">
-            <button aria-pressed={renderer === "react"} onClick={() => setRenderer("react")} type="button">
-              React
-            </button>
-            <button aria-pressed={renderer === "web"} onClick={() => setRenderer("web")} type="button">
-              Web
-            </button>
+          <div className="preview-controls">
+            <div aria-label="Renderer" className="segmented-control" role="group">
+              <button aria-pressed={renderer === "react"} onClick={() => setRenderer("react")} type="button">
+                React
+              </button>
+              <button aria-pressed={renderer === "web"} onClick={() => setRenderer("web")} type="button">
+                Web
+              </button>
+            </div>
+            <div aria-label="Layout" className="segmented-control" role="group">
+              <button aria-pressed={layoutMode === "auto"} onClick={() => setLayoutMode("auto")} type="button">
+                Auto
+              </button>
+              <button aria-pressed={layoutMode === "fast"} onClick={() => setLayoutMode("fast")} type="button">
+                Fast
+              </button>
+            </div>
           </div>
           <output className="selection-status">
             {selection ? `Selected: ${selection.type} ${selection.value.id}` : "No selection"}
           </output>
           {renderer === "react" ? (
-            <Livery onActivate={setSelection} source={source} />
+            <Livery layoutAdapter={layoutAdapter} onActivate={setSelection} source={source} />
           ) : (
-            <WebPreview onActivate={setSelection} source={source} />
+            <WebPreview layoutAdapter={layoutAdapter} onActivate={setSelection} source={source} />
           )}
         </section>
       </div>
@@ -75,24 +104,31 @@ function Playground() {
   );
 }
 
-function WebPreview({ onActivate, source }: { onActivate: (element: ArtifactElement) => void; source: string }) {
+function WebPreview({
+  layoutAdapter,
+  onActivate,
+  source,
+}: {
+  layoutAdapter: LayoutAdapter;
+  onActivate: (element: ArtifactElement) => void;
+  source: string;
+}) {
   const hostRef = useRef<HTMLDivElement>(null);
   const instanceRef = useRef<LiveryWebInstance>(undefined);
 
   useLayoutEffect(() => {
     const host = hostRef.current;
     if (!host) return;
-    if (instanceRef.current) instanceRef.current.update(source);
-    else instanceRef.current = mountLivery(host, source, { onActivate });
-  }, [onActivate, source]);
-
-  useLayoutEffect(
-    () => () => {
+    instanceRef.current = mountLivery(host, source, { layoutAdapter, onActivate });
+    return () => {
       instanceRef.current?.destroy();
       instanceRef.current = undefined;
-    },
-    [],
-  );
+    };
+  }, [layoutAdapter, onActivate]);
+
+  useLayoutEffect(() => {
+    instanceRef.current?.update(source);
+  }, [source]);
 
   return <div ref={hostRef} />;
 }

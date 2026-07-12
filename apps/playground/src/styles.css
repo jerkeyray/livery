@@ -71,16 +71,22 @@ h1 {
   min-width: 0;
 }
 
-.renderer-switch {
-  display: inline-flex;
+.preview-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-bottom: 10px;
+}
+
+.segmented-control {
+  display: inline-flex;
   padding: 2px;
   border: 1px solid #d4d4d4;
   border-radius: 6px;
   background: #e7e5e4;
 }
 
-.renderer-switch button {
+.segmented-control button {
   min-width: 64px;
   min-height: 28px;
   padding: 4px 10px;
@@ -92,13 +98,13 @@ h1 {
   cursor: pointer;
 }
 
-.renderer-switch button[aria-pressed="true"] {
+.segmented-control button[aria-pressed="true"] {
   background: #ffffff;
   color: #171717;
   box-shadow: 0 1px 2px rgb(0 0 0 / 10%);
 }
 
-.renderer-switch button:focus-visible {
+.segmented-control button:focus-visible {
   outline: 2px solid #2563eb;
   outline-offset: 2px;
 }
