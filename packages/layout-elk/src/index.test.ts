@@ -1,7 +1,7 @@
 import { compile, fastFlowLayoutAdapter, layoutWithAdapter, type LayoutAdapter } from "@livery/core";
 import { describe, expect, it, vi } from "vitest";
 
-import { createElkLayoutAdapter } from "./index.js";
+import { createElkLayoutAdapter, createElkWorkerLayoutAdapter } from "./index.js";
 
 const cycle = compile(`flow cycle("Cyclic flow") {
   first = a -> b("one")
@@ -33,6 +33,43 @@ describe("ELK layout adapter", () => {
       artifact: cycle,
       options: { width: 960 },
     });
+
+    expect(fallback.layout).toHaveBeenCalledOnce();
+    expect(scene.id).toBe("cycle");
+  });
+
+  it("lazily delegates to a worker client and terminates it", async () => {
+    const layout = vi.fn(async (graph: {
+      children?: Array<{ id: string; width?: number; height?: number }>;
+      edges?: Array<{ id: string }>;
+      id: string;
+    }) => ({
+      ...graph,
+      height: 180,
+      width: 560,
+      ...(graph.children
+        ? { children: graph.children.map((child, index) => ({ ...child, x: 28 + index * 250, y: 28 })) }
+        : {}),
+    }));
+    const workerClient = {
+      layout,
+      terminateWorker: vi.fn(),
+    };
+    const adapter = createElkWorkerLayoutAdapter({ elk: workerClient });
+
+    expect(layout).not.toHaveBeenCalled();
+    const scene = await layoutWithAdapter(adapter, { artifact: cycle, options: { width: 960 } });
+    adapter.terminate();
+
+    expect(scene.id).toBe("cycle");
+    expect(layout).toHaveBeenCalledOnce();
+    expect(workerClient.terminateWorker).toHaveBeenCalledOnce();
+  });
+
+  it("falls back when no worker URL is available", async () => {
+    const fallback = { id: "fallback", layout: vi.fn(fastFlowLayoutAdapter.layout) } satisfies LayoutAdapter;
+    const adapter = createElkWorkerLayoutAdapter({ fallback });
+    const scene = await layoutWithAdapter(adapter, { artifact: cycle, options: { width: 960 } });
 
     expect(fallback.layout).toHaveBeenCalledOnce();
     expect(scene.id).toBe("cycle");

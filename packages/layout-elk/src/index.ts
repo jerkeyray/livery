@@ -1,4 +1,5 @@
 import ELK from "elkjs/lib/elk.bundled.js";
+import ELKApi from "elkjs/lib/elk-api.js";
 
 import {
   estimatedMeasurementService,
@@ -23,10 +24,28 @@ type ElkGraph = {
   layoutOptions?: Record<string, string>;
 };
 type ElkLike = { layout(graph: ElkGraph): Promise<ElkGraph> };
+type ElkWorkerLike = ElkLike & { terminateWorker(): void };
+
+export type ElkWorker = {
+  addEventListener(type: string, listener: (event: unknown) => void): void;
+  postMessage(message: unknown): void;
+  terminate(): void;
+};
 
 export type ElkLayoutAdapterOptions = {
   elk?: ElkLike;
   fallback?: LayoutAdapter;
+};
+
+export type ElkWorkerLayoutAdapter = LayoutAdapter & {
+  terminate(): void;
+};
+
+export type ElkWorkerLayoutAdapterOptions = {
+  elk?: ElkWorkerLike;
+  fallback?: LayoutAdapter;
+  workerFactory?: (url: string) => ElkWorker;
+  workerUrl?: string | URL;
 };
 
 export function createElkLayoutAdapter(options: ElkLayoutAdapterOptions = {}): LayoutAdapter {
@@ -40,6 +59,45 @@ export function createElkLayoutAdapter(options: ElkLayoutAdapterOptions = {}): L
       } catch {
         return await fallback.layout(request);
       }
+    },
+  };
+}
+
+export function createElkWorkerLayoutAdapter(
+  options: ElkWorkerLayoutAdapterOptions,
+): ElkWorkerLayoutAdapter {
+  let elk = options.elk;
+  let adapter: LayoutAdapter | undefined;
+  const resolveAdapter = () => {
+    if (adapter) return adapter;
+    if (!elk) {
+      if (!options.workerUrl) throw new Error("An ELK worker URL is required.");
+      elk = new ELKApi({
+        workerUrl: String(options.workerUrl),
+        ...(options.workerFactory
+          ? { workerFactory: options.workerFactory as unknown as (url?: string) => Worker }
+          : {}),
+      }) as unknown as ElkWorkerLike;
+    }
+    adapter = createElkLayoutAdapter({
+      elk,
+      ...(options.fallback ? { fallback: options.fallback } : {}),
+    });
+    return adapter;
+  };
+  return {
+    id: "livery.elk-worker-layered",
+    layout(request) {
+      try {
+        return resolveAdapter().layout(request);
+      } catch {
+        return (options.fallback ?? fastFlowLayoutAdapter).layout(request);
+      }
+    },
+    terminate() {
+      elk?.terminateWorker();
+      elk = undefined;
+      adapter = undefined;
     },
   };
 }
