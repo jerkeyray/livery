@@ -14,6 +14,7 @@ describe("LayoutController", () => {
     });
 
     expect(revision).toMatchObject({ adapterId: "livery.fast-flow", pending: false, request: 1 });
+    expect(revision.durationMs).toBeGreaterThanOrEqual(0);
     expect(revision.scene?.id).toBe("first");
   });
 
@@ -33,6 +34,10 @@ describe("LayoutController", () => {
     await Promise.resolve();
 
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ artifact: second, pending: false }));
+    expect(controller.revision).toMatchObject({
+      adapterId: "livery.fast-flow",
+      requestedAdapterId: "async",
+    });
   });
 
   it("ignores stale async results", async () => {

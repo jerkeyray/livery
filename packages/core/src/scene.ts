@@ -3,6 +3,13 @@ import type { MeasurementService } from "./measurement.js";
 
 export type SceneDirection = "horizontal" | "vertical";
 
+export type SceneLayoutMetadata = {
+  adapterId: string;
+  complexityReasons?: Array<"cycle" | "entity_count" | "relationship_count">;
+  fallback?: boolean;
+  requestedAdapterId?: string;
+};
+
 export type SceneNode = {
   id: string;
   label: string;
@@ -33,6 +40,7 @@ export type Scene = {
   direction: SceneDirection;
   nodes: SceneNode[];
   edges: SceneEdge[];
+  layout?: SceneLayoutMetadata;
   accessibility: {
     summary: string;
     readingOrder: string[];

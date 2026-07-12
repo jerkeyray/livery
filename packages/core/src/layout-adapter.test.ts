@@ -60,9 +60,10 @@ describe("layout adapters", () => {
     const policy = createLayoutPolicyAdapter({ advanced, fast });
 
     await layoutWithAdapter(policy, { artifact: small, options: { width: 720 } });
-    await layoutWithAdapter(policy, { artifact: cycle, options: { width: 720 } });
+    const scene = await layoutWithAdapter(policy, { artifact: cycle, options: { width: 720 } });
 
     expect(fast.layout).toHaveBeenCalledOnce();
     expect(advanced.layout).toHaveBeenCalledOnce();
+    expect(scene.layout).toEqual({ adapterId: "livery.fast-flow", complexityReasons: ["cycle"] });
   });
 });

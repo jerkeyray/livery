@@ -223,6 +223,9 @@ export function Livery({
       aria-busy={pending || layoutPending}
       className={`livery livery-${scene.direction}`}
       data-livery-revision={result.revision}
+      data-livery-layout={!layoutPending ? layoutRevision?.adapterId : undefined}
+      data-livery-layout-fallback={!layoutPending && layoutRevision?.fallback ? "true" : undefined}
+      data-livery-layout-ms={!layoutPending ? layoutRevision?.durationMs : undefined}
       data-livery-state={layoutPending ? "pending-layout" : layoutFailed ? "layout-error" : pending ? "pending" : result.retained ? "retained" : result.incomplete ? "incomplete" : "ready"}
       ref={containerRef}
     >

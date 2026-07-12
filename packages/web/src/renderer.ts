@@ -101,6 +101,7 @@ export function mountLivery(
             options.onActivate,
             layoutPending,
             layoutFailed,
+            currentLayout,
           )
         : currentArtifact && currentLayout?.pending
           ? createPending(container.ownerDocument)
@@ -288,6 +289,7 @@ function createFigure(
   onActivate?: (element: ArtifactElement) => void,
   layoutPending = false,
   layoutFailed = false,
+  layout?: LayoutControllerRevision,
 ) {
   const figure = document.createElement("figure");
   figure.className = `livery livery-${scene.direction}`;
@@ -303,6 +305,11 @@ function createFigure(
           : "ready";
   figure.setAttribute("aria-busy", String(layoutPending));
   figure.setAttribute("aria-label", scene.accessibility.summary);
+  if (!layoutPending && layout) {
+    figure.dataset.liveryLayout = layout.adapterId;
+    if (layout.durationMs !== undefined) figure.dataset.liveryLayoutMs = String(layout.durationMs);
+    if (layout.fallback) figure.dataset.liveryLayoutFallback = "true";
+  }
 
   if (retained) figure.append(createDiagnostics(document, revision));
   if (scene.title) {

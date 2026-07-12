@@ -3,6 +3,7 @@ import ELKApi from "elkjs/lib/elk-api.js";
 import {
   estimatedMeasurementService,
   fastFlowLayoutAdapter,
+  withLayoutMetadata,
   type LayoutAdapter,
   type LayoutRequest,
   type Scene,
@@ -58,9 +59,9 @@ export function createElkLayoutAdapter(options: ElkLayoutAdapterOptions = {}): L
           const { default: ELK } = await import("elkjs/lib/elk.bundled.js");
           elk = new ELK() as unknown as ElkLike;
         }
-        return await layoutWithElk(elk, request);
+        return withLayoutMetadata(await layoutWithElk(elk, request), { adapterId: "livery.elk-layered" });
       } catch {
-        return await fallback.layout(request);
+        return await fallbackScene(fallback, request, "livery.elk-layered");
       }
     },
   };
@@ -90,14 +91,29 @@ export function createElkWorkerLayoutAdapter(
     id: "livery.elk-worker-layered",
     async layout(request) {
       try {
-        return await layoutWithCancellation(resolveElk(), request, resetWorker);
+        return withLayoutMetadata(await layoutWithCancellation(resolveElk(), request, resetWorker), {
+          adapterId: "livery.elk-worker-layered",
+        });
       } catch (error) {
         if (isAbortError(error)) throw error;
-        return await (options.fallback ?? fastFlowLayoutAdapter).layout(request);
+        return await fallbackScene(
+          options.fallback ?? fastFlowLayoutAdapter,
+          request,
+          "livery.elk-worker-layered",
+        );
       }
     },
     terminate: resetWorker,
   };
+}
+
+async function fallbackScene(fallback: LayoutAdapter, request: LayoutRequest, requestedAdapterId: string) {
+  const scene = await fallback.layout(request);
+  return withLayoutMetadata(scene, {
+    ...(scene.layout ?? { adapterId: fallback.id }),
+    fallback: true,
+    requestedAdapterId,
+  });
 }
 
 function layoutWithCancellation(

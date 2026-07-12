@@ -36,6 +36,7 @@ describe("ELK layout adapter", () => {
 
     expect(fallback.layout).toHaveBeenCalledOnce();
     expect(scene.id).toBe("cycle");
+    expect(scene.layout).toMatchObject({ fallback: true, requestedAdapterId: "livery.elk-layered" });
   });
 
   it("lazily delegates to a worker client and terminates it", async () => {

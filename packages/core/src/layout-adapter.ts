@@ -1,6 +1,6 @@
 import type { LiveryArtifact } from "./artifact.js";
 import { computeFlowScene } from "./layout.js";
-import type { FlowLayoutOptions, Scene } from "./scene.js";
+import type { FlowLayoutOptions, Scene, SceneLayoutMetadata } from "./scene.js";
 
 export type LayoutComplexity = {
   advanced: boolean;
@@ -31,7 +31,8 @@ export type LayoutPolicyAdapterOptions = LayoutPolicyOptions & {
 
 export const fastFlowLayoutAdapter: LayoutAdapter = {
   id: "livery.fast-flow",
-  layout: ({ artifact, options }) => computeFlowScene(artifact, options),
+  layout: ({ artifact, options }) =>
+    withLayoutMetadata(computeFlowScene(artifact, options), { adapterId: "livery.fast-flow" }),
 };
 
 export function analyzeLayoutComplexity(
@@ -63,16 +64,31 @@ export function createLayoutPolicyAdapter(options: LayoutPolicyAdapterOptions = 
   return {
     id: "livery.layout-policy",
     layout(request) {
-      return selectLayoutAdapter(
+      const complexity = analyzeLayoutComplexity(request.artifact, policy);
+      const selected = selectLayoutAdapter(
         request.artifact,
         {
           ...(advanced ? { advanced } : {}),
           ...(fast ? { fast } : {}),
         },
         policy,
-      ).layout(request);
+      );
+      return mapLayoutScene(selected.layout(request), (scene) =>
+        withLayoutMetadata(scene, {
+          ...(scene.layout ?? { adapterId: selected.id }),
+          ...(complexity.reasons.length ? { complexityReasons: complexity.reasons } : {}),
+        }),
+      );
     },
   };
+}
+
+export function withLayoutMetadata(scene: Scene, metadata: SceneLayoutMetadata): Scene {
+  return { ...scene, layout: metadata };
+}
+
+function mapLayoutScene(output: Scene | Promise<Scene>, map: (scene: Scene) => Scene) {
+  return output instanceof Promise ? output.then(map) : map(output);
 }
 
 export async function layoutWithAdapter(adapter: LayoutAdapter, request: LayoutRequest) {

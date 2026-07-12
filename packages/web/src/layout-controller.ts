@@ -6,6 +6,9 @@ export type LayoutControllerRevision = {
   error?: unknown;
   pending: boolean;
   request: number;
+  durationMs?: number;
+  fallback?: boolean;
+  requestedAdapterId?: string;
   scene?: Scene;
 };
 
@@ -28,6 +31,7 @@ export class LayoutController {
     this.#abort?.abort();
     this.#abort = new AbortController();
     const requestId = ++this.#request;
+    const startedAt = now();
     let output: Scene | Promise<Scene>;
     try {
       output = adapter.layout({ ...request, signal: this.#abort.signal });
@@ -36,7 +40,7 @@ export class LayoutController {
     }
 
     if (!isPromise(output)) {
-      return this.#complete(adapter.id, requestId, request.artifact, output);
+      return this.#complete(adapter.id, requestId, request.artifact, output, now() - startedAt);
     }
 
     this.#revision = {
@@ -49,7 +53,7 @@ export class LayoutController {
     void output.then(
       (scene) => {
         if (this.#destroyed || requestId !== this.#request) return;
-        onChange?.(this.#complete(adapter.id, requestId, request.artifact, scene));
+        onChange?.(this.#complete(adapter.id, requestId, request.artifact, scene, now() - startedAt));
       },
       (error: unknown) => {
         if (this.#destroyed || requestId !== this.#request) return;
@@ -71,8 +75,24 @@ export class LayoutController {
     this.clear();
   }
 
-  #complete(adapterId: string, request: number, artifact: LiveryArtifact, scene: Scene) {
-    this.#revision = { adapterId, artifact, pending: false, request, scene };
+  #complete(
+    requestedAdapterId: string,
+    request: number,
+    artifact: LiveryArtifact,
+    scene: Scene,
+    durationMs: number,
+  ) {
+    const adapterId = scene.layout?.adapterId ?? requestedAdapterId;
+    this.#revision = {
+      adapterId,
+      artifact,
+      durationMs: Math.max(0, Math.round(durationMs * 10) / 10),
+      ...(scene.layout?.fallback ? { fallback: true } : {}),
+      pending: false,
+      request,
+      ...(adapterId !== requestedAdapterId ? { requestedAdapterId } : {}),
+      scene,
+    };
     return this.#revision;
   }
 
@@ -91,4 +111,8 @@ export class LayoutController {
 
 function isPromise(value: Scene | Promise<Scene>): value is Promise<Scene> {
   return typeof (value as Promise<Scene>).then === "function";
+}
+
+function now() {
+  return globalThis.performance?.now() ?? Date.now();
 }
