@@ -1,6 +1,8 @@
 import {
   computeFlowScene,
   computeStoryState,
+  resolveArtifactElement,
+  type ArtifactElement,
   type CompileRevision,
   type LiverySource,
   type SemanticTone,
@@ -17,6 +19,7 @@ export type LiveryProps = {
   source: LiverySource;
   motion?: boolean;
   onCompile?: (revision: CompileRevision) => void;
+  onActivate?: (element: ArtifactElement) => void;
   onStoryStepChange?: (index: number, step?: StoryStep) => void;
   retainLastValid?: boolean;
   story?: boolean;
@@ -57,6 +60,7 @@ export function Livery({
   compileDelay = 80,
   motion = true,
   onCompile,
+  onActivate,
   onStoryStepChange,
   retainLastValid = true,
   source,
@@ -189,7 +193,7 @@ export function Livery({
       {scene.title ? <figcaption className="livery-title">{scene.title}</figcaption> : null}
       <div className="livery-scene" style={{ height: scene.height }}>
         <svg
-          aria-hidden="true"
+          aria-hidden={onActivate ? undefined : "true"}
           className="livery-connections"
           preserveAspectRatio="none"
           viewBox={`0 0 ${scene.width} ${scene.height}`}
@@ -199,11 +203,24 @@ export function Livery({
               <path className="livery-arrow" d="M 0 0 L 7 3.5 L 0 7 z" />
             </marker>
           </defs>
-          {scene.edges.map((edge) => (
-            <g
-              className={`livery-edge${toneClass(edge.tone)}${relationshipStoryClass(edge.id, storyState)}`}
+          {scene.edges.map((edge) => {
+            const semanticElement = resolveArtifactElement(artifact, "relationship", edge.id);
+            const visible = !storyState || storyState.visibleRelationships.has(edge.id);
+            return (
+              <g
+              aria-label={onActivate && semanticElement && visible ? `${semanticElement.value.from} to ${semanticElement.value.to}${semanticElement.value.label ? `: ${semanticElement.value.label}` : ""}` : undefined}
+              aria-hidden={!visible ? "true" : undefined}
+              className={`livery-edge${toneClass(edge.tone)}${relationshipStoryClass(edge.id, storyState)}${onActivate && semanticElement && visible ? " livery-interactive" : ""}`}
               data-livery-id={edge.id}
               key={edge.id}
+              onClick={onActivate && semanticElement && visible ? () => onActivate(semanticElement) : undefined}
+              onKeyDown={onActivate && semanticElement && visible ? (event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                onActivate(semanticElement);
+              } : undefined}
+              role={onActivate && semanticElement && visible ? "button" : undefined}
+              tabIndex={onActivate && semanticElement && visible ? 0 : undefined}
             >
               <path d={edge.path} markerEnd={`url(#${markerId})`} />
               {edge.label ? (
@@ -211,21 +228,36 @@ export function Livery({
                   {edge.label}
                 </text>
               ) : null}
-            </g>
-          ))}
+              </g>
+            );
+          })}
         </svg>
 
-        {scene.nodes.map((node) => (
-          <div
-            className={`livery-node${toneClass(node.tone)}${entityStoryClass(node.id, storyState)}`}
+        {scene.nodes.map((node) => {
+          const semanticElement = resolveArtifactElement(artifact, "entity", node.id);
+          const visible = !storyState || storyState.visibleEntities.has(node.id);
+          return (
+            <div
+            aria-label={onActivate && semanticElement && visible ? semanticElement.value.label : undefined}
+            aria-hidden={!visible ? "true" : undefined}
+            className={`livery-node${toneClass(node.tone)}${entityStoryClass(node.id, storyState)}${onActivate && semanticElement && visible ? " livery-interactive" : ""}`}
             data-livery-id={node.id}
             key={node.id}
+            onClick={onActivate && semanticElement && visible ? () => onActivate(semanticElement) : undefined}
+            onKeyDown={onActivate && semanticElement && visible ? (event) => {
+              if (event.key !== "Enter" && event.key !== " ") return;
+              event.preventDefault();
+              onActivate(semanticElement);
+            } : undefined}
+            role={onActivate && semanticElement && visible ? "button" : undefined}
             style={{ height: node.height, left: node.x, top: node.y, width: node.width }}
+            tabIndex={onActivate && semanticElement && visible ? 0 : undefined}
           >
             {node.role ? <span className="livery-node-role">{node.role}</span> : null}
             <strong>{node.label}</strong>
-          </div>
-        ))}
+            </div>
+          );
+        })}
       </div>
 
       {hasStory ? (

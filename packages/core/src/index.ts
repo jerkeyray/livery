@@ -2,6 +2,7 @@ export * from "./artifact.js";
 export * from "./agent.js";
 export * from "./compiler.js";
 export * from "./diagnostics.js";
+export * from "./elements.js";
 export * from "./language/formatter.js";
 export * from "./language/parser.js";
 export * from "./language/syntax.js";

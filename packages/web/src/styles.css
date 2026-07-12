@@ -200,6 +200,20 @@
   text-transform: uppercase;
 }
 
+.livery-interactive {
+  cursor: pointer;
+}
+
+.livery-node.livery-interactive:focus-visible {
+  outline: 2px solid var(--livery-accent);
+  outline-offset: 3px;
+}
+
+.livery-edge.livery-interactive:focus-visible > path {
+  stroke: var(--livery-accent);
+  stroke-width: 3;
+}
+
 .livery-tone-success {
   --livery-edge: var(--livery-success);
 }

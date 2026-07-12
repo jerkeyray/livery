@@ -1,5 +1,6 @@
 import { StrictMode, useLayoutEffect, useRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import type { ArtifactElement } from "@livery/core";
 import { Livery } from "@livery/react";
 import { mountLivery, type LiveryWebInstance } from "@livery/web";
 
@@ -32,6 +33,7 @@ const initialSource = `flow checkout("Checkout request") {
 function Playground() {
   const [source, setSource] = useState(initialSource);
   const [renderer, setRenderer] = useState<"react" | "web">("react");
+  const [selection, setSelection] = useState<ArtifactElement>();
 
   return (
     <main>
@@ -59,14 +61,21 @@ function Playground() {
               Web
             </button>
           </div>
-          {renderer === "react" ? <Livery source={source} /> : <WebPreview source={source} />}
+          <output className="selection-status">
+            {selection ? `Selected: ${selection.type} ${selection.value.id}` : "No selection"}
+          </output>
+          {renderer === "react" ? (
+            <Livery onActivate={setSelection} source={source} />
+          ) : (
+            <WebPreview onActivate={setSelection} source={source} />
+          )}
         </section>
       </div>
     </main>
   );
 }
 
-function WebPreview({ source }: { source: string }) {
+function WebPreview({ onActivate, source }: { onActivate: (element: ArtifactElement) => void; source: string }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const instanceRef = useRef<LiveryWebInstance>(undefined);
 
@@ -74,8 +83,8 @@ function WebPreview({ source }: { source: string }) {
     const host = hostRef.current;
     if (!host) return;
     if (instanceRef.current) instanceRef.current.update(source);
-    else instanceRef.current = mountLivery(host, source);
-  }, [source]);
+    else instanceRef.current = mountLivery(host, source, { onActivate });
+  }, [onActivate, source]);
 
   useLayoutEffect(
     () => () => {

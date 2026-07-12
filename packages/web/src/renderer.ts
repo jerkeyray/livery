@@ -1,6 +1,8 @@
 import {
   computeFlowScene,
   computeStoryState,
+  resolveArtifactElement,
+  type ArtifactElement,
   type CompileRevision,
   type LiveryArtifact,
   type LiverySource,
@@ -16,6 +18,7 @@ export type LiveryWebOptions = {
   autoPlay?: boolean;
   motion?: boolean;
   observeResize?: boolean;
+  onActivate?: (element: ArtifactElement) => void;
   onStoryStepChange?: (index: number) => void;
   retainLastValid?: boolean;
   story?: boolean;
@@ -81,6 +84,7 @@ export function mountLivery(
             resolveWidth(container, options),
             storyEnabled() ? computeStoryState(currentArtifact, storyStep) : undefined,
             storyEnabled() && options.storyControls !== false ? storyControls : undefined,
+            options.onActivate,
           )
         : createError(container.ownerDocument, currentResult),
     );
@@ -240,6 +244,7 @@ function createFigure(
   width: number,
   storyState?: StoryState,
   controls?: StoryControlActions,
+  onActivate?: (element: ArtifactElement) => void,
 ) {
   const scene = computeFlowScene(artifact, { width });
   const figure = document.createElement("figure");
@@ -255,22 +260,36 @@ function createFigure(
     caption.textContent = scene.title;
     figure.append(caption);
   }
-  figure.append(createScene(document, scene, markerId, storyState), createAccessibilityList(document, artifact));
+  figure.append(
+    createScene(document, artifact, scene, markerId, storyState, onActivate),
+    createAccessibilityList(document, artifact),
+  );
   if (controls) figure.append(createStoryControls(document, artifact, controls));
   return figure;
 }
 
-function createScene(document: Document, scene: Scene, markerId: string, storyState?: StoryState) {
+function createScene(
+  document: Document,
+  artifact: LiveryArtifact,
+  scene: Scene,
+  markerId: string,
+  storyState?: StoryState,
+  onActivate?: (element: ArtifactElement) => void,
+) {
   const container = document.createElement("div");
   container.className = "livery-scene";
   container.style.height = `${scene.height}px`;
-  container.append(createConnections(document, scene, markerId, storyState));
+  container.append(createConnections(document, artifact, scene, markerId, storyState, onActivate));
 
   for (const node of scene.nodes) {
     const element = document.createElement("div");
     element.className = `livery-node${node.tone ? ` livery-tone-${node.tone}` : ""}`;
     applyEntityStoryClasses(element, node.id, storyState);
     element.dataset.liveryId = node.id;
+    const semanticElement = resolveArtifactElement(artifact, "entity", node.id);
+    if (semanticElement && onActivate) {
+      makeInteractive(element, semanticElement, onActivate, node.label);
+    }
     Object.assign(element.style, {
       height: `${node.height}px`,
       left: `${node.x}px`,
@@ -291,10 +310,17 @@ function createScene(document: Document, scene: Scene, markerId: string, storySt
   return container;
 }
 
-function createConnections(document: Document, scene: Scene, markerId: string, storyState?: StoryState) {
+function createConnections(
+  document: Document,
+  artifact: LiveryArtifact,
+  scene: Scene,
+  markerId: string,
+  storyState?: StoryState,
+  onActivate?: (element: ArtifactElement) => void,
+) {
   const svg = document.createElementNS(SVG_NAMESPACE, "svg");
   svg.classList.add("livery-connections");
-  svg.setAttribute("aria-hidden", "true");
+  if (!onActivate) svg.setAttribute("aria-hidden", "true");
   svg.setAttribute("preserveAspectRatio", "none");
   svg.setAttribute("viewBox", `0 0 ${scene.width} ${scene.height}`);
   const definitions = document.createElementNS(SVG_NAMESPACE, "defs");
@@ -315,6 +341,16 @@ function createConnections(document: Document, scene: Scene, markerId: string, s
     if (edge.tone) group.classList.add(`livery-tone-${edge.tone}`);
     applyRelationshipStoryClasses(group, edge.id, storyState);
     group.dataset.liveryId = edge.id;
+    const semanticElement = resolveArtifactElement(artifact, "relationship", edge.id);
+    if (semanticElement && onActivate) {
+      const relationship = semanticElement.value;
+      makeInteractive(
+        group,
+        semanticElement,
+        onActivate,
+        `${relationship.from} to ${relationship.to}${relationship.label ? `: ${relationship.label}` : ""}`,
+      );
+    }
     const path = document.createElementNS(SVG_NAMESPACE, "path");
     path.setAttribute("d", edge.path);
     path.setAttribute("marker-end", `url(#${markerId})`);
@@ -330,6 +366,30 @@ function createConnections(document: Document, scene: Scene, markerId: string, s
     svg.append(group);
   }
   return svg;
+}
+
+function makeInteractive(
+  element: HTMLElement | SVGElement,
+  semanticElement: ArtifactElement,
+  onActivate: (element: ArtifactElement) => void,
+  label: string,
+) {
+  element.classList.add("livery-interactive");
+  const hidden = element.classList.contains("livery-story-hidden");
+  if (hidden) {
+    element.setAttribute("aria-hidden", "true");
+    return;
+  }
+  element.setAttribute("aria-label", label);
+  element.setAttribute("role", "button");
+  element.setAttribute("tabindex", "0");
+  element.addEventListener("click", () => onActivate(semanticElement));
+  element.addEventListener("keydown", (event) => {
+    const key = (event as KeyboardEvent).key;
+    if (key !== "Enter" && key !== " ") return;
+    event.preventDefault();
+    onActivate(semanticElement);
+  });
 }
 
 function applyEntityStoryClasses(element: Element, id: string, state?: StoryState) {

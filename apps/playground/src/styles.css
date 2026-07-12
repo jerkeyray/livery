@@ -103,6 +103,13 @@ h1 {
   outline-offset: 2px;
 }
 
+.selection-status {
+  display: block;
+  margin-bottom: 10px;
+  color: #525252;
+  font-size: 12px;
+}
+
 @media (max-width: 840px) {
   main {
     margin-block: 24px;
