@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { compile } from "./compiler.js";
 import { computeFlowScene } from "./layout.js";
+import type { MeasurementService } from "./measurement.js";
 import type { SceneNode } from "./scene.js";
 
 const source = `flow checkout("Checkout request") {
@@ -77,5 +78,42 @@ describe("computeFlowScene", () => {
 
     expect(persistence?.labelX).toBeLessThan(leftmostNode);
     expect(persistence?.path).toContain(`C ${Math.max(14, leftmostNode - 44)}`);
+  });
+
+  it("allocates two lines and extra height for long entity labels", () => {
+    const longArtifact = compile(`flow measured {
+      client = actor("A considerably longer client label that needs wrapping")
+      client -> api("request")
+    }`).artifact!;
+    const scene = computeFlowScene(longArtifact, { width: 960 });
+    const client = scene.nodes.find(({ id }) => id === "client");
+
+    expect(client?.width).toBe(220);
+    expect(client?.height).toBe(89);
+  });
+
+  it("keeps mixed measured heights from overlapping within a layer", () => {
+    const mixedArtifact = compile(`flow mixed {
+      first = actor("A considerably longer first actor label that wraps")
+      second = actor("Second")
+      first -> target("one")
+      second -> target("two")
+    }`).artifact!;
+    const nodes = computeFlowScene(mixedArtifact, { width: 960 }).nodes;
+
+    for (let first = 0; first < nodes.length; first += 1) {
+      for (let second = first + 1; second < nodes.length; second += 1) {
+        expect(overlaps(nodes[first]!, nodes[second]!)).toBe(false);
+      }
+    }
+  });
+
+  it("accepts an injected measurement service", () => {
+    const measurement: MeasurementService = {
+      measureEntity: () => ({ width: 160, height: 80, lineCount: 1 }),
+    };
+    const scene = computeFlowScene(artifact, { width: 960, measurement });
+
+    expect(scene.nodes.every(({ width, height }) => width === 160 && height === 80)).toBe(true);
   });
 });

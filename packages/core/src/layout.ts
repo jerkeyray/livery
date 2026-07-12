@@ -1,9 +1,11 @@
-import type { LiveryArtifact, Relationship } from "./artifact.js";
+import type { Entity, LiveryArtifact, Relationship } from "./artifact.js";
+import {
+  estimatedMeasurementService,
+  type ComponentMeasurement,
+  type MeasurementService,
+} from "./measurement.js";
 import type { FlowLayoutOptions, Scene, SceneDirection, SceneEdge, SceneNode } from "./scene.js";
 
-const NODE_WIDTH = 176;
-const NODE_HEIGHT = 72;
-const COMPACT_NODE_HEIGHT = 64;
 const PADDING = 28;
 const LAYER_GAP = 104;
 const ROW_GAP = 28;
@@ -12,13 +14,30 @@ const COMPACT_GAP = 44;
 export function computeFlowScene(artifact: LiveryArtifact, options: FlowLayoutOptions): Scene {
   const width = Math.max(280, Math.floor(options.width));
   const compactBreakpoint = options.compactBreakpoint ?? 640;
+  const measurement = options.measurement ?? estimatedMeasurementService;
   const layers = assignLayers(artifact);
-  const maxLayer = Math.max(...layers.values(), 0);
-  const requiredHorizontalWidth = PADDING * 2 + NODE_WIDTH * (maxLayer + 1) + LAYER_GAP * maxLayer;
+  const expandedMeasurements = measureEntities(artifact.entities, measurement, {
+    minWidth: 152,
+    maxWidth: 220,
+    minHeight: 72,
+    maxLines: 2,
+  });
+  const layerWidths = measureLayerWidths(artifact.entities, layers, expandedMeasurements);
+  const requiredHorizontalWidth =
+    PADDING * 2 + [...layerWidths.values()].reduce((sum, layerWidth) => sum + layerWidth, 0) +
+    LAYER_GAP * Math.max(0, layerWidths.size - 1);
   const direction: SceneDirection =
     width <= compactBreakpoint || requiredHorizontalWidth > width ? "vertical" : "horizontal";
-  const nodes =
-    direction === "vertical" ? layoutCompactNodes(artifact, width) : layoutLayeredNodes(artifact, width, layers);
+  const compactMaxWidth = Math.min(208, width - PADDING * 2);
+  const compactMeasurements = measureEntities(artifact.entities, measurement, {
+    minWidth: Math.min(152, compactMaxWidth),
+    maxWidth: compactMaxWidth,
+    minHeight: 64,
+    maxLines: 2,
+  });
+  const nodes = direction === "vertical"
+    ? layoutCompactNodes(artifact, width, compactMeasurements)
+    : layoutLayeredNodes(artifact, width, layers, expandedMeasurements, layerWidths, requiredHorizontalWidth);
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const pairCounts = new Map<string, number>();
   const pairIndexes = new Map<string, number>();
@@ -55,57 +74,102 @@ export function computeFlowScene(artifact: LiveryArtifact, options: FlowLayoutOp
   };
 }
 
-function layoutCompactNodes(artifact: LiveryArtifact, width: number): SceneNode[] {
-  const nodeWidth = Math.min(NODE_WIDTH + 32, width - PADDING * 2);
-  const x = Math.round((width - nodeWidth) / 2);
-
-  return artifact.entities.map((entity, index) => ({
-    id: entity.id,
-    label: entity.label,
-    x,
-    y: PADDING + index * (COMPACT_NODE_HEIGHT + COMPACT_GAP),
-    width: nodeWidth,
-    height: COMPACT_NODE_HEIGHT,
-    ...(entity.role ? { role: entity.role } : {}),
-    ...(entity.tone ? { tone: entity.tone } : {}),
-  }));
+function layoutCompactNodes(
+  artifact: LiveryArtifact,
+  width: number,
+  measurements: Map<string, ComponentMeasurement>,
+): SceneNode[] {
+  let y = PADDING;
+  return artifact.entities.map((entity) => {
+    const measured = measurements.get(entity.id)!;
+    const node = sceneNode(entity, Math.round((width - measured.width) / 2), y, measured);
+    y += measured.height + COMPACT_GAP;
+    return node;
+  });
 }
 
-function layoutLayeredNodes(artifact: LiveryArtifact, width: number, layers: Map<string, number>): SceneNode[] {
-  const maxLayer = Math.max(...layers.values(), 0);
-  const requiredWidth = PADDING * 2 + NODE_WIDTH * (maxLayer + 1) + LAYER_GAP * maxLayer;
+function layoutLayeredNodes(
+  artifact: LiveryArtifact,
+  width: number,
+  layers: Map<string, number>,
+  measurements: Map<string, ComponentMeasurement>,
+  layerWidths: Map<number, number>,
+  requiredWidth: number,
+) {
   const availableExtra = Math.max(0, width - requiredWidth);
   const startX = PADDING + Math.floor(availableExtra / 2);
-  const layersToEntities = new Map<number, string[]>();
+  const layersToEntities = new Map<number, Entity[]>();
+  const layerX = new Map<number, number>();
+  let nextX = startX;
+
+  for (const [layer, layerWidth] of [...layerWidths.entries()].sort(([first], [second]) => first - second)) {
+    layerX.set(layer, nextX);
+    nextX += layerWidth + LAYER_GAP;
+  }
 
   for (const entity of artifact.entities) {
     const layer = layers.get(entity.id) ?? 0;
-    const ids = layersToEntities.get(layer) ?? [];
-    ids.push(entity.id);
-    layersToEntities.set(layer, ids);
+    const entities = layersToEntities.get(layer) ?? [];
+    entities.push(entity);
+    layersToEntities.set(layer, entities);
   }
 
-  const maxRows = Math.max(...[...layersToEntities.values()].map((ids) => ids.length), 1);
-  const contentHeight = maxRows * NODE_HEIGHT + (maxRows - 1) * ROW_GAP;
+  const layerHeights = new Map(
+    [...layersToEntities].map(([layer, entities]) => [
+      layer,
+      entities.reduce((sum, entity) => sum + measurements.get(entity.id)!.height, 0) +
+        Math.max(0, entities.length - 1) * ROW_GAP,
+    ]),
+  );
+  const contentHeight = Math.max(...layerHeights.values(), 0);
 
   return artifact.entities.map((entity) => {
     const layer = layers.get(entity.id) ?? 0;
-    const siblings = layersToEntities.get(layer) ?? [entity.id];
-    const row = siblings.indexOf(entity.id);
-    const layerHeight = siblings.length * NODE_HEIGHT + (siblings.length - 1) * ROW_GAP;
+    const siblings = layersToEntities.get(layer) ?? [entity];
+    const row = siblings.findIndex(({ id }) => id === entity.id);
+    const layerHeight = layerHeights.get(layer) ?? 0;
     const layerOffset = Math.floor((contentHeight - layerHeight) / 2);
-
-    return {
-      id: entity.id,
-      label: entity.label,
-      x: startX + layer * (NODE_WIDTH + LAYER_GAP),
-      y: PADDING + layerOffset + row * (NODE_HEIGHT + ROW_GAP),
-      width: NODE_WIDTH,
-      height: NODE_HEIGHT,
-      ...(entity.role ? { role: entity.role } : {}),
-      ...(entity.tone ? { tone: entity.tone } : {}),
-    };
+    const measured = measurements.get(entity.id)!;
+    const precedingHeight = siblings
+      .slice(0, row)
+      .reduce((sum, sibling) => sum + measurements.get(sibling.id)!.height + ROW_GAP, 0);
+    const x = (layerX.get(layer) ?? startX) + ((layerWidths.get(layer) ?? measured.width) - measured.width) / 2;
+    return sceneNode(entity, Math.round(x), PADDING + layerOffset + precedingHeight, measured);
   });
+}
+
+function measureEntities(
+  entities: Entity[],
+  measurement: MeasurementService,
+  constraints: Parameters<MeasurementService["measureEntity"]>[1],
+) {
+  return new Map(entities.map((entity) => [entity.id, measurement.measureEntity(entity, constraints)]));
+}
+
+function measureLayerWidths(
+  entities: Entity[],
+  layers: Map<string, number>,
+  measurements: Map<string, ComponentMeasurement>,
+) {
+  const widths = new Map<number, number>();
+  for (const entity of entities) {
+    const layer = layers.get(entity.id) ?? 0;
+    widths.set(layer, Math.max(widths.get(layer) ?? 0, measurements.get(entity.id)!.width));
+  }
+  return widths;
+}
+
+function sceneNode(entity: Entity, x: number, y: number, measured: ComponentMeasurement): SceneNode {
+  return {
+    id: entity.id,
+    label: entity.label,
+    x,
+    y,
+    width: measured.width,
+    height: measured.height,
+    ...(entity.role ? { role: entity.role } : {}),
+    ...(entity.tone ? { tone: entity.tone } : {}),
+  };
 }
 
 function assignLayers(artifact: LiveryArtifact) {
@@ -171,7 +235,7 @@ function routeEdge(
 }
 
 function routeVerticalEdge(relationship: Relationship, from: SceneNode, to: SceneNode, lane: number): SceneEdge {
-  const spansIntermediateNode = Math.abs(to.y - from.y) > COMPACT_NODE_HEIGHT + COMPACT_GAP + 8;
+  const spansIntermediateNode = Math.abs(to.y - from.y) > Math.max(from.height, to.height) + COMPACT_GAP + 8;
   if (spansIntermediateNode) {
     const startX = from.x;
     const endX = to.x;

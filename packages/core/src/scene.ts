@@ -1,4 +1,5 @@
 import type { EntityRole, LiveryArtifact, SemanticTone } from "./artifact.js";
+import type { MeasurementService } from "./measurement.js";
 
 export type SceneDirection = "horizontal" | "vertical";
 
@@ -41,6 +42,7 @@ export type Scene = {
 export type FlowLayoutOptions = {
   width: number;
   compactBreakpoint?: number;
+  measurement?: MeasurementService;
 };
 
 export type SceneCompiler = (artifact: LiveryArtifact, options: FlowLayoutOptions) => Scene;

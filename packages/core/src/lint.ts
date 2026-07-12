@@ -43,7 +43,7 @@ export function lintArtifact(artifact: LiveryArtifact, options: LintOptions = {}
     }
     if (isDifficultLabel(entity.label, maxEntityLabelLength, maxUnbrokenLabelLength)) {
       diagnostics.push({
-        ...warning("visual.long_label", `Entity ${entity.id} has a label that will be truncated.`),
+        ...warning("visual.long_label", `Entity ${entity.id} has a label that requires wrapping or truncation.`),
         path: ["entities", index, "label"],
         repair: { description: `Shorten the label to ${maxEntityLabelLength} characters with breakable words.` },
       });
