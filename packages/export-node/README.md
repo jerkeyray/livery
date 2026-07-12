@@ -1,9 +1,9 @@
-# @livery/export-node
+# @jerkeyray/export-node
 
-Optional PNG export for Node.js and Bun, powered by resvg. Core SVG and JSON exports remain available from `@livery/core` without this native dependency.
+Optional PNG export for Node.js and Bun, powered by resvg. Core SVG and JSON exports remain available from `@jerkeyray/core` without this native dependency.
 
 ```ts
-import { exportHeadlessPng } from "@livery/export-node";
+import { exportHeadlessPng } from "@jerkeyray/export-node";
 
 const result = await exportHeadlessPng('flow hello { user -> app("open") }', {
   width: 720,

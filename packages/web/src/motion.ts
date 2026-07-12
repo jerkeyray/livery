@@ -1,4 +1,4 @@
-import type { StoryStep } from "@livery/core";
+import type { StoryStep } from "@jerkeyray/core";
 
 export function animateStoryStep(container: HTMLElement, step: StoryStep) {
   const animations: Animation[] = [];

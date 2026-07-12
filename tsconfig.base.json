@@ -15,9 +15,9 @@
     "noImplicitOverride": true,
     "noUncheckedIndexedAccess": true,
     "paths": {
-      "@livery/core": ["packages/core/src/index.ts"],
-      "@livery/react": ["packages/react/src/index.ts"],
-      "@livery/web/*": ["packages/web/src/*.ts"]
+      "@jerkeyray/core": ["packages/core/src/index.ts"],
+      "@jerkeyray/react": ["packages/react/src/index.ts"],
+      "@jerkeyray/web/*": ["packages/web/src/*.ts"]
     },
     "resolveJsonModule": true,
     "skipLibCheck": true,

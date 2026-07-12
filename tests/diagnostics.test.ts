@@ -1,7 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { compile } from "@livery/core";
+import { compile } from "@jerkeyray/core";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 

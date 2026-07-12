@@ -10,7 +10,7 @@ import {
   type Scene,
   type StoryStep,
   type StoryState,
-} from "@livery/core";
+} from "@jerkeyray/core";
 
 import { animateStoryStep, prefersReducedMotion } from "./motion.js";
 import { LiveryController, type LiveryControllerRevision } from "./controller.js";

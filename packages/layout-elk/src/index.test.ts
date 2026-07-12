@@ -1,4 +1,4 @@
-import { compile, fastFlowLayoutAdapter, layoutWithAdapter, type LayoutAdapter } from "@livery/core";
+import { compile, fastFlowLayoutAdapter, layoutWithAdapter, type LayoutAdapter } from "@jerkeyray/core";
 import { describe, expect, it, vi } from "vitest";
 
 import { createElkLayoutAdapter, createElkWorkerLayoutAdapter } from "./index.js";

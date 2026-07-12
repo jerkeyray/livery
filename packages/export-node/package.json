@@ -1,5 +1,5 @@
 {
-  "name": "@livery/export-node",
+  "name": "@jerkeyray/export-node",
   "version": "0.1.0",
   "description": "Optional Node and Bun PNG export adapter for Livery visuals.",
   "license": "MIT",
@@ -24,7 +24,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@livery/core": "workspace:*",
+    "@jerkeyray/core": "workspace:*",
     "@resvg/resvg-js": "2.6.2"
   }
 }

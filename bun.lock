@@ -19,13 +19,13 @@
       },
     },
     "apps/playground": {
-      "name": "@livery/playground",
+      "name": "@jerkeyray/playground",
       "version": "0.0.0",
       "dependencies": {
-        "@livery/core": "workspace:*",
-        "@livery/layout-elk": "workspace:*",
-        "@livery/react": "workspace:*",
-        "@livery/web": "workspace:*",
+        "@jerkeyray/core": "workspace:*",
+        "@jerkeyray/layout-elk": "workspace:*",
+        "@jerkeyray/react": "workspace:*",
+        "@jerkeyray/web": "workspace:*",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
       },
@@ -35,46 +35,46 @@
       },
     },
     "packages/cli": {
-      "name": "@livery/cli",
+      "name": "@jerkeyray/cli",
       "version": "0.1.0",
       "bin": {
         "livery": "./dist/cli.mjs",
       },
       "dependencies": {
-        "@livery/core": "workspace:*",
-        "@livery/export-node": "workspace:*",
-        "@livery/layout-elk": "workspace:*",
+        "@jerkeyray/core": "workspace:*",
+        "@jerkeyray/export-node": "workspace:*",
+        "@jerkeyray/layout-elk": "workspace:*",
       },
     },
     "packages/core": {
-      "name": "@livery/core",
+      "name": "@jerkeyray/core",
       "version": "0.1.0",
       "dependencies": {
         "zod": "^4.4.3",
       },
     },
     "packages/export-node": {
-      "name": "@livery/export-node",
+      "name": "@jerkeyray/export-node",
       "version": "0.1.0",
       "dependencies": {
-        "@livery/core": "workspace:*",
+        "@jerkeyray/core": "workspace:*",
         "@resvg/resvg-js": "2.6.2",
       },
     },
     "packages/layout-elk": {
-      "name": "@livery/layout-elk",
+      "name": "@jerkeyray/layout-elk",
       "version": "0.1.0",
       "dependencies": {
-        "@livery/core": "workspace:*",
+        "@jerkeyray/core": "workspace:*",
         "elkjs": "0.11.1",
       },
     },
     "packages/react": {
-      "name": "@livery/react",
+      "name": "@jerkeyray/react",
       "version": "0.1.0",
       "dependencies": {
-        "@livery/core": "workspace:*",
-        "@livery/web": "workspace:*",
+        "@jerkeyray/core": "workspace:*",
+        "@jerkeyray/web": "workspace:*",
       },
       "devDependencies": {
         "react": "^19.0.0",
@@ -86,10 +86,10 @@
       },
     },
     "packages/web": {
-      "name": "@livery/web",
+      "name": "@jerkeyray/web",
       "version": "0.1.0",
       "dependencies": {
-        "@livery/core": "workspace:*",
+        "@jerkeyray/core": "workspace:*",
       },
     },
   },
@@ -162,25 +162,25 @@
 
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.28.1", "", { "os": "win32", "cpu": "x64" }, "sha512-bm4Mowrv+GXMlpWX++EcXw/iLyd1o3+bJkC2DkWXYVvgZCqD/bSj9ctZeAMC3cIxgjRVR2Dufaiu4YPxr5gW1A=="],
 
+    "@jerkeyray/cli": ["@jerkeyray/cli@workspace:packages/cli"],
+
+    "@jerkeyray/core": ["@jerkeyray/core@workspace:packages/core"],
+
+    "@jerkeyray/export-node": ["@jerkeyray/export-node@workspace:packages/export-node"],
+
+    "@jerkeyray/layout-elk": ["@jerkeyray/layout-elk@workspace:packages/layout-elk"],
+
+    "@jerkeyray/playground": ["@jerkeyray/playground@workspace:apps/playground"],
+
+    "@jerkeyray/react": ["@jerkeyray/react@workspace:packages/react"],
+
+    "@jerkeyray/web": ["@jerkeyray/web@workspace:packages/web"],
+
     "@jridgewell/resolve-uri": ["@jridgewell/resolve-uri@3.1.2", "", {}, "sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw=="],
 
     "@jridgewell/sourcemap-codec": ["@jridgewell/sourcemap-codec@1.5.5", "", {}, "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og=="],
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
-
-    "@livery/cli": ["@livery/cli@workspace:packages/cli"],
-
-    "@livery/core": ["@livery/core@workspace:packages/core"],
-
-    "@livery/export-node": ["@livery/export-node@workspace:packages/export-node"],
-
-    "@livery/layout-elk": ["@livery/layout-elk@workspace:packages/layout-elk"],
-
-    "@livery/playground": ["@livery/playground@workspace:apps/playground"],
-
-    "@livery/react": ["@livery/react@workspace:packages/react"],
-
-    "@livery/web": ["@livery/web@workspace:packages/web"],
 
     "@napi-rs/wasm-runtime": ["@napi-rs/wasm-runtime@1.1.6", "", { "dependencies": { "@tybys/wasm-util": "^0.10.3" }, "peerDependencies": { "@emnapi/core": "^1.7.1", "@emnapi/runtime": "^1.7.1" } }, "sha512-ZLv/JdUfkvOy9eCnnBaGfiO+XimbjebAeO+MRQqD/B+FR1tnRN0tpKSJHRbE8sFfS6aqsXZ67TQjfwfsxULVbg=="],
 

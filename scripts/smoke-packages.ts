@@ -31,11 +31,11 @@ await run(
 );
 await writeFile(
   join(consumerDirectory, "smoke.mjs"),
-  `import { exportHeadless } from "@livery/core";
-import { exportHeadlessPng } from "@livery/export-node";
-import { createElkLayoutAdapter } from "@livery/layout-elk";
-import { Livery } from "@livery/react";
-import { mountLivery } from "@livery/web";
+  `import { exportHeadless } from "@jerkeyray/core";
+import { exportHeadlessPng } from "@jerkeyray/export-node";
+import { createElkLayoutAdapter } from "@jerkeyray/layout-elk";
+import { Livery } from "@jerkeyray/react";
+import { mountLivery } from "@jerkeyray/web";
 
 const result = await exportHeadless("flow installed { a -> b }", { format: "svg" });
 if (!result.output?.startsWith("<svg")) throw new Error("Core SVG export failed.");

@@ -12,12 +12,12 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "bun run --filter '@livery/*' build",
-    "dev": "bun run --filter @livery/playground dev",
+    "build": "bun run --filter '@jerkeyray/*' build",
+    "dev": "bun run --filter @jerkeyray/playground dev",
     "test": "vitest run",
     "test:packages": "bun run build && bun scripts/smoke-packages.ts",
     "test:watch": "vitest",
-    "typecheck": "tsc -p tsconfig.json && bun run --filter '@livery/*' typecheck",
+    "typecheck": "tsc -p tsconfig.json && bun run --filter '@jerkeyray/*' typecheck",
     "bench:agent": "tsx scripts/benchmark-agent.ts",
     "bench:tokens": "tsx scripts/benchmark-tokens.ts"
   },

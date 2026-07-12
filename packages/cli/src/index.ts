@@ -7,9 +7,9 @@ import {
   type Diagnostic,
   type HeadlessExportFormat,
   type LayoutAdapter,
-} from "@livery/core";
-import { exportHeadlessPng } from "@livery/export-node";
-import { createElkLayoutAdapter } from "@livery/layout-elk";
+} from "@jerkeyray/core";
+import { exportHeadlessPng } from "@jerkeyray/export-node";
+import { createElkLayoutAdapter } from "@jerkeyray/layout-elk";
 
 export type CliOptions = {
   format: HeadlessExportFormat | "png";

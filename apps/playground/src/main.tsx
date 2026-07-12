@@ -5,13 +5,13 @@ import {
   fastFlowLayoutAdapter,
   type ArtifactElement,
   type LayoutAdapter,
-} from "@livery/core";
-import { Livery } from "@livery/react";
-import { mountLivery, type LiveryWebInstance } from "@livery/web";
-import elkWorkerUrl from "@livery/layout-elk/worker?url";
+} from "@jerkeyray/core";
+import { Livery } from "@jerkeyray/react";
+import { mountLivery, type LiveryWebInstance } from "@jerkeyray/web";
+import elkWorkerUrl from "@jerkeyray/layout-elk/worker?url";
 
-import "@livery/web/styles.css";
-import "@livery/react/styles.css";
+import "@jerkeyray/web/styles.css";
+import "@jerkeyray/react/styles.css";
 import "./styles.css";
 
 const initialSource = `flow checkout("Checkout request") {
@@ -40,7 +40,7 @@ let elkAdapterPromise: Promise<LayoutAdapter> | undefined;
 const lazyElkLayoutAdapter: LayoutAdapter = {
   id: "livery.lazy-elk",
   async layout(request) {
-    elkAdapterPromise ??= import("@livery/layout-elk").then(({ createElkWorkerLayoutAdapter }) =>
+    elkAdapterPromise ??= import("@jerkeyray/layout-elk").then(({ createElkWorkerLayoutAdapter }) =>
       createElkWorkerLayoutAdapter({ workerUrl: elkWorkerUrl }),
     );
     return (await elkAdapterPromise).layout(request);

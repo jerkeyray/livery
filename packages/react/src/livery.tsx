@@ -9,15 +9,15 @@ import {
   type SemanticTone,
   type StoryStep,
   type StoryState,
-} from "@livery/core";
+} from "@jerkeyray/core";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { LiveryController, type LiveryControllerRevision } from "@livery/web/controller";
+import { LiveryController, type LiveryControllerRevision } from "@jerkeyray/web/controller";
 import {
   LayoutController,
   type LayoutControllerRevision,
   type LayoutEvent,
-} from "@livery/web/layout-controller";
-import { animateStoryStep, prefersReducedMotion } from "@livery/web/motion";
+} from "@jerkeyray/web/layout-controller";
+import { animateStoryStep, prefersReducedMotion } from "@jerkeyray/web/motion";
 
 export type LiveryProps = {
   autoPlay?: boolean;

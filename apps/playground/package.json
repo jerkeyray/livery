@@ -1,5 +1,5 @@
 {
-  "name": "@livery/playground",
+  "name": "@jerkeyray/playground",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -9,10 +9,10 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@livery/core": "workspace:*",
-    "@livery/layout-elk": "workspace:*",
-    "@livery/react": "workspace:*",
-    "@livery/web": "workspace:*",
+    "@jerkeyray/core": "workspace:*",
+    "@jerkeyray/layout-elk": "workspace:*",
+    "@jerkeyray/react": "workspace:*",
+    "@jerkeyray/web": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

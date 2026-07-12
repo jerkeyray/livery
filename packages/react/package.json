@@ -1,5 +1,5 @@
 {
-  "name": "@livery/react",
+  "name": "@jerkeyray/react",
   "version": "0.1.0",
   "description": "React renderer for token-efficient Livery diagrams and visual stories.",
   "license": "MIT",
@@ -25,8 +25,8 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@livery/core": "workspace:*",
-    "@livery/web": "workspace:*"
+    "@jerkeyray/core": "workspace:*",
+    "@jerkeyray/web": "workspace:*"
   },
   "peerDependencies": {
     "react": ">=18",

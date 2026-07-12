@@ -5,8 +5,8 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   resolve: {
     alias: {
-      "@livery/core": fileURLToPath(new URL("./packages/core/src/index.ts", import.meta.url)),
-      "@livery/react": fileURLToPath(new URL("./packages/react/src/index.ts", import.meta.url)),
+      "@jerkeyray/core": fileURLToPath(new URL("./packages/core/src/index.ts", import.meta.url)),
+      "@jerkeyray/react": fileURLToPath(new URL("./packages/react/src/index.ts", import.meta.url)),
     },
   },
   test: {

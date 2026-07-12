@@ -9,7 +9,7 @@ import {
   type Scene,
   type SceneEdge,
   type SceneNode,
-} from "@livery/core";
+} from "@jerkeyray/core";
 
 type ElkPoint = { x: number; y: number };
 type ElkSection = { startPoint: ElkPoint; bendPoints?: ElkPoint[]; endPoint: ElkPoint };

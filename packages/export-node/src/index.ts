@@ -4,7 +4,7 @@ import {
   type HeadlessExportOptions,
   type HeadlessRenderResult,
   type LiverySource,
-} from "@livery/core";
+} from "@jerkeyray/core";
 
 export type PngRasterOptions = {
   background?: string;
