@@ -45,6 +45,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@livery/core": "workspace:*",
+        "@livery/web": "workspace:*",
       },
       "devDependencies": {
         "react": "^19.0.0",

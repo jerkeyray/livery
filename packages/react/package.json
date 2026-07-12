@@ -17,7 +17,8 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@livery/core": "workspace:*"
+    "@livery/core": "workspace:*",
+    "@livery/web": "workspace:*"
   },
   "peerDependencies": {
     "react": ">=18",

@@ -6,11 +6,15 @@ import {
   type LiveryArtifact,
   type LiverySource,
   type Scene,
+  type StoryStep,
   type StoryState,
 } from "@livery/core";
 
+import { animateStoryStep, prefersReducedMotion } from "./motion.js";
+
 export type LiveryWebOptions = {
   autoPlay?: boolean;
+  motion?: boolean;
   observeResize?: boolean;
   onStoryStepChange?: (index: number) => void;
   retainLastValid?: boolean;
@@ -56,6 +60,7 @@ export function mountLivery(
   let playing = false;
   let storyStep = -1;
   let storyTimer: number | undefined;
+  let activeAnimations: Animation[] = [];
 
   const storyEnabled = () =>
     options.story !== false && !currentResult.retained && Boolean(currentArtifact?.story.length);
@@ -65,7 +70,9 @@ export function mountLivery(
     storyTimer = undefined;
   };
 
-  const redraw = () => {
+  const redraw = (motionStep?: StoryStep) => {
+    activeAnimations.forEach((animation) => animation.cancel());
+    activeAnimations = [];
     container.replaceChildren(
       currentArtifact
         ? createFigure(
@@ -80,6 +87,9 @@ export function mountLivery(
           )
         : createError(container.ownerDocument, currentResult),
     );
+    if (motionStep && options.motion !== false && !prefersReducedMotion(container)) {
+      activeAnimations = animateStoryStep(container, motionStep);
+    }
   };
 
   const setStep = (nextStep: number, stopPlayback = true) => {
@@ -88,8 +98,10 @@ export function mountLivery(
       playing = false;
       stopTimer();
     }
+    const previousStep = storyStep;
     storyStep = Math.max(-1, Math.min(nextStep, currentArtifact.story.length - 1));
-    redraw();
+    const motionStep = storyStep === previousStep + 1 ? currentArtifact.story[storyStep] : undefined;
+    redraw(motionStep);
     options.onStoryStepChange?.(storyStep);
   };
 
@@ -198,6 +210,8 @@ export function mountLivery(
       if (destroyed) return;
       destroyed = true;
       stopTimer();
+      activeAnimations.forEach((animation) => animation.cancel());
+      activeAnimations = [];
       observer?.disconnect();
       container.replaceChildren();
     },

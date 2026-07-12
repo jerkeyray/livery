@@ -16,7 +16,8 @@
     "noUncheckedIndexedAccess": true,
     "paths": {
       "@livery/core": ["packages/core/src/index.ts"],
-      "@livery/react": ["packages/react/src/index.ts"]
+      "@livery/react": ["packages/react/src/index.ts"],
+      "@livery/web/*": ["packages/web/src/*.ts"]
     },
     "resolveJsonModule": true,
     "skipLibCheck": true,
