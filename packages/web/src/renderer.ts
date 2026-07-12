@@ -1,5 +1,4 @@
 import {
-  CompilerSession,
   computeFlowScene,
   computeStoryState,
   type CompileRevision,
@@ -11,6 +10,7 @@ import {
 } from "@livery/core";
 
 import { animateStoryStep, prefersReducedMotion } from "./motion.js";
+import { LiveryController, type LiveryControllerRevision } from "./controller.js";
 
 export type LiveryWebOptions = {
   autoPlay?: boolean;
@@ -24,9 +24,7 @@ export type LiveryWebOptions = {
   width?: number;
 };
 
-export type WebRenderResult = CompileRevision & {
-  retained: boolean;
-};
+export type WebRenderResult = LiveryControllerRevision;
 
 export type LiveryWebInstance = {
   readonly result: WebRenderResult;
@@ -50,11 +48,10 @@ export function mountLivery(
   source: LiverySource,
   options: LiveryWebOptions = {},
 ): LiveryWebInstance {
-  const session = new CompilerSession();
+  const controller = new LiveryController();
   const markerId = `livery-web-arrow-${++instanceCount}`;
   let currentSource = source;
-  let lastValid: LiveryArtifact | undefined;
-  let currentArtifact: LiveryArtifact | undefined;
+  let currentArtifact = controller.revision?.renderArtifact;
   let currentResult: WebRenderResult;
   let destroyed = false;
   let playing = false;
@@ -164,11 +161,11 @@ export function mountLivery(
     playing = false;
     storyStep = -1;
     stopTimer();
-    const revision = session.compile(currentSource);
-    if (revision.artifact) lastValid = revision.artifact;
-    currentArtifact = revision.artifact ?? (options.retainLastValid === false ? undefined : lastValid);
-    const retained = !revision.artifact && Boolean(currentArtifact);
-    currentResult = { ...revision, retained };
+    currentResult = controller.update(
+      currentSource,
+      options.retainLastValid === undefined ? {} : { retainLastValid: options.retainLastValid },
+    );
+    currentArtifact = currentResult.renderArtifact;
     redraw();
     return currentResult;
   };

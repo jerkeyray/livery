@@ -1,18 +1,15 @@
 import {
-  CompilerSession,
   computeFlowScene,
   computeStoryState,
   type CompileRevision,
   type LiverySource,
-  type LiveryArtifact,
   type SemanticTone,
   type StoryStep,
   type StoryState,
 } from "@livery/core";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { LiveryController, type LiveryControllerRevision } from "@livery/web/controller";
 import { animateStoryStep, prefersReducedMotion } from "@livery/web/motion";
-
-import { resolveRenderRevision } from "./revision.js";
 
 export type LiveryProps = {
   autoPlay?: boolean;
@@ -67,8 +64,12 @@ export function Livery({
   storyDelay = 900,
 }: LiveryProps) {
   const containerRef = useRef<HTMLElement>(null);
-  const compilerSession = useRef(new CompilerSession());
-  const lastValidArtifact = useRef<LiveryArtifact>(undefined);
+  const controller = useRef(new LiveryController());
+  const compilationCache = useRef<{
+    retainLastValid: boolean;
+    revision: LiveryControllerRevision;
+    source: LiverySource;
+  }>(undefined);
   const onCompileRef = useRef(onCompile);
   const onStoryStepChangeRef = useRef(onStoryStepChange);
   const storyAnimations = useRef<Animation[]>([]);
@@ -77,12 +78,16 @@ export function Livery({
   const [storyStep, setStoryStep] = useState(-1);
   const [playing, setPlaying] = useState(autoPlay);
   const debouncedSource = useDebouncedSource(source, Math.max(0, compileDelay));
-  const result = useMemo(() => compilerSession.current.compile(debouncedSource), [debouncedSource]);
+  const result = useMemo(() => {
+    const cached = compilationCache.current;
+    if (cached?.source === debouncedSource && cached.retainLastValid === retainLastValid) return cached.revision;
+    const revision = controller.current.update(debouncedSource, { retainLastValid });
+    compilationCache.current = { retainLastValid, revision, source: debouncedSource };
+    return revision;
+  }, [debouncedSource, retainLastValid]);
   const pending = debouncedSource !== source;
-  const revision = resolveRenderRevision(result, lastValidArtifact.current, retainLastValid);
-  const artifact = revision.artifact;
-  if (result.artifact) lastValidArtifact.current = result.artifact;
-  const storyLength = story && !revision.retained ? (artifact?.story.length ?? 0) : 0;
+  const artifact = result.renderArtifact;
+  const storyLength = story && !result.retained ? (artifact?.story.length ?? 0) : 0;
   onCompileRef.current = onCompile;
   onStoryStepChangeRef.current = onStoryStepChange;
 
@@ -125,14 +130,14 @@ export function Livery({
     storyAnimations.current.forEach((animation) => animation.cancel());
     storyAnimations.current = [];
     const container = containerRef.current;
-    const step = revision.retained ? undefined : artifact?.story[storyStep];
+    const step = result.retained ? undefined : artifact?.story[storyStep];
     const movingForward = storyStep === previousStoryStep.current + 1;
     previousStoryStep.current = storyStep;
     if (!container || !step || !motion || !movingForward || prefersReducedMotion(container)) {
       return;
     }
     storyAnimations.current = animateStoryStep(container, step);
-  }, [artifact, motion, revision.retained, storyStep]);
+  }, [artifact, motion, result.retained, storyStep]);
 
   if (!artifact) {
     return (
@@ -148,7 +153,7 @@ export function Livery({
   }
 
   const scene = computeFlowScene(artifact, { width });
-  const hasStory = story && !revision.retained && artifact.story.length > 0;
+  const hasStory = story && !result.retained && artifact.story.length > 0;
   const storyState = hasStory ? computeStoryState(artifact, storyStep) : undefined;
   const markerId = `livery-arrow-${artifact.id.replaceAll(/[^A-Za-z0-9_-]/g, "-")}`;
   const atEnd = storyStep >= artifact.story.length - 1;
@@ -168,10 +173,10 @@ export function Livery({
       aria-busy={pending}
       className={`livery livery-${scene.direction}`}
       data-livery-revision={result.revision}
-      data-livery-state={pending ? "pending" : revision.retained ? "retained" : result.incomplete ? "incomplete" : "ready"}
+      data-livery-state={pending ? "pending" : result.retained ? "retained" : result.incomplete ? "incomplete" : "ready"}
       ref={containerRef}
     >
-      {revision.retained ? (
+      {result.retained ? (
         <div aria-live="polite" className="livery-diagnostics" role="status">
           <strong>Showing last valid visual</strong>
           <ul>

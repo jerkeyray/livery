@@ -13,6 +13,10 @@
       "types": "./dist/motion.d.mts",
       "import": "./dist/motion.mjs"
     },
+    "./controller": {
+      "types": "./dist/controller.d.mts",
+      "import": "./dist/controller.mjs"
+    },
     "./styles.css": "./dist/style.css"
   },
   "files": ["dist"],

@@ -1,5 +1,5 @@
 import { StrictMode, useLayoutEffect, useRef, useState } from "react";
-import { createRoot } from "react-dom/client";
+import { createRoot, type Root } from "react-dom/client";
 import { Livery } from "@livery/react";
 import { mountLivery, type LiveryWebInstance } from "@livery/web";
 
@@ -88,7 +88,15 @@ function WebPreview({ source }: { source: string }) {
   return <div ref={hostRef} />;
 }
 
-createRoot(document.getElementById("root")!).render(
+declare global {
+  interface Window {
+    __liveryPlaygroundRoot?: Root;
+  }
+}
+
+const root = (window.__liveryPlaygroundRoot ??= createRoot(document.getElementById("root")!));
+
+root.render(
   <StrictMode>
     <Playground />
   </StrictMode>,
