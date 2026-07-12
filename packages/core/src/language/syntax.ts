@@ -55,4 +55,5 @@ export type SyntaxDocument = {
   statements: SyntaxStatement[];
   diagnostics: Diagnostic[];
   incomplete: boolean;
+  tokenCount: number;
 };

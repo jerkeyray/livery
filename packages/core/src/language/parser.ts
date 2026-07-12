@@ -42,7 +42,12 @@ class Parser {
         diagnostic("syntax.multiple_documents", "A source file may contain only one visual document.", this.current()?.span),
       );
     }
-    return { statements: this.statements, diagnostics: this.diagnostics, incomplete: this.incomplete };
+    return {
+      statements: this.statements,
+      diagnostics: this.diagnostics,
+      incomplete: this.incomplete,
+      tokenCount: this.tokens.length,
+    };
   }
 
   private parseFlow() {

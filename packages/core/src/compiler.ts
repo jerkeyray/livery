@@ -20,6 +20,28 @@ export type CompileResult = {
   incomplete: boolean;
 };
 
+export type CompilerLimits = {
+  maxSourceLength: number;
+  maxTokens: number;
+  maxStatements: number;
+  maxEntities: number;
+  maxRelationships: number;
+  maxStorySteps: number;
+};
+
+export type CompileOptions = {
+  limits?: Partial<CompilerLimits>;
+};
+
+export const DEFAULT_COMPILER_LIMITS: CompilerLimits = {
+  maxSourceLength: 100_000,
+  maxTokens: 4_096,
+  maxStatements: 512,
+  maxEntities: 128,
+  maxRelationships: 256,
+  maxStorySteps: 128,
+};
+
 const storyActions = new Set<StoryAction>([
   "reveal",
   "hide",
@@ -83,11 +105,40 @@ function validateUrl(value: string) {
   }
 }
 
-export function compile(source: LiverySource): CompileResult {
-  if (typeof source !== "string") return compileJson(source);
+export function compile(source: LiverySource, options: CompileOptions = {}): CompileResult {
+  const limits = { ...DEFAULT_COMPILER_LIMITS, ...options.limits };
+  if (typeof source !== "string") return compileJson(source, limits);
+  if (source.length > limits.maxSourceLength) {
+    return resourceFailure(
+      "resource.max_source_length",
+      `Source has ${source.length} characters; maximum is ${limits.maxSourceLength}.`,
+      "Reduce the source size or split the visual into separate documents.",
+    );
+  }
 
   const syntax = parse(source);
   const diagnostics = [...syntax.diagnostics];
+  if (syntax.tokenCount > limits.maxTokens) {
+    diagnostics.push(
+      resourceDiagnostic(
+        "resource.max_tokens",
+        `Source has ${syntax.tokenCount} tokens; maximum is ${limits.maxTokens}.`,
+        "Reduce the source or split the visual into separate documents.",
+      ),
+    );
+  }
+  if (syntax.statements.length > limits.maxStatements) {
+    diagnostics.push(
+      resourceDiagnostic(
+        "resource.max_statements",
+        `Source has ${syntax.statements.length} statements; maximum is ${limits.maxStatements}.`,
+        "Remove statements or split the visual into separate documents.",
+      ),
+    );
+  }
+  if (diagnostics.some(({ code }) => code === "resource.max_tokens" || code === "resource.max_statements")) {
+    return { diagnostics, incomplete: syntax.incomplete };
+  }
   const flow = syntax.statements.find((statement) => statement.type === "flow");
   if (!flow) {
     diagnostics.push(diagnostic("semantic.missing_flow", "Document must contain a flow declaration."));
@@ -248,6 +299,8 @@ export function compile(source: LiverySource): CompileResult {
     ...(flow.title ? { title: flow.title } : {}),
   };
 
+  diagnostics.push(...validateArtifactLimits(artifact, limits));
+
   const hasErrors = diagnostics.some((item) => item.severity === "error" && !item.code.startsWith("syntax.incomplete"));
   if (!hasErrors && !syntax.incomplete) diagnostics.push(...lintArtifact(artifact));
   return {
@@ -257,11 +310,12 @@ export function compile(source: LiverySource): CompileResult {
   };
 }
 
-function compileJson(source: Record<string, unknown>): CompileResult {
+function compileJson(source: Record<string, unknown>, limits: CompilerLimits): CompileResult {
   const result = liveryArtifactSchema.safeParse(source);
   if (result.success) {
     const artifact = result.data as LiveryArtifact;
     const diagnostics = validateArtifactSemantics(artifact);
+    diagnostics.push(...validateArtifactLimits(artifact, limits));
     const hasErrors = diagnostics.some((item) => item.severity === "error");
     if (!hasErrors) diagnostics.push(...lintArtifact(artifact));
     return {
@@ -280,6 +334,35 @@ function compileJson(source: Record<string, unknown>): CompileResult {
     })),
     incomplete: false,
   };
+}
+
+function validateArtifactLimits(artifact: LiveryArtifact, limits: CompilerLimits) {
+  const diagnostics: Diagnostic[] = [];
+  const checks = [
+    ["entities", artifact.entities.length, limits.maxEntities],
+    ["relationships", artifact.relationships.length, limits.maxRelationships],
+    ["story_steps", artifact.story.length, limits.maxStorySteps],
+  ] as const;
+
+  for (const [name, count, maximum] of checks) {
+    if (count <= maximum) continue;
+    diagnostics.push(
+      resourceDiagnostic(
+        `resource.max_${name}`,
+        `Artifact has ${count} ${name.replace("_", " ")}; maximum is ${maximum}.`,
+        `Reduce the number of ${name.replace("_", " ")} or split the visual.`,
+      ),
+    );
+  }
+  return diagnostics;
+}
+
+function resourceDiagnostic(code: string, message: string, description: string): Diagnostic {
+  return { ...diagnostic(code, message), repair: { description } };
+}
+
+function resourceFailure(code: string, message: string, description: string): CompileResult {
+  return { diagnostics: [resourceDiagnostic(code, message, description)], incomplete: false };
 }
 
 function validateArtifactSemantics(artifact: LiveryArtifact) {
