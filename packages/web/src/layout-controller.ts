@@ -10,6 +10,7 @@ export type LayoutControllerRevision = {
 };
 
 export class LayoutController {
+  #abort: AbortController | undefined;
   #destroyed = false;
   #request = 0;
   #revision: LayoutControllerRevision | undefined;
@@ -24,10 +25,12 @@ export class LayoutController {
     onChange?: (revision: LayoutControllerRevision) => void,
   ): LayoutControllerRevision {
     if (this.#destroyed) throw new Error("Cannot update a destroyed layout controller.");
+    this.#abort?.abort();
+    this.#abort = new AbortController();
     const requestId = ++this.#request;
     let output: Scene | Promise<Scene>;
     try {
-      output = adapter.layout(request);
+      output = adapter.layout({ ...request, signal: this.#abort.signal });
     } catch (error) {
       return this.#fail(adapter.id, requestId, error);
     }
@@ -57,6 +60,8 @@ export class LayoutController {
   }
 
   clear() {
+    this.#abort?.abort();
+    this.#abort = undefined;
     this.#request++;
     this.#revision = undefined;
   }

@@ -37,14 +37,21 @@ describe("LayoutController", () => {
 
   it("ignores stale async results", async () => {
     const resolvers: Array<(scene: Scene) => void> = [];
+    const signals: AbortSignal[] = [];
     const adapter: LayoutAdapter = {
       id: "async",
-      layout: () => new Promise((resolve) => { resolvers.push(resolve); }),
+      layout: (request) => new Promise((resolve) => {
+        signals.push(request.signal!);
+        resolvers.push(resolve);
+      }),
     };
     const controller = new LayoutController();
     const onChange = vi.fn();
     controller.update(adapter, { artifact: first, options: { width: 720 } }, onChange);
     controller.update(adapter, { artifact: second, options: { width: 720 } }, onChange);
+
+    expect(signals[0]?.aborted).toBe(true);
+    expect(signals[1]?.aborted).toBe(false);
 
     resolvers[0]!(await fastFlowLayoutAdapter.layout({ artifact: first, options: { width: 720 } }));
     await Promise.resolve();

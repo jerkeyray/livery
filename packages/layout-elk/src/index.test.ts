@@ -74,4 +74,24 @@ describe("ELK layout adapter", () => {
     expect(fallback.layout).toHaveBeenCalledOnce();
     expect(scene.id).toBe("cycle");
   });
+
+  it("terminates worker work when a request is aborted", async () => {
+    const terminateWorker = vi.fn();
+    const workerClient = {
+      layout: vi.fn(() => new Promise<never>(() => {})),
+      terminateWorker,
+    };
+    const adapter = createElkWorkerLayoutAdapter({ elk: workerClient });
+    const abort = new AbortController();
+    const pending = layoutWithAdapter(adapter, {
+      artifact: cycle,
+      options: { width: 960 },
+      signal: abort.signal,
+    });
+
+    abort.abort();
+
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    expect(terminateWorker).toHaveBeenCalledOnce();
+  });
 });

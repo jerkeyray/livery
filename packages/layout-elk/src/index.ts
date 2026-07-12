@@ -70,9 +70,7 @@ export function createElkWorkerLayoutAdapter(
   options: ElkWorkerLayoutAdapterOptions,
 ): ElkWorkerLayoutAdapter {
   let elk = options.elk;
-  let adapter: LayoutAdapter | undefined;
-  const resolveAdapter = () => {
-    if (adapter) return adapter;
+  const resolveElk = () => {
     if (!elk) {
       if (!options.workerUrl) throw new Error("An ELK worker URL is required.");
       elk = new ELKApi({
@@ -82,27 +80,64 @@ export function createElkWorkerLayoutAdapter(
           : {}),
       }) as unknown as ElkWorkerLike;
     }
-    adapter = createElkLayoutAdapter({
-      elk,
-      ...(options.fallback ? { fallback: options.fallback } : {}),
-    });
-    return adapter;
+    return elk;
+  };
+  const resetWorker = () => {
+    elk?.terminateWorker();
+    elk = undefined;
   };
   return {
     id: "livery.elk-worker-layered",
-    layout(request) {
+    async layout(request) {
       try {
-        return resolveAdapter().layout(request);
-      } catch {
-        return (options.fallback ?? fastFlowLayoutAdapter).layout(request);
+        return await layoutWithCancellation(resolveElk(), request, resetWorker);
+      } catch (error) {
+        if (isAbortError(error)) throw error;
+        return await (options.fallback ?? fastFlowLayoutAdapter).layout(request);
       }
     },
-    terminate() {
-      elk?.terminateWorker();
-      elk = undefined;
-      adapter = undefined;
-    },
+    terminate: resetWorker,
   };
+}
+
+function layoutWithCancellation(
+  elk: ElkWorkerLike,
+  request: LayoutRequest,
+  terminate: () => void,
+): Promise<Scene> {
+  const { signal } = request;
+  if (!signal) return layoutWithElk(elk, request);
+  if (signal.aborted) {
+    terminate();
+    return Promise.reject(abortError());
+  }
+  return new Promise((resolve, reject) => {
+    const abort = () => {
+      terminate();
+      reject(abortError());
+    };
+    signal.addEventListener("abort", abort, { once: true });
+    void layoutWithElk(elk, request).then(
+      (scene) => {
+        signal.removeEventListener("abort", abort);
+        resolve(scene);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", abort);
+        reject(error);
+      },
+    );
+  });
+}
+
+function abortError() {
+  const error = new Error("Layout request was aborted.");
+  error.name = "AbortError";
+  return error;
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof Error && error.name === "AbortError";
 }
 
 async function layoutWithElk(elk: ElkLike, request: LayoutRequest): Promise<Scene> {

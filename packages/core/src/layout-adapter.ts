@@ -11,6 +11,7 @@ export type LayoutComplexity = {
 export type LayoutRequest = {
   artifact: LiveryArtifact;
   options: FlowLayoutOptions;
+  signal?: AbortSignal;
 };
 
 export type LayoutAdapter = {
