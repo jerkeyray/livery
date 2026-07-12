@@ -8,7 +8,10 @@ const second = compile(`flow second { c -> d }`).artifact!;
 
 describe("LayoutController", () => {
   it("completes synchronous layouts immediately", () => {
-    const revision = new LayoutController().update(fastFlowLayoutAdapter, {
+    const controller = new LayoutController();
+    const onEvent = vi.fn();
+    controller.subscribe(onEvent);
+    const revision = controller.update(fastFlowLayoutAdapter, {
       artifact: first,
       options: { width: 720 },
     });
@@ -16,6 +19,26 @@ describe("LayoutController", () => {
     expect(revision).toMatchObject({ adapterId: "livery.fast-flow", pending: false, request: 1 });
     expect(revision.durationMs).toBeGreaterThanOrEqual(0);
     expect(revision.scene?.id).toBe("first");
+    expect(onEvent.mock.calls.map(([event]) => event.phase)).toEqual(["start", "complete"]);
+    expect(onEvent).toHaveBeenLastCalledWith(expect.objectContaining({
+      adapterId: "livery.fast-flow",
+      artifactId: "first",
+      durationMs: expect.any(Number),
+      request: 1,
+    }));
+  });
+
+  it("isolates failures in telemetry subscribers", () => {
+    const controller = new LayoutController();
+    const observer = vi.fn();
+    controller.subscribe(() => { throw new Error("telemetry failed"); });
+    controller.subscribe(observer);
+
+    expect(() => controller.update(fastFlowLayoutAdapter, {
+      artifact: first,
+      options: { width: 720 },
+    })).not.toThrow();
+    expect(observer).toHaveBeenCalledTimes(2);
   });
 
   it("retains the completed scene while an async layout is pending", async () => {
@@ -52,6 +75,8 @@ describe("LayoutController", () => {
     };
     const controller = new LayoutController();
     const onChange = vi.fn();
+    const onEvent = vi.fn();
+    controller.subscribe(onEvent);
     controller.update(adapter, { artifact: first, options: { width: 720 } }, onChange);
     controller.update(adapter, { artifact: second, options: { width: 720 } }, onChange);
 
@@ -66,10 +91,18 @@ describe("LayoutController", () => {
     await Promise.resolve();
     expect(onChange).toHaveBeenCalledOnce();
     expect(controller.revision?.scene?.id).toBe("second");
+    expect(onEvent.mock.calls.map(([event]) => event.phase)).toEqual([
+      "start",
+      "abort",
+      "start",
+      "complete",
+    ]);
   });
 
   it("retains the completed scene when an async layout fails", async () => {
     const controller = new LayoutController();
+    const onEvent = vi.fn();
+    controller.subscribe(onEvent);
     const initial = controller.update(fastFlowLayoutAdapter, { artifact: first, options: { width: 720 } });
     const onChange = vi.fn();
     controller.update(
@@ -85,5 +118,6 @@ describe("LayoutController", () => {
       pending: false,
       scene: initial.scene,
     }));
+    expect(onEvent).toHaveBeenLastCalledWith(expect.objectContaining({ phase: "error" }));
   });
 });

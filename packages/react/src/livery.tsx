@@ -12,7 +12,11 @@ import {
 } from "@livery/core";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { LiveryController, type LiveryControllerRevision } from "@livery/web/controller";
-import { LayoutController, type LayoutControllerRevision } from "@livery/web/layout-controller";
+import {
+  LayoutController,
+  type LayoutControllerRevision,
+  type LayoutEvent,
+} from "@livery/web/layout-controller";
 import { animateStoryStep, prefersReducedMotion } from "@livery/web/motion";
 
 export type LiveryProps = {
@@ -23,6 +27,7 @@ export type LiveryProps = {
   motion?: boolean;
   onCompile?: (revision: CompileRevision) => void;
   onActivate?: (element: ArtifactElement) => void;
+  onLayout?: (event: LayoutEvent) => void;
   onStoryStepChange?: (index: number, step?: StoryStep) => void;
   retainLastValid?: boolean;
   story?: boolean;
@@ -65,6 +70,7 @@ export function Livery({
   motion = true,
   onCompile,
   onActivate,
+  onLayout,
   onStoryStepChange,
   retainLastValid = true,
   source,
@@ -80,6 +86,7 @@ export function Livery({
     source: LiverySource;
   }>(undefined);
   const onCompileRef = useRef(onCompile);
+  const onLayoutRef = useRef(onLayout);
   const onStoryStepChangeRef = useRef(onStoryStepChange);
   const storyAnimations = useRef<Animation[]>([]);
   const previousStoryStep = useRef(-1);
@@ -111,6 +118,7 @@ export function Livery({
   );
   const storyLength = hasStory ? renderArtifact!.story.length : 0;
   onCompileRef.current = onCompile;
+  onLayoutRef.current = onLayout;
   onStoryStepChangeRef.current = onStoryStepChange;
 
   useEffect(() => {
@@ -122,6 +130,11 @@ export function Livery({
   useEffect(() => {
     onCompileRef.current?.(result);
   }, [result]);
+
+  useLayoutEffect(
+    () => layoutController.current.subscribe((event) => onLayoutRef.current?.(event)),
+    [],
+  );
 
   useEffect(() => {
     onStoryStepChangeRef.current?.(storyStep, artifact?.story[storyStep]);

@@ -12,14 +12,33 @@ export type LayoutControllerRevision = {
   scene?: Scene;
 };
 
+export type LayoutEvent = {
+  adapterId: string;
+  artifactId: string;
+  durationMs?: number;
+  fallback?: boolean;
+  phase: "start" | "complete" | "error" | "abort";
+  request: number;
+  requestedAdapterId?: string;
+};
+
 export class LayoutController {
+  #active: { adapterId: string; artifactId: string; request: number; startedAt: number } | undefined;
   #abort: AbortController | undefined;
   #destroyed = false;
   #request = 0;
   #revision: LayoutControllerRevision | undefined;
+  readonly #listeners = new Set<(event: LayoutEvent) => void>();
 
   get revision() {
     return this.#revision;
+  }
+
+  subscribe(listener: (event: LayoutEvent) => void) {
+    this.#listeners.add(listener);
+    return () => {
+      this.#listeners.delete(listener);
+    };
   }
 
   update(
@@ -28,10 +47,12 @@ export class LayoutController {
     onChange?: (revision: LayoutControllerRevision) => void,
   ): LayoutControllerRevision {
     if (this.#destroyed) throw new Error("Cannot update a destroyed layout controller.");
-    this.#abort?.abort();
+    this.#abortActive();
     this.#abort = new AbortController();
     const requestId = ++this.#request;
     const startedAt = now();
+    this.#active = { adapterId: adapter.id, artifactId: request.artifact.id, request: requestId, startedAt };
+    this.#emit({ adapterId: adapter.id, artifactId: request.artifact.id, phase: "start", request: requestId });
     let output: Scene | Promise<Scene>;
     try {
       output = adapter.layout({ ...request, signal: this.#abort.signal });
@@ -64,7 +85,7 @@ export class LayoutController {
   }
 
   clear() {
-    this.#abort?.abort();
+    this.#abortActive();
     this.#abort = undefined;
     this.#request++;
     this.#revision = undefined;
@@ -93,6 +114,18 @@ export class LayoutController {
       ...(adapterId !== requestedAdapterId ? { requestedAdapterId } : {}),
       scene,
     };
+    this.#active = undefined;
+    this.#emit({
+      adapterId,
+      artifactId: artifact.id,
+      ...(this.#revision.durationMs !== undefined ? { durationMs: this.#revision.durationMs } : {}),
+      ...(this.#revision.fallback ? { fallback: true } : {}),
+      phase: "complete",
+      request,
+      ...(this.#revision.requestedAdapterId
+        ? { requestedAdapterId: this.#revision.requestedAdapterId }
+        : {}),
+    });
     return this.#revision;
   }
 
@@ -105,7 +138,41 @@ export class LayoutController {
       request,
       ...(this.#revision?.scene ? { scene: this.#revision.scene } : {}),
     };
+    const active = this.#active;
+    this.#active = undefined;
+    this.#emit({
+      adapterId,
+      artifactId: active?.artifactId ?? this.#revision.artifact?.id ?? "unknown",
+      ...(active ? { durationMs: elapsed(active.startedAt) } : {}),
+      phase: "error",
+      request,
+    });
     return this.#revision;
+  }
+
+  #abortActive() {
+    const active = this.#active;
+    if (active) {
+      this.#emit({
+        adapterId: active.adapterId,
+        artifactId: active.artifactId,
+        durationMs: elapsed(active.startedAt),
+        phase: "abort",
+        request: active.request,
+      });
+      this.#active = undefined;
+    }
+    this.#abort?.abort();
+  }
+
+  #emit(event: LayoutEvent) {
+    for (const listener of this.#listeners) {
+      try {
+        listener(event);
+      } catch {
+        // Telemetry observers must not affect layout completion.
+      }
+    }
   }
 }
 
@@ -115,4 +182,8 @@ function isPromise(value: Scene | Promise<Scene>): value is Promise<Scene> {
 
 function now() {
   return globalThis.performance?.now() ?? Date.now();
+}
+
+function elapsed(startedAt: number) {
+  return Math.max(0, Math.round((now() - startedAt) * 10) / 10);
 }

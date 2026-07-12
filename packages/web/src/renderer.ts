@@ -14,7 +14,7 @@ import {
 
 import { animateStoryStep, prefersReducedMotion } from "./motion.js";
 import { LiveryController, type LiveryControllerRevision } from "./controller.js";
-import { LayoutController, type LayoutControllerRevision } from "./layout-controller.js";
+import { LayoutController, type LayoutControllerRevision, type LayoutEvent } from "./layout-controller.js";
 
 export type LiveryWebOptions = {
   autoPlay?: boolean;
@@ -22,6 +22,7 @@ export type LiveryWebOptions = {
   motion?: boolean;
   observeResize?: boolean;
   onActivate?: (element: ArtifactElement) => void;
+  onLayout?: (event: LayoutEvent) => void;
   onStoryStepChange?: (index: number) => void;
   retainLastValid?: boolean;
   story?: boolean;
@@ -56,6 +57,7 @@ export function mountLivery(
 ): LiveryWebInstance {
   const controller = new LiveryController();
   const layoutController = new LayoutController();
+  const unsubscribeLayout = layoutController.subscribe((event) => options.onLayout?.(event));
   const markerId = `livery-web-arrow-${++instanceCount}`;
   let currentSource = source;
   let currentArtifact = controller.revision?.renderArtifact;
@@ -255,6 +257,7 @@ export function mountLivery(
       activeAnimations.forEach((animation) => animation.cancel());
       activeAnimations = [];
       layoutController.destroy();
+      unsubscribeLayout();
       observer?.disconnect();
       container.replaceChildren();
     },
