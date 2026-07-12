@@ -15,6 +15,7 @@
     "build": "bun run --filter '@livery/*' build",
     "dev": "bun run --filter @livery/playground dev",
     "test": "vitest run",
+    "test:packages": "bun run build && bun scripts/smoke-packages.ts",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json && bun run --filter '@livery/*' typecheck",
     "bench:agent": "tsx scripts/benchmark-agent.ts",

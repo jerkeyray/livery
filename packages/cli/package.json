@@ -1,7 +1,13 @@
 {
   "name": "@livery/cli",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "description": "Command-line renderer for Livery DSL files, SVG, JSON, and PNG.",
+  "license": "MIT",
+  "author": "Aditya Srivastava",
+  "repository": { "type": "git", "url": "git+https://github.com/jerkeyray/livery.git", "directory": "packages/cli" },
+  "homepage": "https://github.com/jerkeyray/livery#readme",
+  "bugs": { "url": "https://github.com/jerkeyray/livery/issues" },
+  "keywords": ["cli", "agents", "diagrams", "svg", "png"],
   "type": "module",
   "bin": {
     "livery": "./dist/cli.mjs"
@@ -12,7 +18,9 @@
       "import": "./dist/index.mjs"
     }
   },
-  "files": ["dist"],
+  "files": ["dist", "README.md", "LICENSE"],
+  "engines": { "node": ">=22" },
+  "publishConfig": { "access": "public" },
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json"

@@ -1,7 +1,13 @@
 {
   "name": "@livery/web",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "description": "Framework-independent browser renderer and runtime for Livery visuals.",
+  "license": "MIT",
+  "author": "Aditya Srivastava",
+  "repository": { "type": "git", "url": "git+https://github.com/jerkeyray/livery.git", "directory": "packages/web" },
+  "homepage": "https://github.com/jerkeyray/livery#readme",
+  "bugs": { "url": "https://github.com/jerkeyray/livery/issues" },
+  "keywords": ["agents", "diagrams", "visualization", "browser"],
   "type": "module",
   "sideEffects": ["**/*.css"],
   "exports": {
@@ -23,7 +29,9 @@
     },
     "./styles.css": "./dist/style.css"
   },
-  "files": ["dist"],
+  "files": ["dist", "README.md", "LICENSE"],
+  "engines": { "node": ">=22" },
+  "publishConfig": { "access": "public" },
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json"

@@ -36,7 +36,7 @@
     },
     "packages/cli": {
       "name": "@livery/cli",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "bin": {
         "livery": "./dist/cli.mjs",
       },
@@ -48,14 +48,14 @@
     },
     "packages/core": {
       "name": "@livery/core",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "dependencies": {
         "zod": "^4.4.3",
       },
     },
     "packages/export-node": {
       "name": "@livery/export-node",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "dependencies": {
         "@livery/core": "workspace:*",
         "@resvg/resvg-js": "2.6.2",
@@ -63,7 +63,7 @@
     },
     "packages/layout-elk": {
       "name": "@livery/layout-elk",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "dependencies": {
         "@livery/core": "workspace:*",
         "elkjs": "0.11.1",
@@ -71,7 +71,7 @@
     },
     "packages/react": {
       "name": "@livery/react",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "dependencies": {
         "@livery/core": "workspace:*",
         "@livery/web": "workspace:*",
@@ -87,7 +87,7 @@
     },
     "packages/web": {
       "name": "@livery/web",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "dependencies": {
         "@livery/core": "workspace:*",
       },

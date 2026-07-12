@@ -1,7 +1,13 @@
 {
   "name": "@livery/react",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "description": "React renderer for token-efficient Livery diagrams and visual stories.",
+  "license": "MIT",
+  "author": "Aditya Srivastava",
+  "repository": { "type": "git", "url": "git+https://github.com/jerkeyray/livery.git", "directory": "packages/react" },
+  "homepage": "https://github.com/jerkeyray/livery#readme",
+  "bugs": { "url": "https://github.com/jerkeyray/livery/issues" },
+  "keywords": ["react", "agents", "diagrams", "visualization"],
   "type": "module",
   "sideEffects": ["**/*.css"],
   "exports": {
@@ -11,7 +17,9 @@
     },
     "./styles.css": "./dist/style.css"
   },
-  "files": ["dist"],
+  "files": ["dist", "README.md", "LICENSE"],
+  "engines": { "node": ">=22" },
+  "publishConfig": { "access": "public" },
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json"

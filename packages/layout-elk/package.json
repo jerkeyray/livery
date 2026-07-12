@@ -1,7 +1,13 @@
 {
   "name": "@livery/layout-elk",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "description": "Optional ELK and Web Worker layout adapters for complex Livery graphs.",
+  "license": "MIT",
+  "author": "Aditya Srivastava",
+  "repository": { "type": "git", "url": "git+https://github.com/jerkeyray/livery.git", "directory": "packages/layout-elk" },
+  "homepage": "https://github.com/jerkeyray/livery#readme",
+  "bugs": { "url": "https://github.com/jerkeyray/livery/issues" },
+  "keywords": ["elk", "graph-layout", "diagrams", "web-worker"],
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -11,7 +17,9 @@
     },
     "./worker": "./dist/elk-worker.min.js"
   },
-  "files": ["dist"],
+  "files": ["dist", "README.md", "LICENSE"],
+  "engines": { "node": ">=22" },
+  "publishConfig": { "access": "public" },
   "scripts": {
     "build": "tsdown && bun scripts/copy-assets.ts",
     "typecheck": "tsc -p tsconfig.json"

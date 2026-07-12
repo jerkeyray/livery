@@ -28,6 +28,7 @@ jobs:
       - run: bun run typecheck
       - run: bun run test
       - run: bun run build
+      - run: bun scripts/smoke-packages.ts
 
   benchmarks:
     runs-on: ubuntu-latest
