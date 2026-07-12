@@ -37,6 +37,16 @@
 
 .livery-node strong { overflow: hidden; font-size: 13px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
 .livery-node-role { margin-bottom: 4px; color: var(--livery-muted); font-size: 9px; font-weight: 700; text-transform: uppercase; }
+.livery-story-hidden { pointer-events: none; opacity: 0; }
+.livery-node.livery-story-focused { box-shadow: 0 0 0 3px rgb(37 99 235 / 24%); transform: translateY(-2px); }
+.livery-node.livery-story-indicated { box-shadow: 0 0 0 3px rgb(161 98 7 / 28%); }
+.livery-edge.livery-story-focused > path, .livery-edge.livery-story-indicated > path { stroke: #a16207; stroke-width: 3; }
+.livery-story-traced > path { stroke-width: 2.5; }
+.livery-story-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
+.livery-story-buttons { display: flex; gap: 6px; }
+.livery-story-controls span { color: var(--livery-muted); font-size: 12px; text-align: center; }
+.livery-story-controls button { min-height: 32px; padding: 5px 10px; border: 1px solid var(--livery-border); border-radius: 6px; background: var(--livery-bg); color: var(--livery-fg); font: 600 12px/1 Inter, ui-sans-serif, system-ui, sans-serif; cursor: pointer; }
+.livery-story-controls button:disabled { cursor: default; opacity: .45; }
 .livery-tone-success { --livery-edge: #15803d; }
 .livery-tone-warning { --livery-edge: #a16207; }
 .livery-tone-danger { --livery-edge: #b91c1c; }
@@ -44,3 +54,9 @@
 .livery-error, .livery-diagnostics { padding: 12px; border: 1px solid var(--livery-border); font: 12px/1.5 Inter, ui-sans-serif, system-ui, sans-serif; }
 .livery-error ul, .livery-diagnostics ul { margin: 6px 0 0; padding-left: 18px; }
 .livery-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+@media (max-width: 480px) {
+  .livery-story-controls { align-items: stretch; flex-direction: column; }
+  .livery-story-buttons { display: flex; }
+  .livery-story-buttons button { flex: 1; }
+}
