@@ -1,0 +1,25 @@
+{
+  "name": "@livery/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "livery": "./dist/cli.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@livery/core": "workspace:*",
+    "@livery/export-node": "workspace:*",
+    "@livery/layout-elk": "workspace:*"
+  }
+}
