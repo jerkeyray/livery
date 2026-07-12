@@ -71,6 +71,38 @@ h1 {
   min-width: 0;
 }
 
+.renderer-switch {
+  display: inline-flex;
+  margin-bottom: 10px;
+  padding: 2px;
+  border: 1px solid #d4d4d4;
+  border-radius: 6px;
+  background: #e7e5e4;
+}
+
+.renderer-switch button {
+  min-width: 64px;
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #525252;
+  font: 600 12px/1 Inter, ui-sans-serif, system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.renderer-switch button[aria-pressed="true"] {
+  background: #ffffff;
+  color: #171717;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 10%);
+}
+
+.renderer-switch button:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
 @media (max-width: 840px) {
   main {
     margin-block: 24px;

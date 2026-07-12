@@ -40,6 +40,8 @@ const punctuation: Partial<Record<string, TokenKind>> = {
   ")": "right_paren",
 };
 
+const MAX_TOKENIZER_DIAGNOSTICS = 100;
+
 function clonePosition(cursor: Cursor): SourcePosition {
   return { ...cursor };
 }
@@ -54,6 +56,20 @@ export function tokenize(source: string): TokenizeResult {
   const cursor: Cursor = { line: 1, column: 1, offset: 0 };
   let braceDepth = 0;
   let incomplete = false;
+
+  const report = (item: Diagnostic) => {
+    if (diagnostics.length < MAX_TOKENIZER_DIAGNOSTICS) {
+      diagnostics.push(item);
+    } else if (diagnostics.length === MAX_TOKENIZER_DIAGNOSTICS) {
+      diagnostics.push({
+        ...diagnostic(
+          "resource.max_diagnostics",
+          `Tokenizer diagnostics were truncated after ${MAX_TOKENIZER_DIAGNOSTICS} errors.`,
+        ),
+        repair: { description: "Repair the earliest reported errors before compiling again." },
+      });
+    }
+  };
 
   const advance = () => {
     const character = source[cursor.offset] ?? "";
@@ -107,7 +123,7 @@ export function tokenize(source: string): TokenizeResult {
       if (punctuationKind === "left_brace") {
         braceDepth += 1;
         if (braceDepth > 4) {
-          diagnostics.push(
+          report(
             diagnostic(
               "resource.max_nesting_depth",
               "Block nesting exceeds the maximum depth of 4.",
@@ -147,7 +163,7 @@ export function tokenize(source: string): TokenizeResult {
       push("string", value, start);
       if (!closed) {
         incomplete = cursor.offset >= source.length;
-        diagnostics.push(
+        report(
           diagnostic(
             incomplete ? "syntax.incomplete_string" : "syntax.unterminated_string",
             "String is missing a closing quote.",
@@ -170,7 +186,7 @@ export function tokenize(source: string): TokenizeResult {
 
     const start = clonePosition(cursor);
     advance();
-    diagnostics.push(
+    report(
       diagnostic(
         "syntax.unexpected_character",
         `Unexpected character ${JSON.stringify(character)}.`,

@@ -1,7 +1,9 @@
-import { StrictMode, useState } from "react";
+import { StrictMode, useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Livery } from "@livery/react";
+import { mountLivery, type LiveryWebInstance } from "@livery/web";
 
+import "@livery/web/styles.css";
 import "@livery/react/styles.css";
 import "./styles.css";
 
@@ -29,6 +31,7 @@ const initialSource = `flow checkout("Checkout request") {
 
 function Playground() {
   const [source, setSource] = useState(initialSource);
+  const [renderer, setRenderer] = useState<"react" | "web">("react");
 
   return (
     <main>
@@ -48,11 +51,41 @@ function Playground() {
           />
         </section>
         <section aria-label="Preview" className="preview-pane">
-          <Livery source={source} />
+          <div aria-label="Renderer" className="renderer-switch" role="group">
+            <button aria-pressed={renderer === "react"} onClick={() => setRenderer("react")} type="button">
+              React
+            </button>
+            <button aria-pressed={renderer === "web"} onClick={() => setRenderer("web")} type="button">
+              Web
+            </button>
+          </div>
+          {renderer === "react" ? <Livery source={source} /> : <WebPreview source={source} />}
         </section>
       </div>
     </main>
   );
+}
+
+function WebPreview({ source }: { source: string }) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const instanceRef = useRef<LiveryWebInstance>(undefined);
+
+  useLayoutEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    if (instanceRef.current) instanceRef.current.update(source);
+    else instanceRef.current = mountLivery(host, source);
+  }, [source]);
+
+  useLayoutEffect(
+    () => () => {
+      instanceRef.current?.destroy();
+      instanceRef.current = undefined;
+    },
+    [],
+  );
+
+  return <div ref={hostRef} />;
 }
 
 createRoot(document.getElementById("root")!).render(

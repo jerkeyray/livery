@@ -24,6 +24,7 @@
       "dependencies": {
         "@livery/core": "workspace:*",
         "@livery/react": "workspace:*",
+        "@livery/web": "workspace:*",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
       },
@@ -52,6 +53,13 @@
       "peerDependencies": {
         "react": ">=18",
         "react-dom": ">=18",
+      },
+    },
+    "packages/web": {
+      "name": "@livery/web",
+      "version": "0.0.0",
+      "dependencies": {
+        "@livery/core": "workspace:*",
       },
     },
   },
@@ -135,6 +143,8 @@
     "@livery/playground": ["@livery/playground@workspace:apps/playground"],
 
     "@livery/react": ["@livery/react@workspace:packages/react"],
+
+    "@livery/web": ["@livery/web@workspace:packages/web"],
 
     "@napi-rs/wasm-runtime": ["@napi-rs/wasm-runtime@1.1.6", "", { "dependencies": { "@tybys/wasm-util": "^0.10.3" }, "peerDependencies": { "@emnapi/core": "^1.7.1", "@emnapi/runtime": "^1.7.1" } }, "sha512-ZLv/JdUfkvOy9eCnnBaGfiO+XimbjebAeO+MRQqD/B+FR1tnRN0tpKSJHRbE8sFfS6aqsXZ67TQjfwfsxULVbg=="],
 

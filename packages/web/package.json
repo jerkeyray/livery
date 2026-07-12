@@ -1,0 +1,22 @@
+{
+  "name": "@livery/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": ["**/*.css"],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./styles.css": "./dist/style.css"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@livery/core": "workspace:*"
+  }
+}
