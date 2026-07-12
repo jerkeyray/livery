@@ -1,11 +1,12 @@
 import {
-  computeFlowScene,
   computeStoryState,
+  fastFlowLayoutAdapter,
   resolveArtifactElement,
   type ArtifactElement,
   type CompileRevision,
   type LiveryArtifact,
   type LiverySource,
+  type LayoutAdapter,
   type Scene,
   type StoryStep,
   type StoryState,
@@ -13,9 +14,11 @@ import {
 
 import { animateStoryStep, prefersReducedMotion } from "./motion.js";
 import { LiveryController, type LiveryControllerRevision } from "./controller.js";
+import { LayoutController, type LayoutControllerRevision } from "./layout-controller.js";
 
 export type LiveryWebOptions = {
   autoPlay?: boolean;
+  layoutAdapter?: LayoutAdapter;
   motion?: boolean;
   observeResize?: boolean;
   onActivate?: (element: ArtifactElement) => void;
@@ -52,10 +55,12 @@ export function mountLivery(
   options: LiveryWebOptions = {},
 ): LiveryWebInstance {
   const controller = new LiveryController();
+  const layoutController = new LayoutController();
   const markerId = `livery-web-arrow-${++instanceCount}`;
   let currentSource = source;
   let currentArtifact = controller.revision?.renderArtifact;
   let currentResult: WebRenderResult;
+  let currentLayout: LayoutControllerRevision | undefined;
   let destroyed = false;
   let playing = false;
   let storyStep = -1;
@@ -63,7 +68,11 @@ export function mountLivery(
   let activeAnimations: Animation[] = [];
 
   const storyEnabled = () =>
-    options.story !== false && !currentResult.retained && Boolean(currentArtifact?.story.length);
+    options.story !== false &&
+    !currentResult.retained &&
+    !currentLayout?.pending &&
+    currentLayout?.artifact === currentArtifact &&
+    Boolean(currentArtifact?.story.length);
 
   const stopTimer = () => {
     if (storyTimer !== undefined) window.clearTimeout(storyTimer);
@@ -73,24 +82,55 @@ export function mountLivery(
   const redraw = (motionStep?: StoryStep) => {
     activeAnimations.forEach((animation) => animation.cancel());
     activeAnimations = [];
+    const renderArtifact = currentLayout?.artifact;
+    const scene = currentLayout?.scene;
+    const layoutPending = currentLayout?.pending ?? false;
+    const layoutFailed = currentLayout?.error !== undefined;
+    const storyActive = storyEnabled();
     container.replaceChildren(
-      currentArtifact
+      renderArtifact && scene
         ? createFigure(
             container.ownerDocument,
-            currentArtifact,
+            renderArtifact,
+            scene,
             currentResult,
             currentResult.retained,
             markerId,
-            resolveWidth(container, options),
-            storyEnabled() ? computeStoryState(currentArtifact, storyStep) : undefined,
-            storyEnabled() && options.storyControls !== false ? storyControls : undefined,
+            storyActive ? computeStoryState(renderArtifact, storyStep) : undefined,
+            storyActive && options.storyControls !== false ? storyControls : undefined,
             options.onActivate,
+            layoutPending,
+            layoutFailed,
           )
-        : createError(container.ownerDocument, currentResult),
+        : currentArtifact && currentLayout?.pending
+          ? createPending(container.ownerDocument)
+          : currentArtifact && currentLayout?.error
+            ? createLayoutError(container.ownerDocument)
+          : createError(container.ownerDocument, currentResult),
     );
     if (motionStep && options.motion !== false && !prefersReducedMotion(container)) {
       activeAnimations = animateStoryStep(container, motionStep);
     }
+  };
+
+  const requestLayout = () => {
+    if (!currentArtifact) {
+      layoutController.clear();
+      currentLayout = undefined;
+      redraw();
+      return;
+    }
+    currentLayout = layoutController.update(
+      options.layoutAdapter ?? fastFlowLayoutAdapter,
+      { artifact: currentArtifact, options: { width: resolveWidth(container, options) } },
+      (revision) => {
+        if (destroyed) return;
+        currentLayout = revision;
+        redraw();
+        if (options.autoPlay && storyStep === -1) play();
+      },
+    );
+    redraw();
   };
 
   const setStep = (nextStep: number, stopPlayback = true) => {
@@ -170,7 +210,7 @@ export function mountLivery(
       options.retainLastValid === undefined ? {} : { retainLastValid: options.retainLastValid },
     );
     currentArtifact = currentResult.renderArtifact;
-    redraw();
+    requestLayout();
     return currentResult;
   };
 
@@ -178,7 +218,7 @@ export function mountLivery(
   const observer =
     options.observeResize !== false && typeof ResizeObserver !== "undefined"
       ? new ResizeObserver(() => {
-          if (!destroyed) redraw();
+          if (!destroyed) requestLayout();
         })
       : undefined;
   observer?.observe(container);
@@ -213,6 +253,7 @@ export function mountLivery(
       stopTimer();
       activeAnimations.forEach((animation) => animation.cancel());
       activeAnimations = [];
+      layoutController.destroy();
       observer?.disconnect();
       container.replaceChildren();
     },
@@ -238,19 +279,29 @@ function resolveWidth(container: HTMLElement, options: LiveryWebOptions) {
 function createFigure(
   document: Document,
   artifact: LiveryArtifact,
+  scene: Scene,
   revision: CompileRevision,
   retained: boolean,
   markerId: string,
-  width: number,
   storyState?: StoryState,
   controls?: StoryControlActions,
   onActivate?: (element: ArtifactElement) => void,
+  layoutPending = false,
+  layoutFailed = false,
 ) {
-  const scene = computeFlowScene(artifact, { width });
   const figure = document.createElement("figure");
   figure.className = `livery livery-${scene.direction}`;
   figure.dataset.liveryRevision = String(revision.revision);
-  figure.dataset.liveryState = retained ? "retained" : revision.incomplete ? "incomplete" : "ready";
+  figure.dataset.liveryState = layoutPending
+    ? "pending-layout"
+    : layoutFailed
+      ? "layout-error"
+      : retained
+        ? "retained"
+        : revision.incomplete
+          ? "incomplete"
+          : "ready";
+  figure.setAttribute("aria-busy", String(layoutPending));
   figure.setAttribute("aria-label", scene.accessibility.summary);
 
   if (retained) figure.append(createDiagnostics(document, revision));
@@ -266,6 +317,24 @@ function createFigure(
   );
   if (controls) figure.append(createStoryControls(document, artifact, controls));
   return figure;
+}
+
+function createPending(document: Document) {
+  const pending = document.createElement("div");
+  pending.className = "livery-pending";
+  pending.dataset.liveryState = "pending-layout";
+  pending.setAttribute("aria-busy", "true");
+  pending.setAttribute("aria-label", "Laying out visual");
+  return pending;
+}
+
+function createLayoutError(document: Document) {
+  const error = document.createElement("div");
+  error.className = "livery-error";
+  error.dataset.liveryState = "layout-error";
+  error.setAttribute("role", "alert");
+  error.textContent = "Unable to lay out visual";
+  return error;
 }
 
 function createScene(
