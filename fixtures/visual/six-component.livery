@@ -1,0 +1,14 @@
+figure platform("Platform overview") {
+  user = person("User")
+  web = browser("Web app")
+  api = service("API")
+  cache = cache("Cache")
+  queue = queue("Jobs")
+  db = database("Database")
+  user.right -> web.left("open")
+  web.right -> api.left("request")
+  api.right -> cache.left("read")
+  api.right -> queue.left("enqueue")
+  queue.right -> db.left("write")
+  grid(user, web, api, cache, queue, db, columns: 3, gap: lg)
+}

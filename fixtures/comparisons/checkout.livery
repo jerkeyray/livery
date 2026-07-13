@@ -1,6 +1,11 @@
-flow checkout("Checkout request") {
-  customer -> api("submit order")
-  api -> payment("authorize")
-  payment -> api("approved", tone: success)
-  api -> orders("persist")
+figure checkout("Checkout request") {
+  customer = person("Customer")
+  api = service("Checkout API")
+  payment = service("Payment")
+  orders = database("Orders")
+  customer.right -> api.left("submit order")
+  api.right -> payment.left("authorize")
+  payment.left -> api.right("approved")
+  api.right -> orders.left("persist")
+  row(customer, api, payment, orders, gap: lg)
 }

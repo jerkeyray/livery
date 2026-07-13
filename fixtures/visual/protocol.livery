@@ -1,0 +1,11 @@
+figure protocol("Request protocol") {
+  client = lib.browser(label: "Browser")
+  gateway = lib.api(label: "Gateway")
+  note = lib.callout(label: "Signed request")
+  request = connect(client.right, gateway.left, label: "POST /orders")
+  column(gap: lg) {
+    client
+    gateway
+    note
+  }
+}

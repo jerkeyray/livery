@@ -16,6 +16,23 @@ describe("Livery CLI", () => {
     expect(io.stdout).toHaveBeenCalledWith(expect.stringContaining("<svg"));
   });
 
+  it("renders programmable figures to portable SVG", async () => {
+    const io = fakeIo(`figure cli("Programmable") {\n a = lib.service(label: "API")\n}`);
+    const status = await runCli(["-", "--format", "svg"], io);
+
+    expect(status).toBe(0);
+    expect(io.stdout).toHaveBeenCalledWith(expect.stringContaining("Programmable"));
+  });
+
+  it("prints deterministic programmable source for legacy flows", async () => {
+    const io = fakeIo(`flow old {\n api = service("API")\n db = database("DB")\n api -> db("read")\n}`);
+    const status = await runCli(["-", "--migrate"], io);
+
+    expect(status).toBe(0);
+    expect(io.stdout).toHaveBeenCalledWith(expect.stringContaining("figure old"));
+    expect(io.stdout).toHaveBeenCalledWith(expect.stringContaining("lib.database"));
+  });
+
   it("writes compiler diagnostics and exits with failure", async () => {
     const io = fakeIo("not a flow");
     const status = await runCli(["-", "--format", "svg"], io);

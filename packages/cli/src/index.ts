@@ -1,20 +1,25 @@
 import { readFile, writeFile } from "node:fs/promises";
 
 import {
+  compileVisual,
+  boardSceneToSvg,
   createLayoutPolicyAdapter,
   exportHeadless,
   fastFlowLayoutAdapter,
+  migrateLegacySource,
+  solvePinboard,
   type Diagnostic,
   type HeadlessExportFormat,
   type LayoutAdapter,
 } from "@jerkeyray/core";
-import { exportHeadlessPng } from "@jerkeyray/export-node";
+import { exportHeadlessPng, svgToPng } from "@jerkeyray/export-node";
 import { createElkLayoutAdapter } from "@jerkeyray/layout-elk";
 
 export type CliOptions = {
   format: HeadlessExportFormat | "png";
   input: string;
   layout: "auto" | "fast";
+  migrate: boolean;
   output?: string;
   outputWidth?: number;
   pretty: boolean;
@@ -35,6 +40,7 @@ Options:
   -f, --format <svg|json|png>  Output format; inferred from --output when omitted
   -o, --output <path>          Write to a file instead of stdout
       --layout <auto|fast>     Layout policy (default: auto)
+      --migrate                Translate legacy flow source to the programmable language
       --width <pixels>         Diagram layout width (default: 960)
       --scale <number>         PNG scale from 0.1 to 8
       --output-width <pixels>  PNG output width independent of layout width
@@ -45,6 +51,7 @@ export function parseCliArgs(argv: string[]): CliOptions | { help: true } {
   let format: CliOptions["format"] | undefined;
   let input: string | undefined;
   let layout: CliOptions["layout"] = "auto";
+  let migrate = false;
   let output: string | undefined;
   let outputWidth: number | undefined;
   let pretty = false;
@@ -56,6 +63,10 @@ export function parseCliArgs(argv: string[]): CliOptions | { help: true } {
     if (argument === "-h" || argument === "--help") return { help: true };
     if (argument === "--pretty") {
       pretty = true;
+      continue;
+    }
+    if (argument === "--migrate") {
+      migrate = true;
       continue;
     }
     if (argument === "-f" || argument === "--format") {
@@ -95,6 +106,7 @@ export function parseCliArgs(argv: string[]): CliOptions | { help: true } {
     format,
     input,
     layout,
+    migrate,
     ...(output ? { output } : {}),
     ...(outputWidth !== undefined ? { outputWidth } : {}),
     pretty,
@@ -118,6 +130,43 @@ export async function runCli(argv: string[], io: CliIo = nodeIo): Promise<number
 
   try {
     const source = await io.read(options.input);
+    if (options.migrate) {
+      const migrated = migrateLegacySource(source);
+      if (!migrated.source) {
+        io.stderr(`${formatDiagnostics(migrated.diagnostics)}\n`);
+        return 1;
+      }
+      if (options.output) await io.write(options.output, migrated.source);
+      else io.stdout(migrated.source);
+      return 0;
+    }
+    if (/^\s*(?:component|figure)\b/.test(source)) {
+      const compiled = compileVisual(source);
+      if (!compiled.document) {
+        if (options.format === "json") io.stdout(JSON.stringify({ diagnostics: compiled.diagnostics }, null, options.pretty ? 2 : undefined));
+        else io.stderr(`${formatDiagnostics(compiled.diagnostics)}\n`);
+        return 1;
+      }
+      const layout = solvePinboard(compiled.document, { width: options.width });
+      if (!layout.ok) {
+        if (options.format === "json") io.stdout(JSON.stringify({ document: compiled.document, diagnostics: [...compiled.diagnostics, ...layout.diagnostics], attempts: layout.attempts }, null, options.pretty ? 2 : undefined));
+        else io.stderr(`${formatDiagnostics(layout.diagnostics)}\n`);
+        return 1;
+      }
+      const scene = layout.scene;
+      const svg = boardSceneToSvg(scene);
+      const output = options.format === "svg"
+        ? svg
+        : options.format === "json"
+          ? JSON.stringify({ document: compiled.document, diagnostics: compiled.diagnostics, scene }, null, options.pretty ? 2 : undefined)
+          : svgToPng(svg, {
+              ...(options.outputWidth !== undefined ? { outputWidth: options.outputWidth } : {}),
+              ...(options.scale !== undefined ? { scale: options.scale } : {}),
+            });
+      if (options.output) await io.write(options.output, output);
+      else io.stdout(output);
+      return 0;
+    }
     const adapter = layoutAdapter(options.layout);
     const result = options.format === "png"
       ? await exportHeadlessPng(source, {

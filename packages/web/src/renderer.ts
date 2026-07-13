@@ -98,7 +98,7 @@ export function mountLivery(
             currentResult,
             currentResult.retained,
             markerId,
-            storyActive ? computeStoryState(renderArtifact, storyStep) : undefined,
+            storyActive && storyStep >= 0 ? computeStoryState(renderArtifact, storyStep) : undefined,
             storyActive && options.storyControls !== false ? storyControls : undefined,
             options.onActivate,
             layoutPending,
@@ -362,7 +362,7 @@ function createScene(
 
   for (const node of scene.nodes) {
     const element = document.createElement("div");
-    element.className = `livery-node${node.tone ? ` livery-tone-${node.tone}` : ""}`;
+    element.className = `livery-node${node.role ? ` livery-role-${node.role}` : ""}${node.tone ? ` livery-tone-${node.tone}` : ""}`;
     applyEntityStoryClasses(element, node.id, storyState);
     element.dataset.liveryId = node.id;
     const semanticElement = resolveArtifactElement(artifact, "entity", node.id);
@@ -435,12 +435,20 @@ function createConnections(
     path.setAttribute("marker-end", `url(#${markerId})`);
     group.append(path);
     if (edge.label) {
+      const labelWidth = Math.max(34, edge.label.length * 6.4 + 14);
+      const background = document.createElementNS(SVG_NAMESPACE, "rect");
+      background.classList.add("livery-edge-label-bg");
+      background.setAttribute("height", "18");
+      background.setAttribute("rx", "4");
+      background.setAttribute("width", String(labelWidth));
+      background.setAttribute("x", String(edge.labelX - labelWidth / 2));
+      background.setAttribute("y", String(edge.labelY - 13));
       const label = document.createElementNS(SVG_NAMESPACE, "text");
       label.setAttribute("text-anchor", "middle");
       label.setAttribute("x", String(edge.labelX));
       label.setAttribute("y", String(edge.labelY));
       label.textContent = edge.label;
-      group.append(label);
+      group.append(background, label);
     }
     svg.append(group);
   }

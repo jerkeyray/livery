@@ -166,7 +166,7 @@ async function layoutWithElk(elk: ElkLike, request: LayoutRequest): Promise<Scen
     artifact.entities.map((entity) => [
       entity.id,
       measurement.measureEntity(entity, {
-        minWidth: Math.min(152, maxNodeWidth),
+        minWidth: Math.min(168, maxNodeWidth),
         maxWidth: maxNodeWidth,
         minHeight: vertical ? 64 : 72,
         maxLines: 2,
@@ -179,6 +179,7 @@ async function layoutWithElk(elk: ElkLike, request: LayoutRequest): Promise<Scen
       "elk.algorithm": "layered",
       "elk.direction": vertical ? "DOWN" : "RIGHT",
       "elk.edgeRouting": "ORTHOGONAL",
+      "elk.layered.cycleBreaking.strategy": "GREEDY_MODEL_ORDER",
       "elk.layered.considerModelOrder.strategy": "PREFER_EDGES",
       "elk.spacing.nodeNode": "44",
       "elk.layered.spacing.nodeNodeBetweenLayers": vertical ? "64" : "104",
@@ -213,6 +214,12 @@ async function layoutWithElk(elk: ElkLike, request: LayoutRequest): Promise<Scen
     };
   });
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const pairCounts = new Map<string, number>();
+  for (const relationship of artifact.relationships) {
+    const key = relationshipPair(relationship.from, relationship.to);
+    pairCounts.set(key, (pairCounts.get(key) ?? 0) + 1);
+  }
+  const pairIndexes = new Map<string, number>();
   const edges: SceneEdge[] = artifact.relationships.map((relationship) => {
     const elkEdge = edgeById.get(relationship.id);
     const points = elkEdge?.sections?.flatMap((section) => [
@@ -223,14 +230,19 @@ async function layoutWithElk(elk: ElkLike, request: LayoutRequest): Promise<Scen
     const shifted = points?.length
       ? points.map(({ x, y }) => ({ x: x + offsetX, y }))
       : fallbackPoints(nodeById.get(relationship.from), nodeById.get(relationship.to));
-    const middle = shifted[Math.floor(shifted.length / 2)]!;
+    const pair = relationshipPair(relationship.from, relationship.to);
+    const pairIndex = pairIndexes.get(pair) ?? 0;
+    pairIndexes.set(pair, pairIndex + 1);
+    const pairCount = pairCounts.get(pair) ?? 1;
+    const lane = pairCount > 1 ? (pairIndex - (pairCount - 1) / 2) * 28 : 0;
+    const label = edgeLabelPosition(shifted, lane);
     return {
       id: relationship.id,
       from: relationship.from,
       to: relationship.to,
       path: shifted.map(({ x, y }, index) => `${index === 0 ? "M" : "L"} ${Math.round(x)} ${Math.round(y)}`).join(" "),
-      labelX: Math.round(middle.x),
-      labelY: Math.round(middle.y - 8),
+      labelX: Math.round(label.x),
+      labelY: Math.round(label.y),
       ...(relationship.label ? { label: relationship.label } : {}),
       ...(relationship.tone ? { tone: relationship.tone } : {}),
     };
@@ -249,6 +261,25 @@ async function layoutWithElk(elk: ElkLike, request: LayoutRequest): Promise<Scen
     },
     ...(artifact.title ? { title: artifact.title } : {}),
   };
+}
+
+function edgeLabelPosition(points: ElkPoint[], lane: number) {
+  let longest = { from: points[0]!, length: -1, to: points.at(1) ?? points[0]! };
+  for (let pointIndex = 1; pointIndex < points.length; pointIndex++) {
+    const from = points[pointIndex - 1]!;
+    const to = points[pointIndex]!;
+    const length = Math.hypot(to.x - from.x, to.y - from.y);
+    if (length > longest.length) longest = { from, length, to };
+  }
+  const horizontal = Math.abs(longest.to.x - longest.from.x) >= Math.abs(longest.to.y - longest.from.y);
+  return {
+    x: (longest.from.x + longest.to.x) / 2 + (horizontal ? 0 : lane || 10),
+    y: (longest.from.y + longest.to.y) / 2 + (horizontal ? lane || -9 : 4),
+  };
+}
+
+function relationshipPair(from: string, to: string) {
+  return from < to ? `${from}\u0000${to}` : `${to}\u0000${from}`;
 }
 
 function fallbackPoints(from?: SceneNode, to?: SceneNode): ElkPoint[] {

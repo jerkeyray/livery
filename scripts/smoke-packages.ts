@@ -31,20 +31,23 @@ await run(
 );
 await writeFile(
   join(consumerDirectory, "smoke.mjs"),
-  `import { exportHeadless } from "@jerkeyray/core";
+  `import { boardSceneToSvg, compileVisual, exportHeadless, solvePinboard } from "@jerkeyray/core";
 import { exportHeadlessPng } from "@jerkeyray/export-node";
 import { createElkLayoutAdapter } from "@jerkeyray/layout-elk";
-import { Livery } from "@jerkeyray/react";
-import { mountLivery } from "@jerkeyray/web";
+import { Livery, LiveryVisual } from "@jerkeyray/react";
+import { mountLivery, mountLiveryVisual } from "@jerkeyray/web";
 
 const result = await exportHeadless("flow installed { a -> b }", { format: "svg" });
 if (!result.output?.startsWith("<svg")) throw new Error("Core SVG export failed.");
+const visual = compileVisual(${JSON.stringify('figure installed {\n a = service("A")\n}')});
+const board = visual.document ? solvePinboard(visual.document) : undefined;
+if (!board?.ok || !boardSceneToSvg(board.scene).startsWith("<svg")) throw new Error("Programmable SVG export failed.");
 if (typeof exportHeadlessPng !== "function") throw new Error("PNG export is missing.");
 if (createElkLayoutAdapter().id !== "livery.elk-layered") throw new Error("ELK adapter is invalid.");
-if (typeof Livery !== "function" || typeof mountLivery !== "function") throw new Error("Renderer exports are invalid.");
+if (typeof Livery !== "function" || typeof LiveryVisual !== "function" || typeof mountLivery !== "function" || typeof mountLiveryVisual !== "function") throw new Error("Renderer exports are invalid.");
 `,
 );
-await writeFile(join(consumerDirectory, "input.livery"), 'flow packed("Packed") { a -> b("ok") }\n');
+await writeFile(join(consumerDirectory, "input.livery"), 'figure packed("Packed") {\n a = service("A")\n b = database("B")\n a.right -> b.left("ok")\n row(a, b, gap: lg)\n}\n');
 await run(["node", "smoke.mjs"], consumerDirectory);
 await run(
   [join(consumerDirectory, "node_modules", ".bin", "livery"), "input.livery", "-o", "packed.svg", "--layout", "fast"],

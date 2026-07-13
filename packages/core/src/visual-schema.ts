@@ -1,0 +1,64 @@
+import { z } from "zod";
+
+const visualValueSchema = z.union([z.string(), z.number(), z.boolean()]);
+const styleSchema = z.record(z.string(), visualValueSchema);
+const layoutSchema = z.object({
+  kind: z.enum(["free", "row", "column", "stack", "grid", "overlay", "canvas"]),
+  gap: visualValueSchema.optional(),
+  columns: z.number().int().positive().optional(),
+  align: z.enum(["start", "center", "end", "stretch"]).optional(),
+  distribute: z.enum(["start", "center", "end", "between", "around"]).optional(),
+  x: z.number().optional(),
+  y: z.number().optional(),
+  width: z.number().positive().optional(),
+  height: z.number().positive().optional(),
+});
+
+export const visualNodeSchema: z.ZodType = z.lazy(() => z.object({
+  id: z.string().min(1),
+  kind: z.string().min(1),
+  label: z.string().optional(),
+  description: z.string().optional(),
+  variant: z.string().optional(),
+  tone: z.enum(["neutral", "info", "success", "warning", "danger"]).optional(),
+  layout: layoutSchema.optional(),
+  style: styleSchema.optional(),
+  props: styleSchema.optional(),
+  children: z.array(visualNodeSchema).optional(),
+  anchors: z.array(z.enum(["top", "right", "bottom", "left", "center"])).optional(),
+}));
+
+const targetSchema = z.object({ node: z.string().min(1), anchor: z.enum(["top", "right", "bottom", "left", "center"]).optional() });
+const operationSchema = z.union([
+  z.object({ action: z.enum(["show", "hide", "focus", "trace"]), targets: z.array(z.string()).min(1) }),
+  z.object({ action: z.literal("set"), targets: z.array(z.string()).min(1), properties: styleSchema }),
+  z.object({ action: z.literal("morph"), targets: z.tuple([z.string(), z.string()]) }),
+]);
+
+export const visualDocumentSchema = z.object({
+  type: z.literal("livery.visual"),
+  version: z.literal("0.2"),
+  id: z.string().min(1),
+  title: z.string().optional(),
+  root: visualNodeSchema,
+  constraints: z.array(z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("align"), targets: z.array(z.string()).min(2), axis: z.enum(["x", "y"]), edge: z.enum(["start", "center", "end"]).optional() }),
+    z.object({ kind: z.literal("distribute"), targets: z.array(z.string()).min(3), axis: z.enum(["x", "y"]), gap: visualValueSchema.optional() }),
+    z.object({ kind: z.literal("inside"), child: z.string(), container: z.string(), padding: visualValueSchema.optional() }),
+    z.object({ kind: z.literal("near"), first: z.string(), second: z.string(), distance: visualValueSchema.optional() }),
+  ])).default([]),
+  connectors: z.array(z.object({
+    id: z.string().min(1),
+    from: targetSchema,
+    to: targetSchema,
+    label: z.string().optional(),
+    variant: z.enum(["directional", "bidirectional", "async", "data"]).optional(),
+    tone: z.enum(["neutral", "info", "success", "warning", "danger"]).optional(),
+    style: styleSchema.optional(),
+  })).default([]),
+  timelines: z.array(z.object({
+    id: z.string().min(1),
+    states: z.array(z.object({ id: z.string().min(1), operations: z.array(operationSchema) })),
+    transitions: z.array(z.object({ from: z.string(), to: z.string(), duration: z.string().optional() })),
+  })).default([]),
+});

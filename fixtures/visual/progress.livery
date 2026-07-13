@@ -1,0 +1,10 @@
+figure release("Release progress") {
+  build = lib.progress(label: "Build 100%")
+  tests = lib.progress(label: "Tests 92%")
+  deploy = lib.progress(label: "Deploy 40%")
+  column(gap: md) {
+    build
+    tests
+    deploy
+  }
+}

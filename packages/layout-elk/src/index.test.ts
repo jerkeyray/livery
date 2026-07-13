@@ -17,6 +17,7 @@ describe("ELK layout adapter", () => {
     expect(scene.edges).toHaveLength(2);
     expect(scene.nodes.every(({ x, y }) => Number.isFinite(x) && Number.isFinite(y))).toBe(true);
     expect(scene.edges.every(({ path }) => path.startsWith("M "))).toBe(true);
+    expect(new Set(scene.edges.map(({ labelY }) => labelY)).size).toBe(2);
   });
 
   it("is deterministic for equivalent requests", async () => {

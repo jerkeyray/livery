@@ -17,6 +17,18 @@ export * from "./schema.js";
 export * from "./scene.js";
 export * from "./session.js";
 export * from "./story.js";
+export * from "./visual.js";
+export * from "./theme.js";
+export * from "./stdlib.js";
+export * from "./program.js";
+export * from "./visual-layout.js";
+export * from "./visual-export.js";
+export * from "./timeline.js";
+export * from "./visual-schema.js";
+export * from "./board.js";
+export * from "./board-validator.js";
+export * from "./pinboard.js";
+export * from "./board-export.js";
 export * from "./text.js";
 
 export const LIVERY_ARTIFACT_VERSION = "0.1" as const;

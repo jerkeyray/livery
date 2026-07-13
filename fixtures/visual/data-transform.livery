@@ -1,0 +1,12 @@
+figure transform("Data transformation") {
+  input = lib.table(label: "Raw events")
+  worker = lib.worker(label: "Normalize")
+  output = lib.table(label: "Clean records")
+  ingest = connect(input.right, worker.left, label: "parse")
+  emit = connect(worker.right, output.left, label: "validate")
+  row(gap: xl) {
+    input
+    worker
+    output
+  }
+}

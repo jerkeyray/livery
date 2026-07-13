@@ -1,0 +1,20 @@
+component ValveMechanism() {
+  body = box(x: 36, y: 54, width: 156, height: 54, radius: 10, fill: "$color.surface")
+  shaft = line(x: 82, y: 20, width: 64, height: 2, stroke: "$color.accent")
+  wheel = circle(x: 92, y: 4, width: 44, height: 44, fill: "$color.surface")
+  bolts = repeat(count: 4, kind: circle, x: 52, y: 72, width: 10, height: 10, stepX: 36, fill: "$color.surface")
+
+  return canvas(width: 228, height: 136, bleed: 4) {
+    body
+    shaft
+    wheel
+    bolts
+  }
+}
+
+figure valve("Valve mechanism") {
+  mechanism = ValveMechanism()
+  note = callout("Quarter-turn actuator")
+  annotation = mechanism.right -> note.left("controls flow")
+  row(mechanism, note, gap: xl)
+}

@@ -217,7 +217,7 @@ export function Livery({
     );
   }
 
-  const storyState = hasStory ? computeStoryState(renderArtifact, storyStep) : undefined;
+  const storyState = hasStory && storyStep >= 0 ? computeStoryState(renderArtifact, storyStep) : undefined;
   const markerId = `livery-arrow-${renderArtifact.id.replaceAll(/[^A-Za-z0-9_-]/g, "-")}`;
   const atEnd = storyStep >= renderArtifact.story.length - 1;
   const changeStoryStep = (step: number) => {
@@ -286,9 +286,19 @@ export function Livery({
             >
               <path d={edge.path} markerEnd={`url(#${markerId})`} />
               {edge.label ? (
-                <text textAnchor="middle" x={edge.labelX} y={edge.labelY}>
-                  {edge.label}
-                </text>
+                <>
+                  <rect
+                    className="livery-edge-label-bg"
+                    height="18"
+                    rx="4"
+                    width={Math.max(34, edge.label.length * 6.4 + 14)}
+                    x={edge.labelX - Math.max(34, edge.label.length * 6.4 + 14) / 2}
+                    y={edge.labelY - 13}
+                  />
+                  <text textAnchor="middle" x={edge.labelX} y={edge.labelY}>
+                    {edge.label}
+                  </text>
+                </>
               ) : null}
               </g>
             );
@@ -302,7 +312,7 @@ export function Livery({
             <div
             aria-label={onActivate && semanticElement && visible ? semanticElement.value.label : undefined}
             aria-hidden={!visible ? "true" : undefined}
-            className={`livery-node${toneClass(node.tone)}${entityStoryClass(node.id, storyState)}${onActivate && semanticElement && visible ? " livery-interactive" : ""}`}
+            className={`livery-node${node.role ? ` livery-role-${node.role}` : ""}${toneClass(node.tone)}${entityStoryClass(node.id, storyState)}${onActivate && semanticElement && visible ? " livery-interactive" : ""}`}
             data-livery-id={node.id}
             key={node.id}
             onClick={onActivate && semanticElement && visible ? () => onActivate(semanticElement) : undefined}

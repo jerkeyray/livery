@@ -1,0 +1,20 @@
+figure checkout_state("Checkout state") {
+  api = lib.service(label: "Checkout API")
+  payment = lib.service(label: "Payment")
+  authorize = connect(api.right, payment.left, label: "authorize")
+  row(gap: xl) {
+    api
+    payment
+  }
+  timeline checkout {
+    state request {
+      show(api)
+    }
+    state authorization {
+      show(payment)
+      trace(authorize)
+      focus(payment)
+    }
+    transition request -> authorization(duration: normal)
+  }
+}

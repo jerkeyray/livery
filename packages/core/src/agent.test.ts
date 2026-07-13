@@ -6,8 +6,8 @@ import { compile } from "./compiler.js";
 describe("agent helpers", () => {
   it("keeps the generation guide compact and source-oriented", () => {
     expect(LIVERY_AGENT_GUIDE.length).toBeLessThan(900);
-    expect(LIVERY_AGENT_GUIDE).toContain("Generate only Livery DSL");
-    expect(LIVERY_AGENT_GUIDE).toContain("request = client -> api");
+    expect(LIVERY_AGENT_GUIDE).toContain("Generate only Livery visual source");
+    expect(LIVERY_AGENT_GUIDE).toContain('read = api.right -> db.left("read")');
   });
 
   it("creates a local repair prompt with location and advice", () => {

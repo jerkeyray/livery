@@ -1,0 +1,12 @@
+figure cache_read("Cache read-through") {
+  app = lib.service(label: "Application")
+  cache = lib.cache(label: "Cache")
+  db = lib.database(label: "Primary database")
+  read = connect(app.right, cache.left, label: "read")
+  miss = connect(cache.right, db.left, label: "miss")
+  row(gap: xl) {
+    app
+    cache
+    db
+  }
+}

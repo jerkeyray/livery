@@ -1,11 +1,12 @@
 import type { Diagnostic } from "./diagnostics.js";
 
-export const LIVERY_AGENT_GUIDE = `Generate only Livery DSL. A document starts with flow id("Optional title") { ... }.
-Declare named values with typed constructors: client = actor("Client"), api = service("API"), db = database("Orders").
-Connect values with assigned relationships: request = client -> api("submit", tone: info).
-Valid tones: neutral, info, success, warning, danger. Prefer stable short identifiers and semantic roles over styling instructions.
-Optional story steps go inside story { ... }. Use reveal(entity), trace(relationship), focus(entity), and indicate(entity_or_relationship).
-Reference only declared entities or assigned relationships. Keep labels concise. Do not emit coordinates, colors, SVG, Markdown fences, or prose.`;
+export const LIVERY_AGENT_GUIDE = `Generate only Livery visual source. Use one figure id("Optional title") { ... }.
+Create named library components: api = service("API"), db = database("Orders").
+Compose with row, column, grid, stack, or overlay calls. Prefer constraints and spacing tokens xs, sm, md, lg, xl over coordinates.
+Connect stable anchors: read = api.right -> db.left("read").
+Reusable component Name(param: string) blocks may bind children and return one layout block.
+Optional timeline blocks contain named states using show, hide, focus, trace, set, or morph.
+Reference only declared values. Keep labels concise. Do not emit arbitrary colors, SVG, Markdown fences, prose, loops, or JavaScript.`;
 
 export type RepairPromptOptions = {
   contextLines?: number;
@@ -19,9 +20,12 @@ const fallbackAdvice: Record<string, string> = {
   "semantic.duplicate_id": "Give every entity and relationship a unique identifier.",
   "semantic.invalid_property_value": "Use a supported semantic value.",
   "semantic.missing_flow": "Wrap declarations in one flow id { ... } document.",
+  "semantic.missing_figure": "Wrap declarations in one figure id { ... } document.",
+  "semantic.unknown_component": "Use a declared component or a lib.* standard component.",
   "semantic.unknown_property": "Remove the unsupported property.",
   "semantic.unknown_story_target": "Target a declared entity or assigned relationship.",
   "syntax.expected_assignment_or_relationship": "Use name = constructor(...) or source -> target(...).",
+  "syntax.invalid_binding": "Use a stable name = component(...) binding.",
   "syntax.incomplete_block": "Close the block with }.",
   "syntax.incomplete_string": "Close the string with a double quote.",
   "syntax.unexpected_character": "Remove or replace the unsupported character.",

@@ -27,6 +27,10 @@
       "types": "./dist/controller.d.mts",
       "import": "./dist/controller.mjs"
     },
+    "./visual-renderer": {
+      "types": "./dist/visual-renderer.d.mts",
+      "import": "./dist/visual-renderer.mjs"
+    },
     "./styles.css": "./dist/style.css"
   },
   "files": ["dist", "README.md", "LICENSE"],
