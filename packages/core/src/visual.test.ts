@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canonicalTheme, instantiateStandardComponent, resolveComponentStyle, resolveTheme, resolveVisualValue, standardLibrary, visualDocumentSchema } from "./index.js";
+import { canonicalTheme, instantiateStandardComponent, resolveComponentRecipe, resolveComponentStyle, resolveTheme, resolveVisualValue, standardLibrary, visualDocumentSchema } from "./index.js";
 
 describe("programmable visual contracts", () => {
   it("builds standard components from public visual primitives", () => {
@@ -22,10 +22,21 @@ describe("programmable visual contracts", () => {
     expect(resolveComponentStyle("box", "emphasis", { fill: "#fff" }, theme)).toMatchObject({ fill: "#fff", strokeWidth: 2 });
   });
 
+  it("resolves geometry, glyph, surface, typography, and state recipes", () => {
+    expect(resolveComponentRecipe("lib.database", undefined, canonicalTheme)).toMatchObject({
+      geometry: { minWidth: 124, minHeight: 68 },
+      shape: "storage",
+      detail: { glyph: "database" },
+      surface: { fill: "$color.surface", stroke: "$color.border" },
+      typography: { fontSize: "$type.body", align: "start" },
+      states: { focused: { fill: "$color.accentSoft" } },
+    });
+  });
+
   it("documents standard component ports, tokens, sizing, and accessibility", () => {
     expect(standardLibrary.database).toMatchObject({
       ports: ["top", "right", "bottom", "left", "center"],
-      intrinsicSize: { minWidth: 120, minHeight: 64 },
+      intrinsicSize: { minWidth: 124, minHeight: 68 },
       accessibility: { labelParameter: "label" },
     });
   });

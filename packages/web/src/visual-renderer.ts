@@ -35,7 +35,11 @@ export function mountLiveryVisual(container: HTMLElement, source: string, option
   }
   const document = result.document;
   const width = options.width ?? (container.clientWidth || 720);
-  const layout = solvePinboard(document, { width });
+  const layout = solvePinboard(document, {
+    width,
+    ...(options.theme ? { theme: options.theme } : {}),
+    ...(options.tokenOverrides ? { tokenOverrides: options.tokenOverrides } : {}),
+  });
   if (!layout.ok) {
     const diagnostics = [...result.diagnostics, ...layout.diagnostics];
     container.replaceChildren(errorElement(container.ownerDocument, diagnostics));
@@ -44,7 +48,7 @@ export function mountLiveryVisual(container: HTMLElement, source: string, option
   const scene = layout.scene;
   const timeline = document.timelines.find(({ id }) => id === options.timeline) ?? document.timelines[0];
   const render = (stateId?: string) => {
-    const state = timeline && stateId ? computeTimelineState(timeline, stateId, [...scene.elements.map(({ id }) => id), ...scene.connectors.map(({ id }) => id)]) : undefined;
+    const state = timeline && stateId ? computeTimelineState(timeline, stateId, scene) : undefined;
     const svg = boardSceneToSvg(scene, { ...(options.theme ? { theme: options.theme } : {}), ...(options.tokenOverrides ? { tokenOverrides: options.tokenOverrides } : {}), ...(state ? { state } : {}), ...(options.debug ? { debug: true } : {}) });
     const parsed = new DOMParser().parseFromString(svg, "image/svg+xml").documentElement;
     const rendered = container.ownerDocument.importNode(parsed, true);

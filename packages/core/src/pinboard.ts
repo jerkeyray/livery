@@ -17,8 +17,9 @@ import type {
   SolvedPin,
 } from "./board.js";
 import type { AnchorName, Connector, LayoutKind, Timeline, VisualDocument, VisualNode, VisualValue } from "./visual.js";
+import { canonicalTheme, resolveComponentRecipe, resolveTheme, resolveVisualValue, type LiveryTheme, type TokenOverrides } from "./theme.js";
 
-export type PinboardOptions = { width?: number; maxCandidates?: number; maxElements?: number };
+export type PinboardOptions = { width?: number; maxCandidates?: number; maxElements?: number; theme?: LiveryTheme; tokenOverrides?: TokenOverrides };
 
 type Strategy = LayoutAttempt["strategy"];
 type Size = { width: number; height: number };
@@ -28,8 +29,11 @@ type PlacementContext = {
   channels: RouteChannel[];
   bounds: Map<string, BoardRect>;
   minimumGap: number;
-  rootGap: number;
+  rootColumnGap: number;
+  rootRowGap: number;
   canvases: SolvedCanvas[];
+  theme: LiveryTheme;
+  tokens: TokenOverrides;
 };
 
 const STRATEGIES: Strategy[] = ["requested", "expanded_tracks", "alternate_spans", "vertical_reflow", "increased_height"];
@@ -60,11 +64,13 @@ export function solvePinboard(document: VisualDocument, options: PinboardOptions
   const canvasDiagnostic = validateCanvasResources(document.root);
   if (canvasDiagnostic) return { ok: false, diagnostics: [canvasDiagnostic], attempts };
 
+  const theme = options.theme ?? canonicalTheme;
+  const tokens = resolveTheme(theme, options.tokenOverrides);
   for (const strategy of strategies) {
-    const scene = buildCandidate(document, width, strategy);
+    const scene = buildCandidate(document, width, strategy, theme, tokens);
     const report = validateBoardScene(scene);
     attempts.push({ strategy, width: scene.board.width, height: scene.board.height, diagnostics: report.diagnostics });
-    if (report.valid) successes.push({ scene, report, cost: candidateCost(strategy, scene, report.metrics.crossingCount) });
+    if (report.valid) successes.push({ scene, report, cost: candidateCost(strategy, scene, report.metrics) });
   }
   const selected = successes.sort((a, b) => a.cost - b.cost)[0];
   if (selected) return { ok: true, scene: selected.scene, report: selected.report, attempts };
@@ -75,18 +81,39 @@ export function solvePinboard(document: VisualDocument, options: PinboardOptions
   };
 }
 
-function buildCandidate(document: VisualDocument, width: number, strategy: Strategy): BoardScene {
+function buildCandidate(document: VisualDocument, width: number, strategy: Strategy, theme: LiveryTheme, tokens: TokenOverrides): BoardScene {
   const padding = width <= 480 ? COMPACT_PADDING : PADDING;
   const availableWidth = width - padding * 2;
   const minimumGap = MIN_GAP;
-  const rootGap = Math.max(gapFor(document.root.layout?.gap), ...document.connectors.map(({ label }) => label ? measureText(label) + 12 + CLEARANCE * 2 : MIN_GAP));
-  const context: PlacementContext = { elements: [], envelopes: [], channels: [], bounds: new Map(), minimumGap, rootGap, canvases: [] };
-  const rootSize = measure(document.root, availableWidth, strategy, minimumGap, true, rootGap);
+  const rootColumnGap = Math.max(gapFor(document.root.layout?.gap), ...document.connectors.map((connector) => {
+    if (!connector.label) return MIN_GAP;
+    const endpointPadding = Math.max(endpointClearance(document.root, connector.from.node), endpointClearance(document.root, connector.to.node));
+    return measureText(connector.label, tokenNumber(tokens, "type.caption", 10)) + 14 + endpointPadding * 2;
+  }));
+  const rootRowGap = Math.max(gapFor(document.root.layout?.gap), ...document.connectors.map((connector) => {
+    if (!connector.label) return MIN_GAP;
+    const endpointPadding = Math.max(endpointClearance(document.root, connector.from.node), endpointClearance(document.root, connector.to.node));
+    return 18 + 12 + endpointPadding * 2;
+  }));
+  const context: PlacementContext = { elements: [], envelopes: [], channels: [], bounds: new Map(), minimumGap, rootColumnGap, rootRowGap, canvases: [], theme, tokens };
+  const rootSize = measure(document.root, availableWidth, strategy, minimumGap, true, rootColumnGap, rootRowGap, theme, tokens);
+  const rootWidth = Math.min(rootSize.width, availableWidth);
+  const rootX = padding + (availableWidth - rootWidth) / 2;
   const routeReserve = document.connectors.length ? Math.max(40, document.connectors.length * 10) : 0;
   const height = Math.ceil(Math.max(120, rootSize.height) + padding * 2 + routeReserve);
-  place(document.root, padding, padding, Math.min(rootSize.width, availableWidth), rootSize.height, undefined, context, strategy, true);
+  place(document.root, rootX, padding, rootWidth, rootSize.height, undefined, context, strategy, true);
   context.channels.push(...buildChannels(context.envelopes, width, height, padding));
   const connectors = routeConnectors(document.connectors, context, width, height, padding);
+  const timelineEnvelopes = solveMotionEnvelopes(document.timelines, [...context.elements, ...context.canvases.flatMap(({ primitives }) => primitives)]);
+  const contentBottom = Math.max(
+    ...context.elements.map(({ visualBounds }) => visualBounds.y + visualBounds.height),
+    ...context.canvases.flatMap(({ primitives }) => primitives.map(({ visualBounds }) => visualBounds.y + visualBounds.height)),
+    ...connectors.flatMap(({ points, label }) => [...points.map(({ y }) => y), ...(label ? [label.y + label.height] : [])]),
+    ...timelineEnvelopes.map(({ y, height }) => y + height),
+    padding + 72,
+  );
+  const croppedHeight = Math.min(height, Math.ceil(contentBottom + padding));
+  const channels = context.channels.map((routeChannel) => clipChannel(routeChannel, width, croppedHeight)).filter((routeChannel) => routeChannel.width > 0 && routeChannel.height > 0);
   return {
     type: "livery.board-scene",
     version: "0.1",
@@ -94,42 +121,64 @@ function buildCandidate(document: VisualDocument, width: number, strategy: Strat
     ...(document.title ? { title: document.title } : {}),
     board: {
       width,
-      height,
+      height: croppedHeight,
       padding,
       gutter: gapFor(document.root.layout?.gap),
       columns: tracksFor(context.envelopes, "x"),
       rows: tracksFor(context.envelopes, "y"),
-      channels: context.channels,
+      channels,
     },
     elements: context.elements,
     connectors,
     canvases: context.canvases,
     envelopes: context.envelopes,
-    timelineEnvelopes: solveMotionEnvelopes(document.timelines, [...context.elements, ...context.canvases.flatMap(({ primitives }) => primitives)]),
+    timelineEnvelopes,
     readingOrder: context.elements.map(({ id }) => id),
   };
 }
 
-function measure(node: VisualNode, maxWidth: number, strategy: Strategy, minimumGap: number, root = false, rootGap = minimumGap): Size {
+function measure(
+  node: VisualNode,
+  maxWidth: number,
+  strategy: Strategy,
+  minimumGap: number,
+  root = false,
+  rootColumnGap = minimumGap,
+  rootRowGap = minimumGap,
+  theme: LiveryTheme = canonicalTheme,
+  tokens: TokenOverrides = resolveTheme(theme),
+): Size {
   if (!node.children?.length) {
-    const preferredWidth = node.layout?.width ?? Math.max(120, measureText(node.label ?? node.id) + 32);
-    return { width: Math.min(preferredWidth, maxWidth), height: node.layout?.height ?? NODE_HEIGHT };
+    const recipe = resolveComponentRecipe(node.kind, node.variant, theme);
+    const geometry = recipe.geometry;
+    const horizontalSpace = (geometry?.paddingX ?? 16) * 2 + (hasComponentDetail(recipe) ? (geometry?.detailWidth ?? 24) + (geometry?.labelGap ?? 10) : 0);
+    const minimumWidth = geometry?.minWidth ?? 120;
+    const label = node.label ?? node.id;
+    const fontSize = visualNumber(recipe.typography?.fontSize, tokens, tokenNumber(tokens, "type.body", 13));
+    const lineHeight = Math.max(visualNumber(recipe.typography?.lineHeight, tokens, Math.ceil(fontSize * 1.38)), Math.ceil(fontSize * 1.1));
+    const preferredWidth = node.layout?.width ?? (/\s/.test(label) ? minimumWidth : Math.max(minimumWidth, Math.min(measureText(label, fontSize) + horizontalSpace, Math.max(minimumWidth, 168))));
+    const width = Math.min(preferredWidth, maxWidth);
+    const textWidth = Math.max(24, width - horizontalSpace);
+    const contentHeight = wrapText(label, textWidth, fontSize).length * lineHeight + (geometry?.paddingY ?? 14) * 2;
+    return { width, height: node.layout?.height ?? Math.max(geometry?.minHeight ?? NODE_HEIGHT, contentHeight) };
   }
   if (node.kind === "canvas" || node.layout?.kind === "canvas") {
     return { width: Math.min(maxWidth, node.layout?.width ?? numericProp(node, "width", 240)), height: node.layout?.height ?? numericProp(node, "height", 160) };
   }
-  const gap = Math.max(root ? rootGap : minimumGap, gapFor(node.layout?.gap));
-  const children = node.children.map((child) => measure(child, maxWidth, strategy, minimumGap, false, rootGap));
-  const kind = effectiveLayout(node.layout?.kind ?? "row", strategy, root, children, maxWidth, gap);
-  if (kind === "column") return { width: Math.min(maxWidth, Math.max(...children.map(({ width }) => width), 0)), height: sum(children.map(({ height }) => height)) + gap * Math.max(0, children.length - 1) };
+  const declaredGap = gapFor(node.layout?.gap);
+  const columnGap = Math.max(root ? rootColumnGap : minimumGap, declaredGap);
+  const rowGap = Math.max(root ? rootRowGap : minimumGap, declaredGap);
+  const children = node.children.map((child) => measure(child, maxWidth, strategy, minimumGap, false, rootColumnGap, rootRowGap, theme, tokens));
+  const kind = effectiveLayout(node.layout?.kind ?? "row", strategy, root, children, maxWidth, columnGap);
+  if (kind === "column") return { width: Math.min(maxWidth, Math.max(...children.map(({ width }) => width), 0)), height: sum(children.map(({ height }) => height)) + rowGap * Math.max(0, children.length - 1) };
   if (kind === "grid") {
-    const columns = gridColumns(node, strategy, maxWidth, children.length);
     const cellWidth = Math.max(...children.map(({ width }) => width), 0);
     const cellHeight = Math.max(...children.map(({ height }) => height), 0);
-    return { width: Math.min(maxWidth, Math.min(columns, children.length) * cellWidth + gap * Math.max(0, Math.min(columns, children.length) - 1)), height: Math.ceil(children.length / columns) * cellHeight + gap * Math.max(0, Math.ceil(children.length / columns) - 1) };
+    const columns = gridColumns(node, strategy, maxWidth, children.length, cellWidth, columnGap);
+    return { width: Math.min(maxWidth, Math.min(columns, children.length) * cellWidth + columnGap * Math.max(0, Math.min(columns, children.length) - 1)), height: Math.ceil(children.length / columns) * cellHeight + rowGap * Math.max(0, Math.ceil(children.length / columns) - 1) };
   }
   if (kind === "stack" || kind === "overlay") return { width: Math.min(maxWidth, Math.max(...children.map(({ width }) => width), 0)), height: Math.max(...children.map(({ height }) => height), 0) };
-  return { width: sum(children.map(({ width }) => width)) + gap * Math.max(0, children.length - 1), height: Math.max(...children.map(({ height }) => height), 0) };
+  return { width: sum(children.map(({ width }) => width)) + columnGap * Math.max(0, children.length - 1), height: Math.max(...children.map(({ height }) => height), 0) };
 }
 
 function effectiveLayout(kind: LayoutKind, strategy: Strategy, root: boolean, sizes: Size[], maxWidth: number, gap: number): LayoutKind {
@@ -148,7 +197,7 @@ function place(node: VisualNode, x: number, y: number, width: number, height: nu
     kind: node.kind,
     bounds: own,
     visualBounds: own,
-    ...(node.label ? { label: node.label, labelBounds: labelBounds(node.label, own) } : {}),
+    ...(node.label ? { label: node.label, labelBounds: labelBounds(node, own, context.theme, context.tokens) } : {}),
     ...(parent ? { parent } : {}),
     layer: parent ? 1 : 0,
     ...(node.tone ? { tone: node.tone } : {}),
@@ -167,26 +216,37 @@ function place(node: VisualNode, x: number, y: number, width: number, height: nu
     context.envelopes.push({ id: `${node.id}.collision`, owner: node.id, kind: "canvas", ...inflate(own, bleed + CLEARANCE) });
     return;
   }
-  const gap = Math.max(root ? context.rootGap : context.minimumGap, gapFor(node.layout?.gap));
-  const sizes = node.children.map((child) => measure(child, width, strategy, context.minimumGap, false, context.rootGap));
-  const kind = effectiveLayout(node.layout?.kind ?? "row", strategy, root, sizes, width, gap);
-  const columns = kind === "grid" ? gridColumns(node, strategy, width, sizes.length) : 1;
+  const declaredGap = gapFor(node.layout?.gap);
+  const columnGap = Math.max(root ? context.rootColumnGap : context.minimumGap, declaredGap);
+  const rowGap = Math.max(root ? context.rootRowGap : context.minimumGap, declaredGap);
+  const sizes = node.children.map((child) => measure(child, width, strategy, context.minimumGap, false, context.rootColumnGap, context.rootRowGap, context.theme, context.tokens));
+  const kind = effectiveLayout(node.layout?.kind ?? "row", strategy, root, sizes, width, columnGap);
   const cellWidth = kind === "grid" ? Math.max(...sizes.map(({ width }) => width), 0) : 0;
   const cellHeight = kind === "grid" ? Math.max(...sizes.map(({ height }) => height), 0) : 0;
+  const columns = kind === "grid" ? gridColumns(node, strategy, width, sizes.length, cellWidth, columnGap) : 1;
   let cursorX = x;
   let cursorY = y;
   node.children.forEach((child, index) => {
     const size = sizes[index]!;
     let childX = cursorX;
     let childY = cursorY;
-    if (kind === "column") cursorY += size.height + gap;
+    if (kind === "column") {
+      childX = x + (width - size.width) / 2;
+      cursorY += size.height + rowGap;
+    }
     else if (kind === "grid") {
-      childX = x + (index % columns) * (cellWidth + gap);
-      childY = y + Math.floor(index / columns) * (cellHeight + gap);
+      const row = Math.floor(index / columns);
+      const itemsInRow = Math.min(columns, node.children!.length - row * columns);
+      const rowOffset = (columns - itemsInRow) * (cellWidth + columnGap) / 2;
+      childX = x + rowOffset + (index % columns) * (cellWidth + columnGap) + (cellWidth - size.width) / 2;
+      childY = y + row * (cellHeight + rowGap) + (cellHeight - size.height) / 2;
     } else if (kind === "stack" || kind === "overlay") {
       childX = x + (width - size.width) / 2;
       childY = y + (height - size.height) / 2;
-    } else cursorX += size.width + gap;
+    } else {
+      childY = y + (height - size.height) / 2;
+      cursorX += size.width + columnGap;
+    }
     place(child, childX, childY, size.width, size.height, node.id, context, strategy);
   });
 }
@@ -199,8 +259,10 @@ function routeConnectors(connectors: Connector[], context: PlacementContext, wid
     const to = context.bounds.get(connector.to.node);
     if (!from || !to) return;
     const vertical = Math.abs((to.y + to.height / 2) - (from.y + from.height / 2)) > Math.abs((to.x + to.width / 2) - (from.x + from.width / 2));
-    const fromSide = vertical ? (to.y >= from.y ? "bottom" : "top") : connector.from.anchor ?? (to.x >= from.x ? "right" : "left");
-    const toSide = vertical ? (to.y >= from.y ? "top" : "bottom") : connector.to.anchor ?? (to.x >= from.x ? "left" : "right");
+    const automaticFrom = vertical ? (to.y >= from.y ? "bottom" : "top") : (to.x >= from.x ? "right" : "left");
+    const automaticTo = vertical ? (to.y >= from.y ? "top" : "bottom") : (to.x >= from.x ? "left" : "right");
+    const fromSide = anchorMatchesAxis(connector.from.anchor, vertical) ? connector.from.anchor! : automaticFrom;
+    const toSide = anchorMatchesAxis(connector.to.anchor, vertical) ? connector.to.anchor! : automaticTo;
     const start = pointFor(from, fromSide);
     const end = pointFor(to, toSide);
     const candidates = routeCandidates(start, end, fromSide, toSide, width, height, padding, index);
@@ -209,7 +271,7 @@ function routeConnectors(connectors: Connector[], context: PlacementContext, wid
       if (!routeClear(points, context, connector.from.node, connector.to.node)) return [];
       const channels = channelsForRoute(points, context.channels);
       if (!routeCovered(points, channels, context, connector.from.node, connector.to.node)) return [];
-      const label = connector.label ? placeConnectorLabel(connector.label, points, context.envelopes, reservedLabels, board) : undefined;
+      const label = connector.label ? placeConnectorLabel(connector.label, points, context.envelopes, reservedLabels, board, context.tokens) : undefined;
       if (connector.label && !label) return [];
       return [{ points, channels, label, cost: routeCost(points, channels, solved) }];
     }).sort((a, b) => a.cost - b.cost);
@@ -217,7 +279,7 @@ function routeConnectors(connectors: Connector[], context: PlacementContext, wid
     const points = choice?.points ?? candidates.at(-1)!;
     const channels = choice?.channels ?? channelsForRoute(points, context.channels);
     const channelIds = channels.map(({ id }) => id);
-    const label = choice?.label ?? (connector.label ? fallbackConnectorLabel(connector.label, points, board) : undefined);
+    const label = choice?.label ?? (connector.label ? fallbackConnectorLabel(connector.label, points, board, context.tokens) : undefined);
     if (label) reservedLabels.push(label);
     for (const channel of channels) channel.used += 1;
     solved.push({
@@ -248,6 +310,8 @@ function routeCandidates(start: BoardPoint, end: BoardPoint, from: AnchorName, t
     [start, { x: end.x, y: start.y }, end],
     [start, { x: middleX, y: start.y }, { x: middleX, y: end.y }, end],
     [start, { x: start.x, y: middleY }, { x: end.x, y: middleY }, end],
+    [start, startLead, { x: startLead.x, y: middleY }, { x: endLead.x, y: middleY }, endLead, end],
+    [start, startLead, { x: middleX, y: startLead.y }, { x: middleX, y: endLead.y }, endLead, end],
     [start, startLead, { x: startLead.x, y: outerY }, { x: endLead.x, y: outerY }, endLead, end],
     [start, startLead, { x: outerX, y: startLead.y }, { x: outerX, y: endLead.y }, endLead, end],
   ].map(compactPoints).filter((points) => validEndpointDirections(points, from, to));
@@ -348,49 +412,86 @@ function directionFor(side: AnchorName): BoardPoint {
   return { x: 1, y: 0 };
 }
 
-function labelBounds(label: string, bounds: BoardRect): BoardRect {
-  const available = Math.max(1, bounds.width - 24);
-  const longestWord = Math.max(...label.split(/\s+/).map(measureText));
-  const width = Math.max(longestWord, Math.min(available, measureText(label)));
-  const lines = wrapText(label, available).length;
-  const height = lines * 18;
-  return { x: bounds.x + (bounds.width - width) / 2, y: bounds.y + (bounds.height - height) / 2, width, height };
+function anchorMatchesAxis(anchor: AnchorName | undefined, vertical: boolean) {
+  if (!anchor || anchor === "center") return false;
+  return vertical ? anchor === "top" || anchor === "bottom" : anchor === "left" || anchor === "right";
 }
 
-function placeConnectorLabel(text: string, points: BoardPoint[], envelopes: CollisionEnvelope[], reserved: BoardRect[], board: BoardRect) {
-  const width = measureText(text) + 12;
-  const height = 20;
+function labelBounds(node: VisualNode, bounds: BoardRect, theme: LiveryTheme, tokens: TokenOverrides): BoardRect {
+  const recipe = resolveComponentRecipe(node.kind, node.variant, theme);
+  const geometry = recipe.geometry;
+  const paddingX = geometry?.paddingX ?? 16;
+  const detailOffset = hasComponentDetail(recipe) ? (geometry?.detailWidth ?? 24) + (geometry?.labelGap ?? 10) : 0;
+  const x = bounds.x + paddingX + detailOffset;
+  const width = Math.max(1, bounds.x + bounds.width - paddingX - x);
+  const fontSize = visualNumber(recipe.typography?.fontSize, tokens, tokenNumber(tokens, "type.body", 13));
+  const lineHeight = Math.max(visualNumber(recipe.typography?.lineHeight, tokens, Math.ceil(fontSize * 1.38)), Math.ceil(fontSize * 1.1));
+  const height = wrapText(node.label ?? node.id, width, fontSize).length * lineHeight;
+  return { x, y: bounds.y + (bounds.height - height) / 2, width, height };
+}
+
+function placeConnectorLabel(text: string, points: BoardPoint[], envelopes: CollisionEnvelope[], reserved: BoardRect[], board: BoardRect, tokens: TokenOverrides) {
+  const fontSize = tokenNumber(tokens, "type.caption", 10);
+  const width = measureText(text, fontSize) + 12;
+  const height = Math.max(20, Math.ceil(fontSize * 1.4) + 6);
   const segments = points.slice(1).map((point, index) => ({ a: points[index]!, b: point })).sort((a, b) => distance(b.a, b.b) - distance(a.a, a.b));
   for (const segment of segments) {
-    const center = midpoint(segment.a, segment.b);
     const horizontal = Math.abs(segment.a.x - segment.b.x) >= Math.abs(segment.a.y - segment.b.y);
-    const candidates = [0, 14, -14, 28, -28].map((offset) => ({
-      text,
-      x: center.x - width / 2 + (horizontal ? 0 : offset),
-      y: center.y - height / 2 + (horizontal ? offset : 0),
-      width,
-      height,
-    }));
-    const available = candidates.find((rect) => containsRect(board, rect) && envelopes.every((envelope) => !intersects(rect, envelope)) && reserved.every((label) => !intersects(rect, label)));
+    const offsets = horizontal ? [-16, 16, -30, 30, 0] : [width / 2 + 8, -width / 2 - 8, width / 2 + 20, -width / 2 - 20, 0];
+    const candidates = [0.5, 0.25, 0.75].flatMap((position) => {
+      const center = {
+        x: segment.a.x + (segment.b.x - segment.a.x) * position,
+        y: segment.a.y + (segment.b.y - segment.a.y) * position,
+      };
+      return offsets.map((offset) => ({
+        text,
+        x: center.x - width / 2 + (horizontal ? 0 : offset),
+        y: center.y - height / 2 + (horizontal ? offset : 0),
+        width,
+        height,
+      }));
+    });
+    for (const envelope of envelopes) for (const offset of offsets) {
+      if (horizontal) {
+        candidates.push(
+          { text, x: envelope.x + envelope.width, y: segment.a.y - height / 2 + offset, width, height },
+          { text, x: envelope.x - width, y: segment.a.y - height / 2 + offset, width, height },
+        );
+      } else {
+        candidates.push(
+          { text, x: segment.a.x - width / 2 + offset, y: envelope.y + envelope.height, width, height },
+          { text, x: segment.a.x - width / 2 + offset, y: envelope.y - height, width, height },
+        );
+      }
+    }
+    const attached = candidates.filter((rect) => horizontal
+      ? rect.x + rect.width / 2 >= Math.min(segment.a.x, segment.b.x) && rect.x + rect.width / 2 <= Math.max(segment.a.x, segment.b.x)
+      : rect.y + rect.height / 2 >= Math.min(segment.a.y, segment.b.y) && rect.y + rect.height / 2 <= Math.max(segment.a.y, segment.b.y));
+    const available = attached.find((rect) => containsRect(board, rect) && envelopes.every((envelope) => !intersects(rect, envelope)) && reserved.every((label) => !intersects(rect, label)));
     if (available) return available;
   }
   return undefined;
 }
 
-function fallbackConnectorLabel(text: string, points: BoardPoint[], board: BoardRect) { const width = measureText(text) + 12; const height = 20; const center = midpoint(points[0]!, points.at(-1)!); return { text, x: Math.max(0, Math.min(board.width - width, center.x - width / 2)), y: Math.max(0, Math.min(board.height - height, center.y - height / 2)), width, height }; }
+function fallbackConnectorLabel(text: string, points: BoardPoint[], board: BoardRect, tokens: TokenOverrides) { const fontSize = tokenNumber(tokens, "type.caption", 10); const width = measureText(text, fontSize) + 12; const height = Math.max(20, Math.ceil(fontSize * 1.4) + 6); const center = midpoint(points[0]!, points.at(-1)!); return { text, x: Math.max(0, Math.min(board.width - width, center.x - width / 2)), y: Math.max(0, Math.min(board.height - height, center.y - height / 2)), width, height }; }
 
 function tracksFor(envelopes: CollisionEnvelope[], axis: "x" | "y"): BoardTrack[] {
   const values = [...new Set(envelopes.map((envelope) => envelope[axis]))].sort((a, b) => a - b);
   return values.map((position, index) => ({ id: `${axis === "x" ? "column" : "row"}.${index}`, index, position, size: Math.max(...envelopes.filter((envelope) => envelope[axis] === position).map((envelope) => axis === "x" ? envelope.width : envelope.height), 0) }));
 }
 
-function gridColumns(node: VisualNode, strategy: Strategy, maxWidth: number, count: number) { return strategy === "alternate_spans" ? Math.max(1, Math.min(count, Math.floor(maxWidth / 200))) : Math.max(1, node.layout?.columns ?? Math.ceil(Math.sqrt(count))); }
+function gridColumns(node: VisualNode, strategy: Strategy, maxWidth: number, count: number, cellWidth = 0, gap = 0) {
+  if (strategy !== "alternate_spans") return Math.max(1, node.layout?.columns ?? Math.ceil(Math.sqrt(count)));
+  return Math.max(1, Math.min(count, Math.floor((maxWidth + gap + 0.01) / Math.max(1, cellWidth + gap))));
+}
 function lead(point: BoardPoint, side: AnchorName, amount: number): BoardPoint { const direction = directionFor(side); return { x: point.x + direction.x * amount, y: point.y + direction.y * amount }; }
 function compactPoints(points: BoardPoint[]) { return points.filter((point, index) => index === 0 || point.x !== points[index - 1]!.x || point.y !== points[index - 1]!.y); }
 function midpoint(a: BoardPoint, b: BoardPoint) { return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }
 function distance(a: BoardPoint, b: BoardPoint) { return Math.abs(a.x - b.x) + Math.abs(a.y - b.y); }
-function measureText(value: string) { return Math.max(24, value.length * 7.2); }
-function wrapText(value: string, width: number) { const limit = Math.max(1, Math.floor(width / 7.2)); const lines: string[] = []; let line = ""; for (const word of value.split(/\s+/)) { const next = line ? `${line} ${word}` : word; if (line && next.length > limit) { lines.push(line); line = word; } else line = next; } if (line) lines.push(line); return lines.length ? lines : [""]; }
+function measureText(value: string, fontSize = 13) { return Math.max(24, value.length * fontSize * 0.56); }
+function wrapText(value: string, width: number, fontSize = 13) { const limit = Math.max(1, Math.floor(width / (fontSize * 0.56))); const lines: string[] = []; let line = ""; for (const sourceWord of value.split(/\s+/)) { let word = sourceWord; while (word.length > limit) { if (line) { lines.push(line); line = ""; } lines.push(word.slice(0, limit)); word = word.slice(limit); } if (!word) continue; const next = line ? `${line} ${word}` : word; if (line && next.length > limit) { lines.push(line); line = word; } else line = next; } if (line) lines.push(line); return lines.length ? lines : [""]; }
+function tokenNumber(tokens: TokenOverrides, name: string, fallback: number) { const value = tokens[name]; return typeof value === "number" && Number.isFinite(value) ? value : fallback; }
+function visualNumber(value: VisualValue | undefined, tokens: TokenOverrides, fallback: number) { const resolved = resolveVisualValue(value, tokens); return typeof resolved === "number" && Number.isFinite(resolved) ? resolved : fallback; }
 function sum(values: number[]) { return values.reduce((total, value) => total + value, 0); }
 function gapFor(value: VisualValue | undefined) { if (typeof value === "number") return value; return ({ "$space.xs": 8, "$space.sm": 12, "$space.md": 20, "$space.lg": 32, "$space.xl": 48 } as Record<string, number>)[String(value)] ?? DEFAULT_GAP; }
 function countNodes(node: VisualNode): number { return 1 + (node.children?.reduce((total, child) => total + countNodes(child), 0) ?? 0); }
@@ -401,7 +502,29 @@ function intersects(a: BoardRect, b: BoardRect) { return a.x < b.x + b.width && 
 function segmentIntersects(a: BoardPoint, b: BoardPoint, rect: BoardRect) { return intersects({ x: Math.min(a.x, b.x) - 0.5, y: Math.min(a.y, b.y) - 0.5, width: Math.abs(a.x - b.x) + 1, height: Math.abs(a.y - b.y) + 1 }, rect); }
 function channel(id: string, axis: RouteChannel["axis"], x: number, y: number, width: number, height: number): RouteChannel { return { id, axis, x, y, width, height, capacity: 16, used: 0 }; }
 function uniqueChannels(channels: RouteChannel[]) { const seen = new Set<string>(); return channels.filter(({ id }) => !seen.has(id) && !!seen.add(id)); }
-function candidateCost(strategy: Strategy, scene: BoardScene, crossings: number) { return STRATEGIES.indexOf(strategy) * 1_000_000 + scene.board.height * 10 + crossings * 1000; }
+function clipChannel(routeChannel: RouteChannel, width: number, height: number): RouteChannel {
+  const right = Math.min(width, routeChannel.x + routeChannel.width);
+  const bottom = Math.min(height, routeChannel.y + routeChannel.height);
+  const x = Math.max(0, routeChannel.x);
+  const y = Math.max(0, routeChannel.y);
+  return { ...routeChannel, x, y, width: Math.max(0, right - x), height: Math.max(0, bottom - y) };
+}
+function candidateCost(strategy: Strategy, scene: BoardScene, metrics: ReturnType<typeof validateBoardScene>["metrics"]) {
+  const strategyPenalty = [0, 80, 160, 360, 520][STRATEGIES.indexOf(strategy)] ?? 700;
+  const sparsePenalty = Math.max(0, 0.24 - metrics.occupancyRatio) * 1800;
+  return strategyPenalty + scene.board.height * 1.5 + metrics.crossingCount * 5000 + metrics.bendCount * 16 + Math.max(0, metrics.normalizedRouteLength - 1) * 120 + metrics.whitespaceImbalance * 900 + sparsePenalty;
+}
+function hasComponentDetail(recipe: ReturnType<typeof resolveComponentRecipe>) { return Boolean(recipe.detail && recipe.detail.glyph !== "none" && recipe.shape !== "storage"); }
+function endpointClearance(node: VisualNode, targetId: string, inherited = CLEARANCE): number {
+  const canvas = node.kind === "canvas" || node.layout?.kind === "canvas";
+  const clearance = canvas ? CLEARANCE + numericProp(node, "bleed", 0) : inherited;
+  if (node.id === targetId) return clearance;
+  for (const child of node.children ?? []) {
+    const match = endpointClearance(child, targetId, clearance);
+    if (match >= 0) return match;
+  }
+  return -1;
+}
 function issue(code: LayoutViolationCode | "layout.no_valid_candidate" | "layout.resource_limit", message: string): LayoutDiagnostic { return { code, message, severity: "error" }; }
 function dedupeDiagnostics(diagnostics: LayoutDiagnostic[]) { const seen = new Set<string>(); return diagnostics.filter(({ code, elementIds }) => { const key = `${code}:${elementIds?.join(",") ?? ""}`; return !seen.has(key) && !!seen.add(key); }); }
 function belongsTo(elementId: string, ownerId: string, elements: SolvedElement[]) { let current = elements.find(({ id }) => id === elementId); while (current) { if (current.id === ownerId) return true; current = current.parent ? elements.find(({ id }) => id === current!.parent) : undefined; } return false; }
@@ -471,37 +594,59 @@ function solveCanvasPrimitives(nodes: VisualNode[], canvas: BoardRect, context: 
   return primitives;
 }
 
-function solveMotionEnvelopes(timelines: Timeline[], elements: Array<{ id: string; visualBounds: BoardRect }>) {
+function solveMotionEnvelopes(timelines: Timeline[], elements: Array<{ id: string; bounds: BoardRect; visualBounds: BoardRect; transform?: CanvasPrimitive["transform"] }>) {
   const byId = new Map(elements.map((element) => [element.id, element]));
   const statesByOwner = new Map<string, Array<{ state: string; bounds: BoardRect }>>();
-  for (const timeline of timelines) for (const state of timeline.states) for (const operation of state.operations) {
-    if (operation.action === "set") for (const target of operation.targets) {
-      const element = byId.get(target);
-      if (!element) continue;
-      const bounds = {
-        x: operation.properties.x === undefined ? element.visualBounds.x + numericValue(operation.properties.translateX, 0) : numericValue(operation.properties.x, element.visualBounds.x),
-        y: operation.properties.y === undefined ? element.visualBounds.y + numericValue(operation.properties.translateY, 0) : numericValue(operation.properties.y, element.visualBounds.y),
-        width: numericValue(operation.properties.width, element.visualBounds.width),
-        height: numericValue(operation.properties.height, element.visualBounds.height),
-      };
-      const existing = statesByOwner.get(target) ?? [{ state: "base", bounds: element.visualBounds }];
-      existing.push({ state: `${timeline.id}.${state.id}`, bounds });
-      statesByOwner.set(target, existing);
-    }
-    if (operation.action === "morph") {
-      const from = byId.get(operation.targets[0]);
-      const to = byId.get(operation.targets[1]);
-      if (!from || !to) continue;
-      const bounds = unionRect(from.visualBounds, to.visualBounds);
-      statesByOwner.set(to.id, [{ state: `${timeline.id}.${state.id}`, bounds }]);
+  for (const timeline of timelines) {
+    const properties = new Map<string, Record<string, VisualValue>>();
+    for (const state of timeline.states) {
+      for (const operation of state.operations) {
+        if (operation.action === "set") for (const target of operation.targets) properties.set(target, { ...properties.get(target), ...operation.properties });
+        if (operation.action === "morph") {
+          const from = byId.get(operation.targets[0]);
+          const to = byId.get(operation.targets[1]);
+          if (!from || !to) continue;
+          const bounds = unionRect(from.visualBounds, to.visualBounds);
+          const existing = statesByOwner.get(to.id) ?? [{ state: "base", bounds: to.visualBounds }];
+          existing.push({ state: `${timeline.id}.${state.id}`, bounds });
+          statesByOwner.set(to.id, existing);
+        }
+      }
+      for (const [target, stateProperties] of properties) {
+        const element = byId.get(target);
+        if (!element) continue;
+        const bounds = motionBounds(element, stateProperties);
+        const existing = statesByOwner.get(target) ?? [{ state: "base", bounds: element.visualBounds }];
+        existing.push({ state: `${timeline.id}.${state.id}`, bounds });
+        statesByOwner.set(target, existing);
+      }
     }
   }
   return [...statesByOwner.entries()].map(([owner, states]) => ({ id: `${owner}.motion`, owner, states: states.map(({ state }) => state), ...states.reduce((bounds, state) => unionRect(bounds, state.bounds), states[0]!.bounds) }));
 }
 
+function motionBounds(element: { bounds: BoardRect; transform?: CanvasPrimitive["transform"] }, properties: Record<string, VisualValue>) {
+  const base = element.transform ?? { translateX: 0, translateY: 0, scaleX: 1, scaleY: 1, rotate: 0 };
+  const scale = numericOptional(properties.scale);
+  const bounds = {
+    x: numericValue(properties.x, element.bounds.x),
+    y: numericValue(properties.y, element.bounds.y),
+    width: numericValue(properties.width, element.bounds.width),
+    height: numericValue(properties.height, element.bounds.height),
+  };
+  return transformedBounds(bounds, {
+    translateX: numericValue(properties.translateX, base.translateX),
+    translateY: numericValue(properties.translateY, base.translateY),
+    scaleX: numericValue(properties.scaleX, scale ?? base.scaleX),
+    scaleY: numericValue(properties.scaleY, scale ?? base.scaleY),
+    rotate: numericValue(properties.rotate, base.rotate),
+  });
+}
+
 function numericProp(node: VisualNode, name: string, fallback: number) { return numericValue(node.props?.[name], fallback); }
 function stringProp(node: VisualNode, name: string, fallback: string) { const value = node.props?.[name]; return typeof value === "string" ? value : fallback; }
 function numericValue(value: VisualValue | undefined, fallback: number) { return typeof value === "number" && Number.isFinite(value) ? value : fallback; }
+function numericOptional(value: VisualValue | undefined) { return typeof value === "number" && Number.isFinite(value) ? value : undefined; }
 function defaultPrimitiveSize(kind: VisualNode["kind"]): Size { if (kind === "text") return { width: 80, height: 20 }; if (kind === "line" || kind === "path") return { width: 80, height: 2 }; if (kind === "circle") return { width: 24, height: 24 }; return { width: 48, height: 48 }; }
 function canvasKind(kind: VisualNode["kind"]): CanvasPrimitive["kind"] { return (["text", "box", "circle", "line", "path", "image", "icon", "group"] as string[]).includes(kind) ? kind as CanvasPrimitive["kind"] : "group"; }
 function unionRect(a: BoardRect, b: BoardRect): BoardRect { const x = Math.min(a.x, b.x); const y = Math.min(a.y, b.y); return { x, y, width: Math.max(a.x + a.width, b.x + b.width) - x, height: Math.max(a.y + a.height, b.y + b.height) - y }; }

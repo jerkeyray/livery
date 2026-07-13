@@ -145,6 +145,11 @@ export type ValidationReport = {
     connectorCount: number;
     crossingCount: number;
     occupiedArea: number;
+    occupancyRatio: number;
+    routeLength: number;
+    normalizedRouteLength: number;
+    bendCount: number;
+    whitespaceImbalance: number;
   };
 };
 

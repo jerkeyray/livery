@@ -73,6 +73,10 @@ export function validateBoardScene(scene: BoardScene): ValidationReport {
     diagnostics.push(issue("layout.invalid_reading_order", "Reading order must contain unique solved element ids.", scene.readingOrder));
   }
 
+  const occupiedArea = components.reduce((sum, envelope) => sum + envelope.width * envelope.height, 0);
+  const routeLength = scene.connectors.reduce((total, connector) => total + connector.points.slice(1).reduce((length, point, index) => length + manhattan(connector.points[index]!, point), 0), 0);
+  const directRouteLength = scene.connectors.reduce((total, connector) => total + manhattan(connector.points[0]!, connector.points.at(-1)!), 0);
+  const contentBounds = unionRects([...components, ...labels.map(({ rect }) => rect)]);
   return {
     valid: diagnostics.length === 0,
     diagnostics,
@@ -80,7 +84,12 @@ export function validateBoardScene(scene: BoardScene): ValidationReport {
       elementCount: scene.elements.length,
       connectorCount: scene.connectors.length,
       crossingCount: countCrossings(scene.connectors),
-      occupiedArea: components.reduce((sum, envelope) => sum + envelope.width * envelope.height, 0),
+      occupiedArea,
+      occupancyRatio: occupiedArea / Math.max(1, scene.board.width * scene.board.height),
+      routeLength,
+      normalizedRouteLength: routeLength / Math.max(1, directRouteLength),
+      bendCount: scene.connectors.reduce((total, connector) => total + Math.max(0, connector.points.length - 2), 0),
+      whitespaceImbalance: contentBounds ? Math.abs((contentBounds.x + contentBounds.width / 2) - scene.board.width / 2) / scene.board.width + Math.abs((contentBounds.y + contentBounds.height / 2) - scene.board.height / 2) / scene.board.height : 0,
     },
   };
 }
@@ -178,6 +187,15 @@ function inflate(rect: BoardRect, amount: number): BoardRect { return { x: rect.
 function rectForSegment(a: BoardPoint, b: BoardPoint, width: number): BoardRect { return { x: Math.min(a.x, b.x) - width / 2, y: Math.min(a.y, b.y) - width / 2, width: Math.abs(a.x - b.x) + width, height: Math.abs(a.y - b.y) + width }; }
 function dot(a: BoardPoint, b: BoardPoint) { return a.x * b.x + a.y * b.y; }
 function distanceSquared(a: BoardPoint, b: BoardPoint) { return (a.x - b.x) ** 2 + (a.y - b.y) ** 2; }
+function manhattan(a: BoardPoint, b: BoardPoint) { return Math.abs(a.x - b.x) + Math.abs(a.y - b.y); }
+function unionRects(rects: BoardRect[]) {
+  if (!rects.length) return undefined;
+  const left = Math.min(...rects.map(({ x }) => x));
+  const top = Math.min(...rects.map(({ y }) => y));
+  const right = Math.max(...rects.map(({ x, width }) => x + width));
+  const bottom = Math.max(...rects.map(({ y, height }) => y + height));
+  return { x: left, y: top, width: right - left, height: bottom - top };
+}
 function belongsTo(elementId: string, ownerId: string, scene: BoardScene) { let current = scene.elements.find(({ id }) => id === elementId); while (current) { if (current.id === ownerId) return true; current = current.parent ? scene.elements.find(({ id }) => id === current!.parent) : undefined; } return scene.canvases.some((canvas) => canvas.owner === elementId && canvas.primitives.some(({ id }) => id === ownerId)); }
 
 function countCrossings(connectors: BoardConnector[]) {
@@ -190,6 +208,16 @@ function countCrossings(connectors: BoardConnector[]) {
 }
 
 function segmentsCross(a: BoardPoint, b: BoardPoint, c: BoardPoint, d: BoardPoint) {
-  const orientation = (p: BoardPoint, q: BoardPoint, r: BoardPoint) => Math.sign((q.y - p.y) * (r.x - q.x) - (q.x - p.x) * (r.y - q.y));
-  return orientation(a, b, c) !== orientation(a, b, d) && orientation(c, d, a) !== orientation(c, d, b);
+  if ([c, d].some((point) => distanceSquared(a, point) <= EPSILON || distanceSquared(b, point) <= EPSILON)) return false;
+  const firstHorizontal = Math.abs(a.y - b.y) <= EPSILON;
+  const secondHorizontal = Math.abs(c.y - d.y) <= EPSILON;
+  if (firstHorizontal === secondHorizontal) return false;
+  const horizontal = firstHorizontal ? [a, b] : [c, d];
+  const vertical = firstHorizontal ? [c, d] : [a, b];
+  const crossingX = vertical[0]!.x;
+  const crossingY = horizontal[0]!.y;
+  return crossingX > Math.min(horizontal[0]!.x, horizontal[1]!.x) + EPSILON
+    && crossingX < Math.max(horizontal[0]!.x, horizontal[1]!.x) - EPSILON
+    && crossingY > Math.min(vertical[0]!.y, vertical[1]!.y) + EPSILON
+    && crossingY < Math.max(vertical[0]!.y, vertical[1]!.y) - EPSILON;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeTimelineState, type Timeline } from "./index.js";
+import { compileVisual, computeTimelineState, solvePinboard, type Timeline } from "./index.js";
 
 const timeline: Timeline = {
   id: "demo",
@@ -25,5 +25,68 @@ describe("visual timelines", () => {
     expect(state.visible.has("before")).toBe(false);
     expect(state.visible.has("after")).toBe(true);
     expect(state.morphs.get("after")).toBe("before");
+  });
+
+  it("cascades group visibility and stages traced connectors", () => {
+    const compiled = compileVisual(`component Pair() {
+ customer = person("Customer")
+ api = service("API")
+ return row(gap: md) {
+  customer
+  api
+ }
+}
+figure checkout("Checkout") {
+ request = Pair()
+ payment = service("Payment")
+ authorize = request.right -> payment.left("authorize")
+ row(request, payment)
+ timeline checkout {
+  state start {
+   show(request)
+  }
+  state payment {
+   show(payment)
+   trace(authorize)
+   focus(payment)
+  }
+ }
+}`);
+    const layout = solvePinboard(compiled.document!, { width: 640 });
+    expect(layout.ok).toBe(true);
+    if (!layout.ok) return;
+    const visualTimeline = compiled.document!.timelines[0]!;
+    const start = computeTimelineState(visualTimeline, "start", layout.scene);
+    expect(start.visible.has("request")).toBe(true);
+    const child = layout.scene.elements.find(({ parent }) => parent === "request")!;
+    expect(start.visible.has(child.id)).toBe(true);
+    expect(start.visible.has("authorize")).toBe(false);
+    const payment = computeTimelineState(visualTimeline, "payment", layout.scene);
+    expect(payment.visible.has("authorize")).toBe(true);
+    expect(payment.traced.has("authorize")).toBe(true);
+  });
+
+  it("hides connectors when either endpoint is hidden", () => {
+    const compiled = compileVisual(`figure gated("Gated") {
+ a = box("A")
+ b = box("B")
+ edge = a.right -> b.left("edge")
+ row(a, b)
+ timeline steps {
+  state first {
+   show(a)
+   trace(edge)
+  }
+  state second {
+   show(b)
+  }
+ }
+}`);
+    const layout = solvePinboard(compiled.document!, { width: 480 });
+    expect(layout.ok).toBe(true);
+    if (!layout.ok) return;
+    const state = computeTimelineState(compiled.document!.timelines[0]!, "first", layout.scene);
+    expect(state.traced.has("edge")).toBe(true);
+    expect(state.visible.has("edge")).toBe(false);
   });
 });

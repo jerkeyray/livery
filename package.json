@@ -15,6 +15,7 @@
     "build": "bun run --filter '@jerkeyray/*' build",
     "dev": "bun run --filter @jerkeyray/playground dev",
     "test": "vitest run",
+    "test:visual": "playwright test",
     "test:packages": "bun run build && bun scripts/smoke-packages.ts",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json && bun run --filter '@jerkeyray/*' typecheck",
@@ -22,6 +23,7 @@
     "bench:tokens": "tsx scripts/benchmark-tokens.ts"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@tsdown/css": "^0.22.5",
     "@types/node": "^26.1.1",
     "@types/react": "^19.2.17",

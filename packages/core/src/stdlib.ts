@@ -1,4 +1,5 @@
 import type { ComponentDefinition, VisualNode, VisualValue } from "./visual.js";
+import { canonicalTheme, resolveComponentRecipe } from "./theme.js";
 
 export type StandardComponentName = keyof typeof standardLibrary;
 
@@ -32,6 +33,7 @@ export function instantiateStandardComponent(
 }
 
 function component(name: string): ComponentDefinition {
+  const geometry = resolveComponentRecipe(`lib.${name}`, undefined, canonicalTheme).geometry;
   return {
     name,
     parameters: [
@@ -48,7 +50,7 @@ function component(name: string): ComponentDefinition {
     ports: ["top", "right", "bottom", "left", "center"],
     variants: ["default", "muted", "emphasis"],
     tokens: ["color.surface", "color.border", "color.text", "space.md", "radius.md", "stroke.normal"],
-    intrinsicSize: { minWidth: 120, minHeight: 64 },
+    intrinsicSize: { minWidth: geometry?.minWidth ?? 120, minHeight: geometry?.minHeight ?? 64 },
     accessibility: { role: "group", labelParameter: "label" },
   };
 }
