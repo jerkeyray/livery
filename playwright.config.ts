@@ -22,8 +22,8 @@ export default defineConfig({
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
   ],
   webServer: {
-    command: "bunx vite apps/playground --host 127.0.0.1 --port 4173",
+    command: "bunx vite apps/playground --host 127.0.0.1 --port 4173 --force",
     url: "http://127.0.0.1:4173",
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
   },
 });

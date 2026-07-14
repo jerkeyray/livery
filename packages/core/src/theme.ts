@@ -66,8 +66,8 @@ export const canonicalTheme: LiveryTheme = {
     connector: { surface: { stroke: "$color.connector", strokeWidth: "$stroke.normal" }, states: { traced: { stroke: "$color.accent", strokeWidth: "$stroke.strong" } } },
     "lib.person": nodeRecipe("person", { minWidth: 124, detailWidth: 26 }),
     "lib.team": nodeRecipe("team", { minWidth: 132, detailWidth: 28 }),
-    "lib.service": nodeRecipe("service"),
-    "lib.api": nodeRecipe("api"),
+    "lib.service": labelNodeRecipe(),
+    "lib.api": labelNodeRecipe(),
     "lib.server": nodeRecipe("server"),
     "lib.worker": nodeRecipe("worker"),
     "lib.tool": nodeRecipe("tool", { minWidth: 116, minHeight: 60, paddingX: 14, detailWidth: 22, labelGap: 8 }),
@@ -158,11 +158,16 @@ function nodeRecipe(glyph: string, geometry: Partial<ComponentGeometry> = {}, sh
   return {
     geometry: { minWidth: 128, minHeight: 68, paddingX: 16, paddingY: 14, detailWidth: 24, labelGap: 10, ...geometry },
     surface: { fill: "$color.surface", stroke: "$color.border", strokeWidth: "$stroke.hairline", radius: "$radius.md" },
-    typography: { color: "$color.text", fontSize: "$type.body", fontWeight: 650, lineHeight: 18, align: "start" },
+    typography: { color: "$color.text", fontSize: "$type.body", fontWeight: 650, lineHeight: 18, align: shape === "storage" ? "center" : "start" },
     detail: { glyph, size: 18, strokeWidth: 1.4 },
     shape,
     elevation: "low",
     states: { focused: { fill: "$color.accentSoft", stroke: "$color.accent", strokeWidth: "$stroke.strong" }, muted: { opacity: 0.62 } },
     variants: { muted: { fill: "$color.surfaceMuted" }, emphasis: { stroke: "$color.accent", strokeWidth: "$stroke.strong" } },
   };
+}
+
+function labelNodeRecipe(): ComponentRecipe {
+  const recipe = nodeRecipe("none", { detailWidth: 0 });
+  return { ...recipe, typography: { ...recipe.typography, align: "center" } };
 }

@@ -28,8 +28,13 @@ describe("programmable visual contracts", () => {
       shape: "storage",
       detail: { glyph: "database" },
       surface: { fill: "$color.surface", stroke: "$color.border" },
-      typography: { fontSize: "$type.body", align: "start" },
+      typography: { fontSize: "$type.body", align: "center" },
       states: { focused: { fill: "$color.accentSoft" } },
+    });
+    expect(resolveComponentRecipe("lib.service", undefined, canonicalTheme)).toMatchObject({
+      detail: { glyph: "none" },
+      geometry: { detailWidth: 0 },
+      typography: { align: "center" },
     });
   });
 
