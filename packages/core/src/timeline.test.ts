@@ -89,4 +89,17 @@ figure checkout("Checkout") {
     expect(state.traced.has("edge")).toBe(true);
     expect(state.visible.has("edge")).toBe(false);
   });
+
+  it("preserves each parsed timeline state exactly once in source order", () => {
+    const compiled = compileVisual(`figure ordered("Ordered") {
+ node = box("Node")
+ timeline steps {
+  state first { show(node) }
+  state second { focus(node) }
+  state third { hide(node) }
+ }
+}`);
+
+    expect(compiled.document?.timelines[0]?.states.map(({ id }) => id)).toEqual(["first", "second", "third"]);
+  });
 });

@@ -1,6 +1,6 @@
 import type { Diagnostic } from "./diagnostics.js";
 import type { SemanticTone } from "./artifact.js";
-import type { VisualValue } from "./visual.js";
+import type { VisualStyle, VisualValue } from "./visual.js";
 
 export type BoardPoint = { x: number; y: number };
 export type BoardRect = { x: number; y: number; width: number; height: number };
@@ -56,6 +56,8 @@ export type SolvedElement = {
   layer: number;
   tone?: SemanticTone;
   variant?: string;
+  description?: string;
+  style?: VisualStyle;
   pins: SolvedPin[];
   props?: Record<string, VisualValue>;
 };
@@ -70,7 +72,9 @@ export type BoardConnector = {
   toPin: string;
   points: BoardPoint[];
   label?: ConnectorLabel;
+  variant?: "directional" | "bidirectional" | "async" | "data";
   tone?: SemanticTone;
+  style?: VisualStyle;
   channelIds: string[];
 };
 
@@ -79,6 +83,10 @@ export type CanvasPrimitive = {
   kind: "text" | "box" | "circle" | "line" | "path" | "image" | "icon" | "group";
   bounds: BoardRect;
   visualBounds: BoardRect;
+  label?: string;
+  description?: string;
+  parent?: string;
+  style?: VisualStyle;
   layer: number;
   clip?: string;
   mask?: string;

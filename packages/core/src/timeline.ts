@@ -25,12 +25,11 @@ export function computeTimelineState(timeline: Timeline, stateId: string, subjec
     focused.clear();
     traced.clear();
     for (const operation of state.operations) {
-      const targets = expandTargets(operation.targets, scene);
-      if (operation.action === "show") for (const id of targets) visible.add(id);
-      if (operation.action === "hide") for (const id of targets) visible.delete(id);
-      if (operation.action === "focus") for (const id of targets) focused.add(id);
+      if (operation.action === "show") for (const id of expandTargets(operation.targets, scene)) visible.add(id);
+      if (operation.action === "hide") for (const id of expandTargets(operation.targets, scene)) visible.delete(id);
+      if (operation.action === "focus") for (const id of expandTargets(operation.targets, scene)) focused.add(id);
       if (operation.action === "trace") for (const id of operation.targets) { visible.add(id); traced.add(id); }
-      if (operation.action === "set") for (const id of targets) properties.set(id, { ...properties.get(id), ...operation.properties });
+      if (operation.action === "set") for (const id of operation.targets) properties.set(id, { ...properties.get(id), ...operation.properties });
       if (operation.action === "morph") {
         visible.delete(operation.targets[0]);
         visible.add(operation.targets[1]);

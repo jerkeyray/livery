@@ -16,7 +16,7 @@ import type {
   SolvedElement,
   SolvedPin,
 } from "./board.js";
-import type { AnchorName, Connector, LayoutKind, Timeline, VisualDocument, VisualNode, VisualValue } from "./visual.js";
+import type { AnchorName, Connector, LayoutKind, Timeline, VisualConstraint, VisualDocument, VisualNode, VisualValue } from "./visual.js";
 import { canonicalTheme, resolveComponentRecipe, resolveTheme, resolveVisualValue, type LiveryTheme, type TokenOverrides } from "./theme.js";
 
 export type PinboardOptions = { width?: number; maxCandidates?: number; maxElements?: number; theme?: LiveryTheme; tokenOverrides?: TokenOverrides };
@@ -100,8 +100,10 @@ function buildCandidate(document: VisualDocument, width: number, strategy: Strat
   const rootWidth = Math.min(rootSize.width, availableWidth);
   const rootX = padding + (availableWidth - rootWidth) / 2;
   const routeReserve = document.connectors.length ? Math.max(40, document.connectors.length * 10) : 0;
-  const height = Math.ceil(Math.max(120, rootSize.height) + padding * 2 + routeReserve);
+  const constraintReserve = document.constraints.reduce((total, constraint) => total + constraintSpacing(constraint), 0);
+  const height = Math.ceil(Math.max(120, rootSize.height) + padding * 2 + routeReserve + constraintReserve);
   place(document.root, rootX, padding, rootWidth, rootSize.height, undefined, context, strategy, true);
+  applyConstraints(document.constraints, context);
   context.channels.push(...buildChannels(context.envelopes, width, height, padding));
   const connectors = routeConnectors(document.connectors, context, width, height, padding);
   const timelineEnvelopes = solveMotionEnvelopes(document.timelines, [...context.elements, ...context.canvases.flatMap(({ primitives }) => primitives)]);
@@ -136,6 +138,122 @@ function buildCandidate(document: VisualDocument, width: number, strategy: Strat
     readingOrder: context.elements.map(({ id }) => id),
   };
 }
+
+function constraintSpacing(constraint: VisualConstraint) {
+  if (constraint.kind === "near" && typeof constraint.distance === "number") return constraint.distance;
+  if (constraint.kind === "distribute" && typeof constraint.gap === "number") return constraint.gap;
+  return 0;
+}
+
+function applyConstraints(constraints: VisualConstraint[], context: PlacementContext) {
+  for (const constraint of constraints) {
+    if (constraint.kind === "near") {
+      const first = context.bounds.get(constraint.first);
+      const second = context.bounds.get(constraint.second);
+      if (!first || !second) continue;
+      const distance = visualNumber(constraint.distance, context.tokens, context.minimumGap);
+      const vertical = Math.abs(center(second).y - center(first).y) >= Math.abs(center(second).x - center(first).x);
+      if (vertical) {
+        const direction = center(second).y >= center(first).y ? 1 : -1;
+        const desired = direction > 0 ? first.y + first.height + distance : first.y - distance - second.height;
+        shiftSolvedTarget(constraint.second, 0, desired - second.y, context);
+      } else {
+        const direction = center(second).x >= center(first).x ? 1 : -1;
+        const desired = direction > 0 ? first.x + first.width + distance : first.x - distance - second.width;
+        shiftSolvedTarget(constraint.second, desired - second.x, 0, context);
+      }
+      continue;
+    }
+    if (constraint.kind === "align") {
+      const reference = context.bounds.get(constraint.targets[0]!);
+      if (!reference) continue;
+      const edge = constraint.edge ?? "center";
+      const referenceCoordinate = rectCoordinate(reference, constraint.axis, edge);
+      for (const target of constraint.targets.slice(1)) {
+        const bounds = context.bounds.get(target);
+        if (!bounds) continue;
+        const delta = referenceCoordinate - rectCoordinate(bounds, constraint.axis, edge);
+        shiftSolvedTarget(target, constraint.axis === "x" ? delta : 0, constraint.axis === "y" ? delta : 0, context);
+      }
+      continue;
+    }
+    if (constraint.kind === "distribute") {
+      const entries = constraint.targets.flatMap((id) => {
+        const bounds = context.bounds.get(id);
+        return bounds ? [{ id, bounds }] : [];
+      }).sort((a, b) => a.bounds[constraint.axis] - b.bounds[constraint.axis]);
+      if (entries.length < 3) continue;
+      const gap = constraint.gap === undefined
+        ? undefined
+        : visualNumber(constraint.gap, context.tokens, context.minimumGap);
+      const first = entries[0]!.bounds;
+      const last = entries.at(-1)!.bounds;
+      const totalSize = entries.reduce((total, { bounds }) => total + (constraint.axis === "x" ? bounds.width : bounds.height), 0);
+      const span = constraint.axis === "x" ? last.x + last.width - first.x : last.y + last.height - first.y;
+      const resolvedGap = gap ?? (span - totalSize) / Math.max(1, entries.length - 1);
+      let cursor = constraint.axis === "x" ? first.x : first.y;
+      for (const entry of entries) {
+        const current = entry.bounds[constraint.axis];
+        const delta = cursor - current;
+        shiftSolvedTarget(entry.id, constraint.axis === "x" ? delta : 0, constraint.axis === "y" ? delta : 0, context);
+        const shifted = context.bounds.get(entry.id)!;
+        cursor += (constraint.axis === "x" ? shifted.width : shifted.height) + resolvedGap;
+      }
+      continue;
+    }
+    const child = context.bounds.get(constraint.child);
+    const container = context.bounds.get(constraint.container);
+    if (!child || !container) continue;
+    const padding = visualNumber(constraint.padding, context.tokens, 0);
+    const allowed = { x: container.x + padding, y: container.y + padding, width: Math.max(0, container.width - padding * 2), height: Math.max(0, container.height - padding * 2) };
+    const x = Math.min(Math.max(child.x, allowed.x), allowed.x + allowed.width - child.width);
+    const y = Math.min(Math.max(child.y, allowed.y), allowed.y + allowed.height - child.height);
+    shiftSolvedTarget(constraint.child, x - child.x, y - child.y, context);
+  }
+}
+
+function shiftSolvedTarget(target: string, dx: number, dy: number, context: PlacementContext) {
+  if (dx === 0 && dy === 0) return;
+  const movedElements = new Set(context.elements.filter((element) => element.id === target || belongsTo(element.id, target, context.elements)).map(({ id }) => id));
+  const primitiveTarget = context.canvases.flatMap(({ primitives }) => primitives).find(({ id }) => id === target);
+  const movedPrimitives = new Set<string>();
+  if (primitiveTarget) for (const primitive of context.canvases.flatMap(({ primitives }) => primitives)) {
+    let current: CanvasPrimitive | undefined = primitive;
+    while (current) {
+      if (current.id === target) { movedPrimitives.add(primitive.id); break; }
+      current = current.parent ? context.canvases.flatMap(({ primitives }) => primitives).find(({ id }) => id === current!.parent) : undefined;
+    }
+  }
+  for (const element of context.elements) if (movedElements.has(element.id)) {
+    element.bounds = shiftRect(element.bounds, dx, dy);
+    element.visualBounds = shiftRect(element.visualBounds, dx, dy);
+    if (element.labelBounds) element.labelBounds = shiftRect(element.labelBounds, dx, dy);
+    element.pins = pinsFor(element.id, element.visualBounds);
+  }
+  for (const canvas of context.canvases) {
+    if (movedElements.has(canvas.owner)) canvas.bounds = shiftRect(canvas.bounds, dx, dy);
+    for (const primitive of canvas.primitives) if (movedElements.has(canvas.owner) || movedPrimitives.has(primitive.id)) {
+      primitive.bounds = shiftRect(primitive.bounds, dx, dy);
+      primitive.visualBounds = shiftRect(primitive.visualBounds, dx, dy);
+      primitive.pins = pinsFor(primitive.id, primitive.visualBounds);
+      movedPrimitives.add(primitive.id);
+    }
+  }
+  const movedOwners = new Set([...movedElements, ...movedPrimitives]);
+  for (const envelope of context.envelopes) if (movedOwners.has(envelope.owner)) Object.assign(envelope, shiftRect(envelope, dx, dy));
+  for (const id of movedOwners) {
+    const bounds = context.bounds.get(id);
+    if (bounds) context.bounds.set(id, shiftRect(bounds, dx, dy));
+  }
+}
+
+function rectCoordinate(rect: BoardRect, axis: "x" | "y", edge: "start" | "center" | "end") {
+  const size = axis === "x" ? rect.width : rect.height;
+  return rect[axis] + (edge === "start" ? 0 : edge === "center" ? size / 2 : size);
+}
+
+function center(rect: BoardRect) { return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 }; }
+function shiftRect<T extends BoardRect>(rect: T, dx: number, dy: number): T { return { ...rect, x: rect.x + dx, y: rect.y + dy }; }
 
 function measure(
   node: VisualNode,
@@ -202,6 +320,8 @@ function place(node: VisualNode, x: number, y: number, width: number, height: nu
     layer: parent ? 1 : 0,
     ...(node.tone ? { tone: node.tone } : {}),
     ...(node.variant ? { variant: node.variant } : {}),
+    ...(node.description ? { description: node.description } : {}),
+    ...(node.style ? { style: node.style } : {}),
     pins: pinsFor(node.id, own),
     ...(node.props ? { props: node.props } : {}),
   });
@@ -290,7 +410,9 @@ function routeConnectors(connectors: Connector[], context: PlacementContext, wid
       toPin: `${connector.to.node}.${toSide}`,
       points,
       ...(label ? { label } : {}),
+      ...(connector.variant ? { variant: connector.variant } : {}),
       ...(connector.tone ? { tone: connector.tone } : {}),
+      ...(connector.style ? { style: connector.style } : {}),
       channelIds,
     });
   });
@@ -551,13 +673,13 @@ function expandedCanvasCount(node: VisualNode): number { return (node.children ?
 
 function solveCanvasPrimitives(nodes: VisualNode[], canvas: BoardRect, context: PlacementContext): CanvasPrimitive[] {
   const primitives: CanvasPrimitive[] = [];
-  const append = (node: VisualNode, suffix = "", offsetX = 0, offsetY = 0) => {
+  const append = (node: VisualNode, suffix = "", offsetX = 0, offsetY = 0, parent?: string) => {
     if (primitives.length >= MAX_CANVAS_PRIMITIVES) return;
     if (node.kind === "repeat") {
       const count = Math.max(0, Math.min(MAX_CANVAS_REPEAT, Math.floor(numericProp(node, "count", 0))));
       const kind = stringProp(node, "kind", "circle") as CanvasPrimitive["kind"];
       for (let index = 0; index < count && primitives.length < MAX_CANVAS_PRIMITIVES; index += 1) {
-        append({ ...node, id: `${node.id}.${index}`, kind, props: { ...node.props, count: 0 } }, "", numericProp(node, "stepX", 0) * index, numericProp(node, "stepY", 0) * index);
+        append({ ...node, id: `${node.id}.${index}`, kind, props: { ...node.props, count: 0 } }, "", offsetX + numericProp(node, "stepX", 0) * index, offsetY + numericProp(node, "stepY", 0) * index, parent);
       }
       return;
     }
@@ -575,12 +697,39 @@ function solveCanvasPrimitives(nodes: VisualNode[], canvas: BoardRect, context: 
       rotate: numericProp(node, "rotate", 0),
     };
     const visualBounds = transformedBounds(bounds, transform);
+    if (node.kind === "group") {
+      const insertionIndex = primitives.length;
+      for (const child of node.children ?? []) append(child, suffix, offsetX + numericProp(node, "x", 0), offsetY + numericProp(node, "y", 0), id);
+      const childBounds = primitives.slice(insertionIndex).filter((primitive) => primitive.parent === id).map(({ visualBounds: child }) => child);
+      const union = childBounds.reduce<BoardRect | undefined>((result, child) => result ? unionRect(result, child) : child, undefined);
+      const groupBounds = node.props?.width !== undefined || node.props?.height !== undefined ? visualBounds : union ?? visualBounds;
+      primitives.splice(insertionIndex, 0, {
+        id,
+        kind: "group",
+        bounds: groupBounds,
+        visualBounds: groupBounds,
+        layer: Math.floor(numericProp(node, "layer", primitives.length)),
+        ...(node.label ? { label: node.label } : {}),
+        ...(node.description ? { description: node.description } : {}),
+        ...(parent ? { parent } : {}),
+        ...(node.style ? { style: node.style } : {}),
+        transform,
+        pins: pinsFor(id, groupBounds),
+        ...(node.props ? { props: node.props } : {}),
+      });
+      context.bounds.set(id, groupBounds);
+      return;
+    }
     primitives.push({
       id,
       kind: canvasKind(node.kind),
       bounds,
       visualBounds,
       layer: Math.floor(numericProp(node, "layer", primitives.length)),
+      ...(node.label ? { label: node.label } : {}),
+      ...(node.description ? { description: node.description } : {}),
+      ...(parent ? { parent } : {}),
+      ...(node.style ? { style: node.style } : {}),
       ...(typeof node.props?.clip === "string" ? { clip: node.props.clip } : {}),
       ...(typeof node.props?.mask === "string" ? { mask: node.props.mask } : {}),
       transform,
@@ -588,7 +737,7 @@ function solveCanvasPrimitives(nodes: VisualNode[], canvas: BoardRect, context: 
       ...(node.props ? { props: node.props } : {}),
     });
     context.bounds.set(id, visualBounds);
-    for (const child of node.children ?? []) append(child, suffix, offsetX + numericProp(node, "x", 0), offsetY + numericProp(node, "y", 0));
+    for (const child of node.children ?? []) append(child, suffix, offsetX + numericProp(node, "x", 0), offsetY + numericProp(node, "y", 0), id);
   };
   for (const node of nodes) append(node);
   return primitives;

@@ -1,6 +1,6 @@
 import { StrictMode, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { compileVisual } from "@jerkeyray/core";
+import { render } from "@jerkeyray/core";
 import { LiveryVisual } from "@jerkeyray/react";
 import { mountLiveryVisual, type LiveryVisualInstance } from "@jerkeyray/web";
 import { Bug, Check, Code2, Eye, TriangleAlert } from "lucide-react";
@@ -68,11 +68,11 @@ function Playground() {
   const [viewport, setViewport] = useState<"full" | "chat">("full");
   const [mobilePane, setMobilePane] = useState<"source" | "preview">("preview");
   const [debug, setDebug] = useState(false);
-  const compilation = useMemo(() => compileVisual(source), [source]);
+  const width = viewport === "chat" ? 360 : 760;
+  const compilation = useMemo(() => render(source, { width }), [source, width]);
   const timeline = compilation.document?.timelines[0];
   const [state, setState] = useState<string>();
   const activeState = timeline?.states.some(({ id }) => id === state) ? state : undefined;
-  const width = viewport === "chat" ? 360 : 760;
   const selectedExample = examples.find(({ id }) => id === exampleId);
 
   const errors = compilation.diagnostics.filter(({ severity }) => severity === "error");

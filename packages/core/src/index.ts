@@ -30,5 +30,6 @@ export * from "./board-validator.js";
 export * from "./pinboard.js";
 export * from "./board-export.js";
 export * from "./text.js";
+export * from "./runtime.js";
 
 export const LIVERY_ARTIFACT_VERSION = "0.1" as const;

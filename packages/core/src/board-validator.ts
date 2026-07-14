@@ -159,6 +159,7 @@ function collectIds(scene: BoardScene) {
     ...scene.elements.map(({ id }) => id),
     ...scene.connectors.map(({ id }) => id),
     ...scene.canvases.map(({ id }) => id),
+    ...scene.canvases.flatMap(({ primitives }) => primitives.map(({ id }) => id)),
     ...scene.envelopes.map(({ id }) => id),
     ...scene.timelineEnvelopes.map(({ id }) => id),
   ];
@@ -169,6 +170,7 @@ function allRects(scene: BoardScene): Array<[string, BoardRect]> {
     ...scene.elements.flatMap((element): Array<[string, BoardRect]> => [[element.id, element.bounds], [`${element.id}:visual`, element.visualBounds], ...(element.labelBounds ? [[`${element.id}:label`, element.labelBounds] as [string, BoardRect]] : [])]),
     ...scene.connectors.flatMap((connector): Array<[string, BoardRect]> => connector.label ? [[`${connector.id}:label`, connector.label]] : []),
     ...scene.canvases.map((canvas): [string, BoardRect] => [canvas.id, canvas.bounds]),
+    ...scene.canvases.flatMap(({ primitives }): Array<[string, BoardRect]> => primitives.flatMap((primitive) => [[primitive.id, primitive.bounds], [`${primitive.id}:visual`, primitive.visualBounds]])),
     ...scene.envelopes.map((envelope): [string, BoardRect] => [envelope.id, envelope]),
     ...scene.timelineEnvelopes.map((envelope): [string, BoardRect] => [envelope.id, envelope]),
   ];

@@ -100,7 +100,7 @@ describe("solvePinboard", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.scene.canvases).toHaveLength(1);
-    expect(result.scene.canvases[0]?.primitives.map(({ id }) => id)).toEqual(["plot.dots.0", "plot.dots.1", "plot.dots.2", "plot.dots.3", "plot.axis"]);
+    expect(result.scene.canvases[0]?.primitives.map(({ id }) => id)).toEqual(["plot.axis", "plot.dots.0", "plot.dots.1", "plot.dots.2", "plot.dots.3"]);
     expect(result.scene.canvases[0]?.bleed).toBe(4);
   });
 

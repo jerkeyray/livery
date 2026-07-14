@@ -14,6 +14,7 @@ export function boardSceneToSvg(scene: BoardScene, options: BoardSvgOptions = {}
   const titleHeight = scene.title ? 42 : 0;
   const markerId = `${safeId(scene.id)}-arrow`;
   const childParents = new Set(scene.elements.flatMap(({ parent }) => parent ? [parent] : []));
+  const canvasOwners = new Set(scene.canvases.map(({ owner }) => owner));
   const lines = [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${scene.board.width}" height="${scene.board.height + titleHeight}" viewBox="0 0 ${scene.board.width} ${scene.board.height + titleHeight}" role="img" aria-label="${escapeXml(scene.title ?? scene.id)}" aria-describedby="${safeId(scene.id)}-desc">`,
     `  <desc id="${safeId(scene.id)}-desc">${escapeXml(`${scene.title ?? scene.id}: ${scene.elements.length} elements and ${scene.connectors.length} connections.`)}</desc>`,
@@ -33,8 +34,12 @@ export function boardSceneToSvg(scene: BoardScene, options: BoardSvgOptions = {}
   lines.push(`  <g transform="translate(0 ${titleHeight})">`);
   for (const connector of scene.connectors) {
     const { stroke, strokeWidth } = connectorStyle(connector, options.state, tokens, options.theme ?? canonicalTheme);
-    lines.push(`    <g data-livery-connector="${escapeXml(connector.id)}"${stateAttributes(connector.id, options.state)}>`);
-    lines.push(`      <path data-livery-id="${escapeXml(connector.id)}" d="${pathData(connector.points)}" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#${connectorMarkerId(markerId, connector.id)})"/>`);
+    const variant = connector.variant ?? "directional";
+    const markerStart = variant === "bidirectional" ? ` marker-start="url(#${connectorMarkerId(markerId, connector.id)})"` : "";
+    const markerEnd = variant === "data" ? "" : ` marker-end="url(#${connectorMarkerId(markerId, connector.id)})"`;
+    const dash = variant === "async" ? ' stroke-dasharray="5 4"' : variant === "data" ? ' stroke-dasharray="2 3"' : "";
+    lines.push(`    <g data-livery-connector="${escapeXml(connector.id)}"${stateAttributes(connector.id, options.state)} data-livery-variant="${variant}">`);
+    lines.push(`      <path data-livery-id="${escapeXml(connector.id)}" d="${pathData(connector.points)}" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"${dash}${markerStart}${markerEnd}/>`);
     if (connector.label) {
       lines.push(`      <rect x="${connector.label.x}" y="${connector.label.y}" width="${connector.label.width}" height="${connector.label.height}" rx="4" fill="${tokens["color.canvas"]}" fill-opacity="0.96"/>`);
       lines.push(`      <text x="${connector.label.x + connector.label.width / 2}" y="${connector.label.y + connector.label.height / 2 + 4}" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="${tokens["type.caption"]}" font-weight="700" fill="${tokens["color.muted"]}">${escapeXml(connector.label.text)}</text>`);
@@ -42,12 +47,14 @@ export function boardSceneToSvg(scene: BoardScene, options: BoardSvgOptions = {}
     lines.push("    </g>");
   }
   for (const canvas of scene.canvases) {
-    lines.push(`    <g data-livery-canvas="${escapeXml(canvas.id)}"${canvas.clip ? ` clip-path="url(#${safeId(canvas.id)}-clip)"` : ""}${stateAttributes(canvas.owner, options.state)}>`);
-    for (const primitive of [...canvas.primitives].sort((a, b) => a.layer - b.layer || a.id.localeCompare(b.id))) lines.push(...renderPrimitive(primitive, tokens, options.state));
+    const canvasProperties = options.state?.properties.get(canvas.owner);
+    const canvasTransform = elementTransformValue(canvasProperties, canvas.bounds);
+    lines.push(`    <g data-livery-canvas="${escapeXml(canvas.id)}"${canvasTransform ? ` transform="${canvasTransform}"` : ""}${canvas.clip ? ` clip-path="url(#${safeId(canvas.id)}-clip)"` : ""}>`);
+    lines.push(...renderCanvasPrimitives(canvas.primitives, tokens, options.state));
     lines.push("    </g>");
   }
   for (const element of scene.elements) {
-    if (childParents.has(element.id) || element.kind === "canvas") continue;
+    if (childParents.has(element.id) || canvasOwners.has(element.id) || element.kind === "canvas") continue;
     lines.push(...renderElement(element, tokens, `${safeId(scene.id)}-card-shadow`, options.state, options.theme ?? canonicalTheme));
   }
   if (options.debug) lines.push(...renderDebug(scene));
@@ -58,7 +65,7 @@ export function boardSceneToSvg(scene: BoardScene, options: BoardSvgOptions = {}
 function renderElement(element: SolvedElement, tokens: TokenOverrides, shadowId: string, state: VisualTimelineState | undefined, theme: LiveryTheme) {
   const { x, y, width, height } = element.visualBounds;
   const recipe = resolveComponentRecipe(element.kind, element.variant, theme);
-  const surfaceStyle = { ...recipe.surface, ...(state?.focused.has(element.id) ? recipe.states?.focused : undefined) };
+  const surfaceStyle = { ...recipe.surface, ...element.style, ...(state?.focused.has(element.id) ? recipe.states?.focused : undefined) };
   const properties = state?.properties.get(element.id);
   const propertyTone = typeof properties?.tone === "string" ? properties.tone : undefined;
   const stroke = String(resolveVisualValue(properties?.stroke ?? surfaceStyle.stroke, tokens) ?? toneColor(propertyTone as typeof element.tone ?? element.tone, { ...tokens, "color.connector": tokens["color.border"]! }));
@@ -66,7 +73,8 @@ function renderElement(element: SolvedElement, tokens: TokenOverrides, shadowId:
   const strokeWidth = resolveVisualValue(properties?.strokeWidth ?? surfaceStyle.strokeWidth, tokens) ?? tokens["stroke.hairline"];
   const radius = resolveVisualValue(surfaceStyle.radius, tokens) ?? tokens["radius.md"];
   const surface = element.kind === "text" || element.kind === "line" || element.kind === "path" || recipe.elevation === "none" ? "" : ` filter="url(#${shadowId})"`;
-  const lines = [`    <g data-livery-id="${escapeXml(element.id)}"${stateAttributes(element.id, state)}${surface}>`];
+  const transform = elementTransformValue(properties, element.visualBounds);
+  const lines = [`    <g data-livery-id="${escapeXml(element.id)}"${transform ? ` transform="${transform}"` : ""}${stateAttributes(element.id, state)}${surface}>`];
   if (element.kind === "text") {
     // Text is emitted below without an implicit surface.
   } else if (recipe.shape === "circle" || element.kind === "circle") lines.push(`      <circle cx="${x + width / 2}" cy="${y + height / 2}" r="${Math.min(width, height) / 2}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"/>`);
@@ -124,9 +132,9 @@ function renderPrimitive(primitive: CanvasPrimitive, tokens: TokenOverrides, sta
   const properties = state?.properties.get(primitive.id);
   const bounds = primitiveBounds(primitive, properties);
   const { x, y, width, height } = bounds;
-  const fill = resolveVisualValue(properties?.fill ?? primitive.props?.fill ?? "$color.surface", tokens);
-  const stroke = resolveVisualValue(properties?.stroke ?? primitive.props?.stroke ?? "$color.connector", tokens);
-  const strokeWidth = resolveVisualValue(properties?.strokeWidth ?? primitive.props?.strokeWidth, tokens);
+  const fill = resolveVisualValue(properties?.fill ?? primitive.style?.fill ?? primitive.props?.fill ?? "$color.surface", tokens);
+  const stroke = resolveVisualValue(properties?.stroke ?? primitive.style?.stroke ?? primitive.props?.stroke ?? "$color.connector", tokens);
+  const strokeWidth = resolveVisualValue(properties?.strokeWidth ?? primitive.style?.strokeWidth ?? primitive.props?.strokeWidth, tokens);
   const paint = strokeWidth === undefined ? "" : ` stroke-width="${strokeWidth}"`;
   const attributes = `${primitiveAttributes(primitive, properties, bounds)}${stateAttributes(primitive.id, state)}`;
   if (primitive.kind === "circle") return [`      <circle data-livery-id="${escapeXml(primitive.id)}" cx="${x + width / 2}" cy="${y + height / 2}" r="${Math.min(width, height) / 2}" fill="${fill}" stroke="${stroke}"${paint}${attributes}/>`];
@@ -136,10 +144,52 @@ function renderPrimitive(primitive: CanvasPrimitive, tokens: TokenOverrides, sta
     return [`      <path data-livery-id="${escapeXml(primitive.id)}" d="${escapeXml(primitive.props.d)}" transform="translate(${x} ${y})${transform ? ` ${transform}` : ""}" fill="${fill}" stroke="${stroke}"${paint}${referenceAttributes(primitive)}${stateAttributes(primitive.id, state)}/>`];
   }
   if (primitive.kind === "text") {
-    const fontSize = resolveVisualValue(properties?.fontSize ?? primitive.props?.fontSize ?? "$type.body", tokens);
-    return [`      <text data-livery-id="${escapeXml(primitive.id)}" x="${x}" y="${y + height}" font-family="Inter,system-ui,sans-serif" font-size="${fontSize}" fill="${fill}"${attributes}>${escapeXml(String(primitive.props?.text ?? ""))}</text>`];
+    const fontSize = resolveVisualValue(properties?.fontSize ?? primitive.style?.fontSize ?? primitive.props?.fontSize ?? "$type.body", tokens);
+    const fontWeight = resolveVisualValue(properties?.fontWeight ?? primitive.style?.fontWeight ?? primitive.props?.fontWeight, tokens);
+    return [`      <text data-livery-id="${escapeXml(primitive.id)}" x="${x}" y="${y + height}" font-family="Inter,system-ui,sans-serif" font-size="${fontSize}"${fontWeight !== undefined ? ` font-weight="${fontWeight}"` : ""} fill="${fill}"${attributes}>${escapeXml(primitive.label ?? String(primitive.props?.text ?? ""))}</text>`];
   }
-  return [`      <rect data-livery-id="${escapeXml(primitive.id)}" x="${x}" y="${y}" width="${width}" height="${height}" rx="${properties?.radius ?? primitive.props?.radius ?? 0}" fill="${fill}" stroke="${stroke}"${paint}${attributes}/>`];
+  if (primitive.kind === "image" && typeof primitive.props?.src === "string") return [`      <image data-livery-id="${escapeXml(primitive.id)}" href="${escapeXml(primitive.props.src)}" x="${x}" y="${y}" width="${width}" height="${height}" preserveAspectRatio="xMidYMid meet"${attributes}/>`];
+  if (primitive.kind === "icon") return renderIconPrimitive(primitive, bounds, stroke, strokeWidth, attributes);
+  if (primitive.kind === "group") return [];
+  return [`      <rect data-livery-id="${escapeXml(primitive.id)}" x="${x}" y="${y}" width="${width}" height="${height}" rx="${properties?.radius ?? primitive.style?.radius ?? primitive.props?.radius ?? 0}" fill="${fill}" stroke="${stroke}"${paint}${attributes}/>`];
+}
+
+function renderCanvasPrimitives(primitives: CanvasPrimitive[], tokens: TokenOverrides, state?: VisualTimelineState) {
+  const byParent = new Map<string | undefined, CanvasPrimitive[]>();
+  for (const primitive of primitives) {
+    const siblings = byParent.get(primitive.parent) ?? [];
+    siblings.push(primitive);
+    byParent.set(primitive.parent, siblings);
+  }
+  const renderLevel = (parent: string | undefined, indent: string): string[] => [...(byParent.get(parent) ?? [])]
+    .sort((a, b) => a.layer - b.layer || a.id.localeCompare(b.id))
+    .flatMap((primitive) => {
+      if (primitive.kind !== "group") return renderPrimitive(primitive, tokens, state).map((line) => `${indent}${line.trimStart()}`);
+      const properties = state?.properties.get(primitive.id);
+      const transform = transformValue(primitive, properties, primitive.bounds);
+      return [
+        `${indent}<g data-livery-group="${escapeXml(primitive.id)}"${transform ? ` transform="${transform}"` : ""}${stateAttributes(primitive.id, state)}>`,
+        ...renderLevel(primitive.id, `${indent}  `),
+        `${indent}</g>`,
+      ];
+    });
+  return renderLevel(undefined, "      ");
+}
+
+function renderIconPrimitive(primitive: CanvasPrimitive, bounds: BoardRect, stroke: unknown, strokeWidth: unknown, attributes: string) {
+  const { x, y, width, height } = bounds;
+  const name = typeof primitive.props?.name === "string" ? primitive.props.name : "unknown";
+  const scaleX = width / 24;
+  const scaleY = height / 24;
+  const paths: Record<string, string> = {
+    check: "M4 12l5 5L20 6",
+    document: "M6 2h8l4 4v16H6z M14 2v5h5",
+    star: "M12 2l3.1 6.3L22 9.3l-5 4.9 1.2 6.8-6.2-3.2L5.8 21 7 14.2 2 9.3l6.9-1z",
+    terminal: "M4 5h16v14H4z M7 9l3 3-3 3 M12 15h4",
+    warning: "M12 3L2 21h20z M12 9v5 M12 17v.1",
+  };
+  const path = paths[name] ?? paths.star!;
+  return [`      <g data-livery-id="${escapeXml(primitive.id)}" data-livery-icon="${escapeXml(name)}"${attributes}><g transform="translate(${x} ${y}) scale(${scaleX} ${scaleY})"><path d="${path}" fill="none" stroke="${stroke}" stroke-width="${strokeWidth ?? 1.5}" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></g></g>`];
 }
 
 function renderDebug(scene: BoardScene) {
@@ -161,7 +211,7 @@ function connectorStyle(connector: BoardScene["connectors"][number], state: Visu
   const tone = propertyTone ?? connector.tone;
   const toneStyle = tone && tone in (recipe.states ?? {}) ? recipe.states?.[tone as "success" | "warning" | "danger"] : undefined;
   const tracedStyle = state?.traced.has(connector.id) ? recipe.states?.traced : undefined;
-  const style = { ...recipe.surface, ...tracedStyle, ...toneStyle };
+  const style = { ...recipe.surface, ...connector.style, ...tracedStyle, ...toneStyle };
   const styledStroke = resolveVisualValue(properties?.stroke ?? style.stroke, tokens);
   const stroke = String(properties?.stroke !== undefined || toneStyle?.stroke !== undefined || !tone
     ? styledStroke ?? toneColor(tone as typeof connector.tone, tokens)
@@ -189,6 +239,19 @@ function transformValue(primitive: CanvasPrimitive, properties?: Readonly<Record
     scaleX: finiteNumber(properties?.scaleX) ?? scale ?? base.scaleX,
     scaleY: finiteNumber(properties?.scaleY) ?? scale ?? base.scaleY,
     rotate: finiteNumber(properties?.rotate) ?? base.rotate,
+  };
+  if (transform.translateX === 0 && transform.translateY === 0 && transform.scaleX === 1 && transform.scaleY === 1 && transform.rotate === 0) return "";
+  const centerX = bounds.x + bounds.width / 2;
+  const centerY = bounds.y + bounds.height / 2;
+  return `translate(${transform.translateX} ${transform.translateY}) rotate(${transform.rotate} ${centerX} ${centerY}) translate(${centerX} ${centerY}) scale(${transform.scaleX} ${transform.scaleY}) translate(${-centerX} ${-centerY})`;
+}
+function elementTransformValue(properties: Readonly<Record<string, unknown>> | undefined, bounds: BoardRect) {
+  const transform = {
+    translateX: finiteNumber(properties?.translateX) ?? 0,
+    translateY: finiteNumber(properties?.translateY) ?? 0,
+    scaleX: finiteNumber(properties?.scaleX) ?? finiteNumber(properties?.scale) ?? 1,
+    scaleY: finiteNumber(properties?.scaleY) ?? finiteNumber(properties?.scale) ?? 1,
+    rotate: finiteNumber(properties?.rotate) ?? 0,
   };
   if (transform.translateX === 0 && transform.translateY === 0 && transform.scaleX === 1 && transform.scaleY === 1 && transform.rotate === 0) return "";
   const centerX = bounds.x + bounds.width / 2;

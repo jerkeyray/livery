@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { exportHeadlessPng, svgToPng } from "./index.js";
+import { exportHeadlessPng, exportVisualPng, svgToPng } from "./index.js";
 
 const source = `flow png("PNG export") { sender -> receiver("send") }`;
 
@@ -26,6 +26,16 @@ describe("PNG exports", () => {
 
     expect(result.output).toBeUndefined();
     expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
+  it("exports programmable visual source through the canonical board scene", () => {
+    const result = exportVisualPng(`figure visual("Visual PNG") {
+      note = box("Styled", fill: "#dcfce7")
+    }`, { outputWidth: 320, width: 640 });
+
+    expect(result.scene?.type).toBe("livery.board-scene");
+    expect(result.document?.type).toBe("livery.visual");
+    expect(readPngSize(result.output!)).toMatchObject({ width: 320 });
   });
 });
 

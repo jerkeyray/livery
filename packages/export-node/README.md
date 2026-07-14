@@ -3,10 +3,14 @@
 Optional PNG export for Node.js and Bun, powered by resvg. Core SVG and JSON exports remain available from `@jerkeyray/core` without this native dependency.
 
 ```ts
-import { exportHeadlessPng } from "@jerkeyray/export-node";
+import { exportVisualPng } from "@jerkeyray/export-node";
 
-const result = await exportHeadlessPng('flow hello { user -> app("open") }', {
+const result = exportVisualPng(`figure hello("Hello") {
+  note = box("Portable PNG", fill: "#f8fafc")
+}`, {
   width: 720,
   scale: 2,
 });
 ```
+
+`exportHeadlessPng` remains available as a deprecated compatibility wrapper for legacy flow source.

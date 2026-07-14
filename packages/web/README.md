@@ -1,11 +1,17 @@
 # @jerkeyray/web
 
-Framework-independent browser renderer for Livery with responsive layout, stories, activation events, async adapters, and layout telemetry.
+Framework-independent retained browser renderer for Livery visual programs and timelines.
 
 ```ts
-import { mountLivery } from "@jerkeyray/web";
+import { mountLiveryVisual } from "@jerkeyray/web";
 import "@jerkeyray/web/styles.css";
 
-const visual = mountLivery(element, 'flow hello { user -> app("open") }');
+const visual = mountLiveryVisual(element, `figure hello("Hello") {
+  user = person("Builder")
+  app = service("Application")
+  row(user, app)
+}`);
+
+visual.setState("complete");
 visual.destroy();
 ```

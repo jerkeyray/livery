@@ -1,9 +1,11 @@
 import { Resvg } from "@resvg/resvg-js";
 import {
   exportHeadless,
+  exportVisual,
   type HeadlessExportOptions,
   type HeadlessRenderResult,
   type LiverySource,
+  type VisualRenderOptions,
 } from "@jerkeyray/core";
 
 export type PngRasterOptions = {
@@ -16,6 +18,14 @@ export type HeadlessPngExportOptions = Omit<HeadlessExportOptions, "format" | "p
   PngRasterOptions;
 
 export type HeadlessPngExportResult = HeadlessRenderResult & {
+  format: "png";
+  mediaType: "image/png";
+  output?: Uint8Array;
+};
+
+export type VisualPngExportOptions = VisualRenderOptions & PngRasterOptions;
+
+export type VisualPngExportResult = Omit<ReturnType<typeof exportVisual>, "format" | "mediaType" | "output"> & {
   format: "png";
   mediaType: "image/png";
   output?: Uint8Array;
@@ -58,5 +68,17 @@ export async function exportHeadlessPng(
           }),
         }
       : {}),
+  };
+}
+
+export function exportVisualPng(source: string, options: VisualPngExportOptions = {}): VisualPngExportResult {
+  const { background, outputWidth, scale, ...renderOptions } = options;
+  const result = exportVisual(source, { ...renderOptions, format: "svg" });
+  const { output: _svg, ...metadata } = result;
+  return {
+    ...metadata,
+    format: "png",
+    mediaType: "image/png",
+    ...(result.output ? { output: svgToPng(result.output, { ...(background ? { background } : {}), ...(outputWidth !== undefined ? { outputWidth } : {}), ...(scale !== undefined ? { scale } : {}) }) } : {}),
   };
 }

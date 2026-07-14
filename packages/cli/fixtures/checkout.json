@@ -1,112 +1,683 @@
 {
-  "artifact": {
-    "type": "livery",
-    "version": "0.1",
+  "document": {
+    "type": "livery.visual",
+    "version": "0.2",
     "id": "checkout",
-    "composition": "flow",
-    "entities": [
-      {
-        "id": "customer",
-        "label": "Customer",
-        "role": "actor"
+    "title": "Checkout fixture",
+    "root": {
+      "id": "root",
+      "kind": "group",
+      "layout": {
+        "kind": "row",
+        "gap": "$space.lg"
       },
-      {
-        "id": "api",
-        "label": "Checkout API",
-        "role": "service"
-      },
-      {
-        "id": "orders",
-        "label": "Orders",
-        "role": "database"
-      }
-    ],
-    "relationships": [
-      {
-        "id": "submission",
-        "from": "customer",
-        "to": "api",
-        "label": "submit order"
-      },
-      {
-        "id": "persistence",
-        "from": "api",
-        "to": "orders",
-        "label": "persist",
-        "tone": "success"
-      }
-    ],
-    "story": [],
-    "title": "Checkout fixture"
-  },
-  "diagnostics": [],
-  "incomplete": false,
-  "scene": {
-    "id": "checkout",
-    "width": 640,
-    "height": 336,
-    "direction": "vertical",
-    "nodes": [
-      {
-        "id": "customer",
-        "label": "Customer",
-        "x": 244,
-        "y": 28,
-        "width": 152,
-        "height": 64,
-        "role": "actor"
-      },
-      {
-        "id": "api",
-        "label": "Checkout API",
-        "x": 244,
-        "y": 136,
-        "width": 152,
-        "height": 64,
-        "role": "service"
-      },
-      {
-        "id": "orders",
-        "label": "Orders",
-        "x": 244,
-        "y": 244,
-        "width": 152,
-        "height": 64,
-        "role": "database"
-      }
-    ],
-    "edges": [
-      {
-        "id": "submission",
-        "from": "customer",
-        "to": "api",
-        "path": "M 320 92 C 320 128, 320 100, 320 136",
-        "labelX": 330,
-        "labelY": 114,
-        "label": "submit order"
-      },
-      {
-        "id": "persistence",
-        "from": "api",
-        "to": "orders",
-        "path": "M 320 200 C 320 236, 320 208, 320 244",
-        "labelX": 330,
-        "labelY": 222,
-        "label": "persist",
-        "tone": "success"
-      }
-    ],
-    "accessibility": {
-      "summary": "Checkout fixture: 3 entities and 2 relationships.",
-      "readingOrder": [
-        "customer",
-        "api",
-        "orders"
+      "children": [
+        {
+          "id": "customer",
+          "kind": "lib.person",
+          "label": "Customer",
+          "props": {
+            "label": "Customer"
+          },
+          "anchors": [
+            "top",
+            "right",
+            "bottom",
+            "left",
+            "center"
+          ]
+        },
+        {
+          "id": "api",
+          "kind": "lib.service",
+          "label": "Checkout API",
+          "props": {
+            "label": "Checkout API"
+          },
+          "anchors": [
+            "top",
+            "right",
+            "bottom",
+            "left",
+            "center"
+          ]
+        },
+        {
+          "id": "orders",
+          "kind": "lib.database",
+          "label": "Orders",
+          "props": {
+            "label": "Orders"
+          },
+          "anchors": [
+            "top",
+            "right",
+            "bottom",
+            "left",
+            "center"
+          ]
+        }
       ]
     },
-    "title": "Checkout fixture",
-    "layout": {
-      "adapterId": "livery.fast-flow"
+    "connectors": [
+      {
+        "id": "submission",
+        "from": {
+          "node": "customer",
+          "anchor": "right"
+        },
+        "to": {
+          "node": "api",
+          "anchor": "left"
+        },
+        "label": "submit order"
+      },
+      {
+        "id": "persistence",
+        "from": {
+          "node": "api",
+          "anchor": "right"
+        },
+        "to": {
+          "node": "orders",
+          "anchor": "left"
+        },
+        "label": "persist",
+        "tone": "success"
+      }
+    ],
+    "constraints": [],
+    "timelines": []
+  },
+  "diagnostics": [
+    {
+      "code": "compat.legacy_source",
+      "message": "Legacy flow source was translated to the programmable visual language.",
+      "severity": "warning"
     }
-  }
+  ],
+  "scene": {
+    "type": "livery.board-scene",
+    "version": "0.1",
+    "id": "checkout",
+    "title": "Checkout fixture",
+    "board": {
+      "width": 640,
+      "height": 120,
+      "padding": 24,
+      "gutter": 32,
+      "columns": [
+        {
+          "id": "column.0",
+          "index": 0,
+          "position": 31.680000000000007,
+          "size": 138.24
+        },
+        {
+          "id": "column.1",
+          "index": 1,
+          "position": 251.12,
+          "size": 140
+        },
+        {
+          "id": "column.2",
+          "index": 2,
+          "position": 472.32,
+          "size": 136
+        }
+      ],
+      "rows": [
+        {
+          "id": "row.0",
+          "index": 0,
+          "position": 18,
+          "size": 80
+        }
+      ],
+      "channels": [
+        {
+          "id": "channel.outer.top",
+          "axis": "horizontal",
+          "x": 0,
+          "y": 0,
+          "width": 640,
+          "height": 24,
+          "capacity": 16,
+          "used": 0
+        },
+        {
+          "id": "channel.outer.left",
+          "axis": "vertical",
+          "x": 0,
+          "y": 0,
+          "width": 24,
+          "height": 120,
+          "capacity": 16,
+          "used": 0
+        },
+        {
+          "id": "channel.outer.right",
+          "axis": "vertical",
+          "x": 616,
+          "y": 0,
+          "width": 24,
+          "height": 120,
+          "capacity": 16,
+          "used": 0
+        },
+        {
+          "id": "channel.free.bottom",
+          "axis": "horizontal",
+          "x": 0,
+          "y": 98,
+          "width": 640,
+          "height": 22,
+          "capacity": 16,
+          "used": 0
+        },
+        {
+          "id": "channel.free.right",
+          "axis": "vertical",
+          "x": 608.3199999999999,
+          "y": 0,
+          "width": 7.680000000000064,
+          "height": 120,
+          "capacity": 16,
+          "used": 0
+        },
+        {
+          "id": "channel.v.customer.api",
+          "axis": "vertical",
+          "x": 169.92000000000002,
+          "y": 18,
+          "width": 81.19999999999999,
+          "height": 80,
+          "capacity": 16,
+          "used": 1
+        },
+        {
+          "id": "channel.v.customer.orders",
+          "axis": "vertical",
+          "x": 169.92000000000002,
+          "y": 18,
+          "width": 302.4,
+          "height": 80,
+          "capacity": 16,
+          "used": 2
+        },
+        {
+          "id": "channel.v.api.orders",
+          "axis": "vertical",
+          "x": 391.12,
+          "y": 18,
+          "width": 81.19999999999999,
+          "height": 80,
+          "capacity": 16,
+          "used": 1
+        }
+      ]
+    },
+    "elements": [
+      {
+        "id": "root",
+        "kind": "group",
+        "bounds": {
+          "x": 37.68000000000001,
+          "y": 24,
+          "width": 564.64,
+          "height": 68
+        },
+        "visualBounds": {
+          "x": 37.68000000000001,
+          "y": 24,
+          "width": 564.64,
+          "height": 68
+        },
+        "layer": 0,
+        "pins": [
+          {
+            "id": "root.top",
+            "owner": "root",
+            "side": "top",
+            "point": {
+              "x": 320,
+              "y": 24
+            },
+            "direction": {
+              "x": 0,
+              "y": -1
+            }
+          },
+          {
+            "id": "root.right",
+            "owner": "root",
+            "side": "right",
+            "point": {
+              "x": 602.3199999999999,
+              "y": 58
+            },
+            "direction": {
+              "x": 1,
+              "y": 0
+            }
+          },
+          {
+            "id": "root.bottom",
+            "owner": "root",
+            "side": "bottom",
+            "point": {
+              "x": 320,
+              "y": 92
+            },
+            "direction": {
+              "x": 0,
+              "y": 1
+            }
+          },
+          {
+            "id": "root.left",
+            "owner": "root",
+            "side": "left",
+            "point": {
+              "x": 37.68000000000001,
+              "y": 58
+            },
+            "direction": {
+              "x": -1,
+              "y": 0
+            }
+          }
+        ]
+      },
+      {
+        "id": "customer",
+        "kind": "lib.person",
+        "bounds": {
+          "x": 37.68000000000001,
+          "y": 24,
+          "width": 126.24000000000001,
+          "height": 68
+        },
+        "visualBounds": {
+          "x": 37.68000000000001,
+          "y": 24,
+          "width": 126.24000000000001,
+          "height": 68
+        },
+        "label": "Customer",
+        "labelBounds": {
+          "x": 89.68,
+          "y": 49,
+          "width": 58.24000000000001,
+          "height": 18
+        },
+        "parent": "root",
+        "layer": 1,
+        "pins": [
+          {
+            "id": "customer.top",
+            "owner": "customer",
+            "side": "top",
+            "point": {
+              "x": 100.80000000000001,
+              "y": 24
+            },
+            "direction": {
+              "x": 0,
+              "y": -1
+            }
+          },
+          {
+            "id": "customer.right",
+            "owner": "customer",
+            "side": "right",
+            "point": {
+              "x": 163.92000000000002,
+              "y": 58
+            },
+            "direction": {
+              "x": 1,
+              "y": 0
+            }
+          },
+          {
+            "id": "customer.bottom",
+            "owner": "customer",
+            "side": "bottom",
+            "point": {
+              "x": 100.80000000000001,
+              "y": 92
+            },
+            "direction": {
+              "x": 0,
+              "y": 1
+            }
+          },
+          {
+            "id": "customer.left",
+            "owner": "customer",
+            "side": "left",
+            "point": {
+              "x": 37.68000000000001,
+              "y": 58
+            },
+            "direction": {
+              "x": -1,
+              "y": 0
+            }
+          }
+        ],
+        "props": {
+          "label": "Customer"
+        }
+      },
+      {
+        "id": "api",
+        "kind": "lib.service",
+        "bounds": {
+          "x": 257.12,
+          "y": 24,
+          "width": 128,
+          "height": 68
+        },
+        "visualBounds": {
+          "x": 257.12,
+          "y": 24,
+          "width": 128,
+          "height": 68
+        },
+        "label": "Checkout API",
+        "labelBounds": {
+          "x": 273.12,
+          "y": 49,
+          "width": 96,
+          "height": 18
+        },
+        "parent": "root",
+        "layer": 1,
+        "pins": [
+          {
+            "id": "api.top",
+            "owner": "api",
+            "side": "top",
+            "point": {
+              "x": 321.12,
+              "y": 24
+            },
+            "direction": {
+              "x": 0,
+              "y": -1
+            }
+          },
+          {
+            "id": "api.right",
+            "owner": "api",
+            "side": "right",
+            "point": {
+              "x": 385.12,
+              "y": 58
+            },
+            "direction": {
+              "x": 1,
+              "y": 0
+            }
+          },
+          {
+            "id": "api.bottom",
+            "owner": "api",
+            "side": "bottom",
+            "point": {
+              "x": 321.12,
+              "y": 92
+            },
+            "direction": {
+              "x": 0,
+              "y": 1
+            }
+          },
+          {
+            "id": "api.left",
+            "owner": "api",
+            "side": "left",
+            "point": {
+              "x": 257.12,
+              "y": 58
+            },
+            "direction": {
+              "x": -1,
+              "y": 0
+            }
+          }
+        ],
+        "props": {
+          "label": "Checkout API"
+        }
+      },
+      {
+        "id": "orders",
+        "kind": "lib.database",
+        "bounds": {
+          "x": 478.32,
+          "y": 24,
+          "width": 124,
+          "height": 68
+        },
+        "visualBounds": {
+          "x": 478.32,
+          "y": 24,
+          "width": 124,
+          "height": 68
+        },
+        "label": "Orders",
+        "labelBounds": {
+          "x": 494.32,
+          "y": 49,
+          "width": 91.99999999999994,
+          "height": 18
+        },
+        "parent": "root",
+        "layer": 1,
+        "pins": [
+          {
+            "id": "orders.top",
+            "owner": "orders",
+            "side": "top",
+            "point": {
+              "x": 540.3199999999999,
+              "y": 24
+            },
+            "direction": {
+              "x": 0,
+              "y": -1
+            }
+          },
+          {
+            "id": "orders.right",
+            "owner": "orders",
+            "side": "right",
+            "point": {
+              "x": 602.3199999999999,
+              "y": 58
+            },
+            "direction": {
+              "x": 1,
+              "y": 0
+            }
+          },
+          {
+            "id": "orders.bottom",
+            "owner": "orders",
+            "side": "bottom",
+            "point": {
+              "x": 540.3199999999999,
+              "y": 92
+            },
+            "direction": {
+              "x": 0,
+              "y": 1
+            }
+          },
+          {
+            "id": "orders.left",
+            "owner": "orders",
+            "side": "left",
+            "point": {
+              "x": 478.32,
+              "y": 58
+            },
+            "direction": {
+              "x": -1,
+              "y": 0
+            }
+          }
+        ],
+        "props": {
+          "label": "Orders"
+        }
+      }
+    ],
+    "connectors": [
+      {
+        "id": "submission",
+        "from": "customer",
+        "to": "api",
+        "fromPin": "customer.right",
+        "toPin": "api.left",
+        "points": [
+          {
+            "x": 163.92000000000002,
+            "y": 58
+          },
+          {
+            "x": 257.12,
+            "y": 58
+          }
+        ],
+        "label": {
+          "text": "submit order",
+          "x": 170.92000000000002,
+          "y": 32,
+          "width": 79.2,
+          "height": 20
+        },
+        "channelIds": [
+          "channel.v.customer.api",
+          "channel.v.customer.orders"
+        ]
+      },
+      {
+        "id": "persistence",
+        "from": "api",
+        "to": "orders",
+        "fromPin": "api.right",
+        "toPin": "orders.left",
+        "points": [
+          {
+            "x": 385.12,
+            "y": 58
+          },
+          {
+            "x": 478.32,
+            "y": 58
+          }
+        ],
+        "label": {
+          "text": "persist",
+          "x": 406.12,
+          "y": 32,
+          "width": 51.2,
+          "height": 20
+        },
+        "tone": "success",
+        "channelIds": [
+          "channel.v.customer.orders",
+          "channel.v.api.orders"
+        ]
+      }
+    ],
+    "canvases": [],
+    "envelopes": [
+      {
+        "id": "customer.collision",
+        "owner": "customer",
+        "kind": "component",
+        "x": 31.680000000000007,
+        "y": 18,
+        "width": 138.24,
+        "height": 80
+      },
+      {
+        "id": "api.collision",
+        "owner": "api",
+        "kind": "component",
+        "x": 251.12,
+        "y": 18,
+        "width": 140,
+        "height": 80
+      },
+      {
+        "id": "orders.collision",
+        "owner": "orders",
+        "kind": "component",
+        "x": 472.32,
+        "y": 18,
+        "width": 136,
+        "height": 80
+      }
+    ],
+    "timelineEnvelopes": [],
+    "readingOrder": [
+      "root",
+      "customer",
+      "api",
+      "orders"
+    ]
+  },
+  "report": {
+    "valid": true,
+    "diagnostics": [],
+    "metrics": {
+      "elementCount": 4,
+      "connectorCount": 2,
+      "crossingCount": 0,
+      "occupiedArea": 33139.2,
+      "occupancyRatio": 0.43149999999999994,
+      "routeLength": 186.39999999999998,
+      "normalizedRouteLength": 1,
+      "bendCount": 0,
+      "whitespaceImbalance": 0.016666666666666757
+    }
+  },
+  "attempts": [
+    {
+      "strategy": "requested",
+      "width": 640,
+      "height": 120,
+      "diagnostics": []
+    },
+    {
+      "strategy": "expanded_tracks",
+      "width": 640,
+      "height": 120,
+      "diagnostics": []
+    },
+    {
+      "strategy": "alternate_spans",
+      "width": 640,
+      "height": 120,
+      "diagnostics": []
+    },
+    {
+      "strategy": "vertical_reflow",
+      "width": 640,
+      "height": 336,
+      "diagnostics": []
+    },
+    {
+      "strategy": "increased_height",
+      "width": 640,
+      "height": 336,
+      "diagnostics": []
+    }
+  ]
 }

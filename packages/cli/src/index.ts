@@ -1,19 +1,12 @@
 import { readFile, writeFile } from "node:fs/promises";
 
 import {
-  compileVisual,
-  boardSceneToSvg,
-  createLayoutPolicyAdapter,
-  exportHeadless,
-  fastFlowLayoutAdapter,
+  exportVisual,
   migrateLegacySource,
-  solvePinboard,
   type Diagnostic,
   type HeadlessExportFormat,
-  type LayoutAdapter,
 } from "@jerkeyray/core";
-import { exportHeadlessPng, svgToPng } from "@jerkeyray/export-node";
-import { createElkLayoutAdapter } from "@jerkeyray/layout-elk";
+import { exportVisualPng } from "@jerkeyray/export-node";
 
 export type CliOptions = {
   format: HeadlessExportFormat | "png";
@@ -39,7 +32,7 @@ export const CLI_HELP = `Usage: livery <input|-> [options]
 Options:
   -f, --format <svg|json|png>  Output format; inferred from --output when omitted
   -o, --output <path>          Write to a file instead of stdout
-      --layout <auto|fast>     Layout policy (default: auto)
+      --layout <auto|fast>     Deprecated compatibility option
       --migrate                Translate legacy flow source to the programmable language
       --width <pixels>         Diagram layout width (default: 960)
       --scale <number>         PNG scale from 0.1 to 8
@@ -140,43 +133,13 @@ export async function runCli(argv: string[], io: CliIo = nodeIo): Promise<number
       else io.stdout(migrated.source);
       return 0;
     }
-    if (/^\s*(?:component|figure)\b/.test(source)) {
-      const compiled = compileVisual(source);
-      if (!compiled.document) {
-        if (options.format === "json") io.stdout(JSON.stringify({ diagnostics: compiled.diagnostics }, null, options.pretty ? 2 : undefined));
-        else io.stderr(`${formatDiagnostics(compiled.diagnostics)}\n`);
-        return 1;
-      }
-      const layout = solvePinboard(compiled.document, { width: options.width });
-      if (!layout.ok) {
-        if (options.format === "json") io.stdout(JSON.stringify({ document: compiled.document, diagnostics: [...compiled.diagnostics, ...layout.diagnostics], attempts: layout.attempts }, null, options.pretty ? 2 : undefined));
-        else io.stderr(`${formatDiagnostics(layout.diagnostics)}\n`);
-        return 1;
-      }
-      const scene = layout.scene;
-      const svg = boardSceneToSvg(scene);
-      const output = options.format === "svg"
-        ? svg
-        : options.format === "json"
-          ? JSON.stringify({ document: compiled.document, diagnostics: compiled.diagnostics, scene }, null, options.pretty ? 2 : undefined)
-          : svgToPng(svg, {
-              ...(options.outputWidth !== undefined ? { outputWidth: options.outputWidth } : {}),
-              ...(options.scale !== undefined ? { scale: options.scale } : {}),
-            });
-      if (options.output) await io.write(options.output, output);
-      else io.stdout(output);
-      return 0;
-    }
-    const adapter = layoutAdapter(options.layout);
     const result = options.format === "png"
-      ? await exportHeadlessPng(source, {
-          adapter,
+      ? exportVisualPng(source, {
           ...(options.outputWidth !== undefined ? { outputWidth: options.outputWidth } : {}),
           ...(options.scale !== undefined ? { scale: options.scale } : {}),
           width: options.width,
         })
-      : await exportHeadless(source, {
-          adapter,
+      : exportVisual(source, {
           format: options.format,
           pretty: options.pretty,
           width: options.width,
@@ -187,16 +150,11 @@ export async function runCli(argv: string[], io: CliIo = nodeIo): Promise<number
     }
     if (options.output) await io.write(options.output, result.output);
     else io.stdout(result.output);
-    return result.artifact ? 0 : 1;
+    return result.document && result.scene ? 0 : 1;
   } catch (error) {
     io.stderr(`${errorMessage(error)}\n`);
     return 1;
   }
-}
-
-function layoutAdapter(layout: CliOptions["layout"]): LayoutAdapter {
-  if (layout === "fast") return fastFlowLayoutAdapter;
-  return createLayoutPolicyAdapter({ advanced: createElkLayoutAdapter() });
 }
 
 function formatDiagnostics(diagnostics: Diagnostic[]) {

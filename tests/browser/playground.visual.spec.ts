@@ -11,7 +11,17 @@ test("desktop studio and timeline states remain visually coherent", async ({ pag
   await expectNoViewportOverflow(page);
   await expect(page).toHaveScreenshot("playground-desktop.png", { animations: "disabled" });
 
+  await figure.evaluate((svg) => {
+    const state = window as typeof window & { __liveryRoot?: Element; __liveryCustomer?: Element | null };
+    state.__liveryRoot = svg;
+    state.__liveryCustomer = svg.querySelector('[data-livery-id="customer"]');
+  });
+
   await page.getByRole("button", { name: "authorization", exact: true }).click();
+  expect(await figure.evaluate((svg) => {
+    const state = window as typeof window & { __liveryRoot?: Element; __liveryCustomer?: Element | null };
+    return state.__liveryRoot === svg && state.__liveryCustomer === svg.querySelector('[data-livery-id="customer"]');
+  })).toBe(true);
   await expect(figure.locator('[data-livery-id="payment"]')).toHaveAttribute("data-livery-focused", "true");
   await expect(figure.locator('[data-livery-connector="authorize"]')).toHaveAttribute("data-livery-traced", "true");
   await expect(figure.locator('[data-livery-connector="persist"]')).toHaveAttribute("opacity", "0");

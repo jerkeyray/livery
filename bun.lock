@@ -52,7 +52,6 @@
       "dependencies": {
         "@jerkeyray/core": "workspace:*",
         "@jerkeyray/export-node": "workspace:*",
-        "@jerkeyray/layout-elk": "workspace:*",
       },
     },
     "packages/core": {

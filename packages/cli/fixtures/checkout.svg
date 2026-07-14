@@ -1,39 +1,43 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="640" height="376" viewBox="0 0 640 376" role="img" aria-labelledby="checkout-title checkout-desc">
-  <title id="checkout-title">Checkout fixture</title>
-  <desc id="checkout-desc">Checkout fixture: 3 entities and 2 relationships.</desc>
-  <rect width="640" height="376" fill="#fff"/>
-  <style>text{font-family:Inter,ui-sans-serif,system-ui,sans-serif;letter-spacing:0}.edge{fill:none;stroke:#a1a1aa;stroke-width:1.5}.edge-label{fill:#71717a;font-size:11px;font-weight:600}.node{fill:#fff;stroke:#d4d4d8}.node-role{fill:#71717a;font-size:10px;font-weight:600}.node-label{fill:#18181b;font-size:13px;font-weight:700}</style>
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="162" viewBox="0 0 640 162" role="img" aria-label="Checkout fixture" aria-describedby="checkout-desc">
+  <desc id="checkout-desc">Checkout fixture: 4 elements and 2 connections.</desc>
+  <rect width="640" height="162" fill="#f7f9fc"/>
   <defs>
-    <marker id="checkout-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M 0 0 L 7 3.5 L 0 7 z" fill="context-stroke"/></marker>
+    <marker id="checkout-arrow-submission" markerWidth="6" markerHeight="6" refX="5.5" refY="3" orient="auto"><path d="M 0 0 L 6 3 L 0 6 z" fill="#7c8ba1"/></marker>
+    <marker id="checkout-arrow-persistence" markerWidth="6" markerHeight="6" refX="5.5" refY="3" orient="auto"><path d="M 0 0 L 6 3 L 0 6 z" fill="#15803d"/></marker>
+    <filter id="checkout-card-shadow" x="-15%" y="-20%" width="130%" height="150%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#101828" flood-opacity="0.08"/></filter>
   </defs>
-  <text x="16" y="24" class="node-label">Checkout fixture</text>
-  <g transform="translate(0 40)">
-    <path class="edge" data-livery-id="submission" d="M 320 92 C 320 128, 320 100, 320 136" marker-end="url(#checkout-arrow)"/>
-    <text class="edge-label" text-anchor="middle" x="330" y="114">submit order</text>
-    <path class="edge" data-livery-id="persistence" d="M 320 200 C 320 236, 320 208, 320 244" marker-end="url(#checkout-arrow)" style="stroke:#15803d"/>
-    <text class="edge-label" text-anchor="middle" x="330" y="222">persist</text>
-    <g data-livery-id="customer">
-      <title>Customer</title>
-      <rect class="node" x="244" y="28" width="152" height="64" rx="6"/>
-      <text class="node-role" text-anchor="middle" x="320" y="51">actor</text>
-      <text class="node-label" text-anchor="middle" x="320" y="69">
-        <tspan x="320" dy="0">Customer</tspan>
+  <text x="20" y="27" font-family="Inter,system-ui,sans-serif" font-size="14" font-weight="700" fill="#111827">Checkout fixture</text>
+  <g transform="translate(0 42)">
+    <g data-livery-connector="submission" data-livery-variant="directional">
+      <path data-livery-id="submission" d="M 163.92000000000002 58 L 257.12 58" fill="none" stroke="#7c8ba1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#checkout-arrow-submission)"/>
+      <rect x="170.92000000000002" y="32" width="79.2" height="20" rx="4" fill="#f7f9fc" fill-opacity="0.96"/>
+      <text x="210.52" y="46" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="700" fill="#667085">submit order</text>
+    </g>
+    <g data-livery-connector="persistence" data-livery-variant="directional">
+      <path data-livery-id="persistence" d="M 385.12 58 L 478.32 58" fill="none" stroke="#15803d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#checkout-arrow-persistence)"/>
+      <rect x="406.12" y="32" width="51.2" height="20" rx="4" fill="#f7f9fc" fill-opacity="0.96"/>
+      <text x="431.72" y="46" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="700" fill="#667085">persist</text>
+    </g>
+    <g data-livery-id="customer" filter="url(#checkout-card-shadow)">
+      <rect x="37.68000000000001" y="24" width="126.24000000000001" height="68" rx="6" fill="#ffffff" stroke="#d8dee8" stroke-width="1"/>
+      <circle cx="59.68000000000001" cy="50" r="5" fill="none" stroke="#667085" stroke-width="1.4"/>
+      <path d="M 51.68000000000001 66 Q 59.68000000000001 57 67.68 66" fill="none" stroke="#667085" stroke-width="1.4" stroke-linecap="round"/>
+      <text x="89.68" y="62" text-anchor="start" font-family="Inter,system-ui,sans-serif" font-size="13" font-weight="650" fill="#111827">
+        <tspan x="89.68" dy="0">Customer</tspan>
       </text>
     </g>
-    <g data-livery-id="api">
-      <title>Checkout API</title>
-      <rect class="node" x="244" y="136" width="152" height="64" rx="6"/>
-      <text class="node-role" text-anchor="middle" x="320" y="159">service</text>
-      <text class="node-label" text-anchor="middle" x="320" y="177">
-        <tspan x="320" dy="0">Checkout API</tspan>
+    <g data-livery-id="api" filter="url(#checkout-card-shadow)">
+      <rect x="257.12" y="24" width="128" height="68" rx="6" fill="#ffffff" stroke="#d8dee8" stroke-width="1"/>
+      <text x="321.12" y="62" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="13" font-weight="650" fill="#111827">
+        <tspan x="321.12" dy="0">Checkout API</tspan>
       </text>
     </g>
-    <g data-livery-id="orders">
-      <title>Orders</title>
-      <rect class="node" x="244" y="244" width="152" height="64" rx="6"/>
-      <text class="node-role" text-anchor="middle" x="320" y="267">database</text>
-      <text class="node-label" text-anchor="middle" x="320" y="285">
-        <tspan x="320" dy="0">Orders</tspan>
+    <g data-livery-id="orders" filter="url(#checkout-card-shadow)">
+      <rect x="478.32" y="31" width="124" height="54" fill="#ffffff" stroke="#d8dee8" stroke-width="1"/>
+      <ellipse cx="540.3199999999999" cy="31" rx="62" ry="7" fill="#ffffff" stroke="#d8dee8" stroke-width="1"/>
+      <path d="M 478.32 85 A 62 7 0 0 0 602.3199999999999 85" fill="none" stroke="#d8dee8" stroke-width="1"/>
+      <text x="540.3199999999999" y="62" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="13" font-weight="650" fill="#111827">
+        <tspan x="540.3199999999999" dy="0">Orders</tspan>
       </text>
     </g>
   </g>
