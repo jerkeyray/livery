@@ -1,9 +1,9 @@
 import { StrictMode, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { render } from "@jerkeyray/core";
+import { compileVisual, formatVisualDocument, render } from "@jerkeyray/core";
 import { LiveryVisual } from "@jerkeyray/react";
 import { mountLiveryVisual, type LiveryVisualInstance } from "@jerkeyray/web";
-import { Bug, Check, Code2, Eye, TriangleAlert } from "lucide-react";
+import { AlignLeft, Bug, Check, Code2, Eye, TriangleAlert } from "lucide-react";
 
 import "@fontsource/inter/latin-400.css";
 import "@fontsource/inter/latin-600.css";
@@ -68,6 +68,15 @@ function Playground() {
           <div className="pane-header">
             <div className="pane-title"><Code2 aria-hidden size={15} /><strong>Source</strong><span>{selectedExample?.file ?? "custom.livery"}</span></div>
             <div className="editor-header-actions">
+              <button
+                aria-label="Format source"
+                className="editor-icon-button"
+                onClick={() => setSource(formatEditorSource(source))}
+                title="Format source"
+                type="button"
+              >
+                <AlignLeft aria-hidden size={14} />
+              </button>
               <select
                 aria-label="Example figure"
                 onChange={(event) => {
@@ -133,6 +142,14 @@ function Playground() {
       </main>
     </div>
   );
+}
+
+function formatEditorSource(source: string) {
+  if (/^\s*component\b/m.test(source)) return `${source.split("\n").map((line) => line.trimEnd()).join("\n").trim()}\n`;
+  const result = compileVisual(source);
+  return result.document && !result.diagnostics.some(({ severity }) => severity === "error")
+    ? `${formatVisualDocument(result.document)}\n`
+    : source;
 }
 
 function WebPreview({ debug, source, state, timeline, width }: { debug: boolean; source: string; state?: string; timeline?: string; width: number }) {

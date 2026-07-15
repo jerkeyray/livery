@@ -1,6 +1,6 @@
 {
   "name": "@jerkeyray/cli",
-  "version": "0.1.0",
+  "version": "0.1.0-alpha.0",
   "description": "Command-line renderer for Livery DSL files, SVG, JSON, and PNG.",
   "license": "MIT",
   "author": "Aditya Srivastava",
@@ -26,7 +26,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@jerkeyray/core": "workspace:*",
-    "@jerkeyray/export-node": "workspace:*"
+    "@jerkeyray/core": "0.1.0-alpha.0",
+    "@jerkeyray/export-node": "0.1.0-alpha.0"
   }
 }

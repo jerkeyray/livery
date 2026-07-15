@@ -14,3 +14,9 @@ export function Visual() {
   }`} width={720} />;
 }
 ```
+
+For streamed chat output, use `LiveryChatVisual`. It retains the last valid scene during generation, adds accessible timeline controls, and only shows your fallback after final invalid source.
+
+```tsx
+<LiveryChatVisual source={streamedSource} streaming={isStreaming} fallback={<p>Visual unavailable</p>} />
+```

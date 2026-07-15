@@ -5,6 +5,7 @@ import {
   type BoardScene,
   type Diagnostic,
   type LiveryTheme,
+  type ResourcePolicy,
   type TokenOverrides,
   type VisualDocument,
 } from "@jerkeyray/core";
@@ -12,50 +13,157 @@ import {
 export type LiveryVisualOptions = {
   theme?: LiveryTheme;
   tokenOverrides?: TokenOverrides;
+  resourcePolicy?: ResourcePolicy;
   width?: number;
   timeline?: string;
   state?: string;
   debug?: boolean;
+  retainLastValid?: boolean;
+  responsive?: boolean;
+  onRevision?: (revision: LiveryVisualRevision) => void;
+  onDiagnostics?: (diagnostics: Diagnostic[]) => void;
 };
 
-export type LiveryVisualInstance = {
-  readonly document?: VisualDocument;
+export type LiveryVisualStatus = "empty" | "ready" | "retained" | "invalid";
+
+export type LiveryVisualRevision = {
+  status: LiveryVisualStatus;
+  source: string;
+  diagnostics: Diagnostic[];
+  document?: VisualDocument;
+  scene?: BoardScene;
+};
+
+export interface LiveryVisualInstance {
+  readonly revision: LiveryVisualRevision;
+  /** @deprecated Read revision.document. */
+  readonly document: VisualDocument | undefined;
+  /** @deprecated Read revision.diagnostics. */
   readonly diagnostics: Diagnostic[];
-  readonly scene?: BoardScene;
+  /** @deprecated Read revision.scene. */
+  readonly scene: BoardScene | undefined;
+  update(source: string): LiveryVisualRevision;
   setState(stateId: string): void;
   destroy(): void;
-};
+}
 
 export function mountLiveryVisual(container: HTMLElement, source: string, options: LiveryVisualOptions = {}): LiveryVisualInstance {
-  const result = renderProgram(source, { ...options, width: options.width ?? (container.clientWidth || 720) });
-  if (!result.document || !result.scene || !result.svg) {
-    container.replaceChildren(errorElement(container.ownerDocument, result.diagnostics));
-    return { diagnostics: result.diagnostics, setState() {}, destroy: () => container.replaceChildren() };
-  }
-  const document = result.document;
-  const scene = result.scene;
-  const timeline = document.timelines.find(({ id }) => id === options.timeline) ?? document.timelines[0];
+  let currentSource = source;
+  let currentWidth = normalizedWidth(options.width ?? (container.clientWidth || 720));
   let currentStateId = options.state;
-  const renderSvg = (stateId?: string) => {
-    const state = timeline && stateId ? computeTimelineState(timeline, stateId, scene) : undefined;
-    return boardSceneToSvg(scene, { ...(options.theme ? { theme: options.theme } : {}), ...(options.tokenOverrides ? { tokenOverrides: options.tokenOverrides } : {}), ...(state ? { state } : {}), ...(options.debug ? { debug: true } : {}) });
-  };
+  let rendered: SVGSVGElement | undefined;
+  let identity: string | undefined;
+  let revision: LiveryVisualRevision = { status: "empty", source, diagnostics: [] };
+  let destroyed = false;
+
   const parseSvg = (svg: string) => {
     const Parser = container.ownerDocument.defaultView?.DOMParser ?? DOMParser;
     return container.ownerDocument.importNode(new Parser().parseFromString(svg, "image/svg+xml").documentElement, true) as unknown as SVGSVGElement;
   };
-  const rendered = parseSvg(result.svg);
-  container.replaceChildren(rendered);
+
+  const publish = (next: LiveryVisualRevision) => {
+    revision = next;
+    options.onDiagnostics?.(next.diagnostics);
+    options.onRevision?.(next);
+    return next;
+  };
+
+  const renderRevision = (nextSource: string): LiveryVisualRevision => {
+    currentSource = nextSource;
+    if (!nextSource.trim()) {
+      if (revision.scene && options.retainLastValid !== false) return publish({ ...revision, status: "retained", source: nextSource, diagnostics: [] });
+      rendered = undefined;
+      identity = undefined;
+      container.replaceChildren();
+      return publish({ status: "empty", source: nextSource, diagnostics: [] });
+    }
+    const result = renderProgram(nextSource, {
+      ...options,
+      width: currentWidth,
+      ...(currentStateId ? { state: currentStateId } : {}),
+    });
+    if (!result.document || !result.scene || !result.svg) {
+      if (revision.scene && revision.document && options.retainLastValid !== false) {
+        return publish({ status: "retained", source: nextSource, diagnostics: result.diagnostics, document: revision.document, scene: revision.scene });
+      }
+      rendered = undefined;
+      identity = undefined;
+      container.replaceChildren(errorElement(container.ownerDocument, result.diagnostics));
+      return publish({ status: "invalid", source: nextSource, diagnostics: result.diagnostics });
+    }
+    const nextRendered = parseSvg(result.svg);
+    const nextIdentity = sceneIdentity(result.scene);
+    if (rendered && identity === nextIdentity) syncElementTree(rendered, nextRendered);
+    else {
+      rendered = nextRendered;
+      container.replaceChildren(rendered);
+    }
+    identity = nextIdentity;
+    return publish({ status: "ready", source: nextSource, diagnostics: result.diagnostics, document: result.document, scene: result.scene });
+  };
+
+  const initial = renderRevision(source);
+
   const setState = (stateId: string) => {
+    if (!rendered || !revision.scene || !revision.document) return;
     const nextStateId = stateId || undefined;
-    const next = parseSvg(renderSvg(nextStateId));
+    const timeline = revision.document.timelines.find(({ id }) => id === options.timeline) ?? revision.document.timelines[0];
+    const state = timeline && nextStateId ? computeTimelineState(timeline, nextStateId, revision.scene) : undefined;
+    const next = parseSvg(boardSceneToSvg(revision.scene, {
+      ...(options.theme ? { theme: options.theme } : {}),
+      ...(options.tokenOverrides ? { tokenOverrides: options.tokenOverrides } : {}),
+      ...(options.resourcePolicy ? { resourcePolicy: options.resourcePolicy } : {}),
+      ...(state ? { state } : {}),
+      ...(options.debug ? { debug: true } : {}),
+    }));
     const duration = transitionDuration(timeline, currentStateId, nextStateId, options.theme);
     const before = capturePresentation(rendered);
     syncElementTree(rendered, next);
     animatePresentation(rendered, before, duration);
     currentStateId = nextStateId;
   };
-  return { document, diagnostics: result.diagnostics, scene, setState, destroy: () => container.replaceChildren() };
+
+  const ResizeObserverConstructor = container.ownerDocument.defaultView?.ResizeObserver;
+  const resizeObserver = !options.width && options.responsive !== false && ResizeObserverConstructor
+    ? new ResizeObserverConstructor((entries) => {
+      const observedWidth = entries[0]?.contentRect.width ?? container.clientWidth;
+      if (observedWidth <= 0) return;
+      const width = normalizedWidth(observedWidth);
+      if (!destroyed && width !== currentWidth) {
+        currentWidth = width;
+        renderRevision(currentSource);
+      }
+    })
+    : undefined;
+  resizeObserver?.observe(container);
+
+  const instance: LiveryVisualInstance = {
+    get revision() { return revision; },
+    get document() { return revision.document; },
+    get diagnostics() { return revision.diagnostics; },
+    get scene() { return revision.scene; },
+    update(nextSource) { return destroyed ? revision : renderRevision(nextSource); },
+    setState,
+    destroy() {
+      destroyed = true;
+      resizeObserver?.disconnect();
+      container.replaceChildren();
+    },
+  };
+  if (initial.status === "ready" && currentStateId) setState(currentStateId);
+  return instance;
+}
+
+function normalizedWidth(width: number) {
+  return Math.max(1, Math.round(Number.isFinite(width) ? width : 720));
+}
+
+function sceneIdentity(scene: BoardScene) {
+  return JSON.stringify({
+    elements: scene.elements.map(({ id, kind, parent }) => [id, kind, parent ?? ""]),
+    connectors: scene.connectors.map(({ id, from, to }) => [id, from, to]),
+    canvases: scene.canvases.map(({ id, primitives }) => [id, primitives.map(({ id: primitiveId, kind }) => [primitiveId, kind])]),
+  });
 }
 
 type Presentation = Map<string, { opacity: string; transform: string; traced: boolean }>;

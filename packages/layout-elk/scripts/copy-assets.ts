@@ -4,3 +4,4 @@ const assets = [
 ] as const;
 
 await Promise.all(assets.map(([source, target]) => Bun.write(target, Bun.file(source))));
+await Bun.write("dist/elk-worker.min.d.ts", "export {};\n");

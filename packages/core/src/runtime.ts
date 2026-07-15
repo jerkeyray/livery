@@ -6,6 +6,7 @@ import { solvePinboard, type PinboardOptions } from "./pinboard.js";
 import { compileVisual, migrateLegacyArtifact, type VisualCompileResult } from "./program.js";
 import { computeTimelineState } from "./timeline.js";
 import type { VisualDocument } from "./visual.js";
+import { validateBoardResources } from "./resources.js";
 
 export type VisualRenderOptions = PinboardOptions & Omit<BoardSvgOptions, "state"> & {
   timeline?: string;
@@ -47,12 +48,15 @@ export function render(source: string, options: VisualRenderOptions = {}): Visua
   if (!compiled.document) return { diagnostics: compiled.diagnostics };
   const layout = solvePinboard(compiled.document, options);
   if (!layout.ok) return { document: compiled.document, diagnostics: [...compiled.diagnostics, ...layout.diagnostics], attempts: layout.attempts };
+  const resourceDiagnostics = validateBoardResources(layout.scene, options.resourcePolicy);
+  if (resourceDiagnostics.length) return { document: compiled.document, scene: layout.scene, diagnostics: [...compiled.diagnostics, ...resourceDiagnostics], report: layout.report, attempts: layout.attempts };
   const timeline = compiled.document.timelines.find(({ id }) => id === options.timeline) ?? compiled.document.timelines[0];
   const state = timeline && options.state ? computeTimelineState(timeline, options.state, layout.scene) : options.state;
   const svg = boardSceneToSvg(layout.scene, {
     ...(options.debug !== undefined ? { debug: options.debug } : {}),
     ...(options.theme ? { theme: options.theme } : {}),
     ...(options.tokenOverrides ? { tokenOverrides: options.tokenOverrides } : {}),
+    ...(options.resourcePolicy ? { resourcePolicy: options.resourcePolicy } : {}),
     ...(typeof state === "object" ? { state } : {}),
   });
   return { document: compiled.document, scene: layout.scene, svg, diagnostics: compiled.diagnostics, report: layout.report, attempts: layout.attempts };

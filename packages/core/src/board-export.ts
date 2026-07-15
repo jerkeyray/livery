@@ -3,12 +3,14 @@ import { canonicalGlyph } from "./glyphs.js";
 import { canonicalTheme, resolveComponentRecipe, resolveTheme, resolveVisualValue, toneColor, type ComponentRecipe, type LiveryTheme, type TokenOverrides } from "./theme.js";
 import { wrapVisualText } from "./text-metrics.js";
 import type { VisualTimelineState } from "./timeline.js";
+import { isImageSourceAllowed, type ResourcePolicy } from "./resources.js";
 
 export type BoardSvgOptions = {
   debug?: boolean;
   state?: VisualTimelineState;
   theme?: LiveryTheme;
   tokenOverrides?: TokenOverrides;
+  resourcePolicy?: ResourcePolicy;
 };
 
 export function boardSceneToSvg(scene: BoardScene, options: BoardSvgOptions = {}) {
@@ -52,19 +54,19 @@ export function boardSceneToSvg(scene: BoardScene, options: BoardSvgOptions = {}
     const canvasProperties = options.state?.properties.get(canvas.owner);
     const canvasTransform = elementTransformValue(canvasProperties, canvas.bounds);
     lines.push(`    <g data-livery-canvas="${escapeXml(canvas.id)}"${canvasTransform ? ` transform="${canvasTransform}"` : ""}${canvas.clip ? ` clip-path="url(#${safeId(canvas.id)}-clip)"` : ""}>`);
-    lines.push(...renderCanvasPrimitives(canvas.primitives, tokens, options.state));
+    lines.push(...renderCanvasPrimitives(canvas.primitives, tokens, options.state, options.resourcePolicy));
     lines.push("    </g>");
   }
   for (const element of scene.elements) {
     if (childParents.has(element.id) || canvasOwners.has(element.id) || element.kind === "canvas") continue;
-    lines.push(...renderElement(element, tokens, `${safeId(scene.id)}-card-shadow`, options.state, options.theme ?? canonicalTheme));
+    lines.push(...renderElement(element, tokens, `${safeId(scene.id)}-card-shadow`, options.state, options.theme ?? canonicalTheme, options.resourcePolicy));
   }
   if (options.debug) lines.push(...renderDebug(scene));
   lines.push("  </g>", "</svg>");
   return lines.join("\n");
 }
 
-function renderElement(element: SolvedElement, tokens: TokenOverrides, shadowId: string, state: VisualTimelineState | undefined, theme: LiveryTheme) {
+function renderElement(element: SolvedElement, tokens: TokenOverrides, shadowId: string, state: VisualTimelineState | undefined, theme: LiveryTheme, resourcePolicy?: ResourcePolicy) {
   const { x, y, width, height } = element.visualBounds;
   const recipe = resolveComponentRecipe(element.kind, element.variant, theme);
   const surfaceStyle = { ...recipe.surface, ...element.style, ...(state?.focused.has(element.id) ? recipe.states?.focused : undefined) };
@@ -79,6 +81,8 @@ function renderElement(element: SolvedElement, tokens: TokenOverrides, shadowId:
   const lines = [`    <g data-livery-id="${escapeXml(element.id)}"${transform ? ` transform="${transform}"` : ""}${stateAttributes(element.id, state)}${surface}>`];
   if (element.kind === "text") {
     // Text is emitted below without an implicit surface.
+  } else if (element.kind === "image" && typeof element.props?.src === "string") {
+    if (isImageSourceAllowed(element.props.src, resourcePolicy)) lines.push(`      <image href="${escapeXml(element.props.src)}" x="${x}" y="${y}" width="${width}" height="${height}" preserveAspectRatio="xMidYMid meet"/>`);
   } else if (recipe.shape === "circle" || element.kind === "circle") lines.push(`      <circle cx="${x + width / 2}" cy="${y + height / 2}" r="${Math.min(width, height) / 2}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"/>`);
   else if (recipe.shape === "storage") {
     lines.push(`      <rect x="${x}" y="${y + 7}" width="${width}" height="${height - 14}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"/>`);
@@ -129,7 +133,7 @@ function componentDetails(element: SolvedElement, tokens: TokenOverrides, recipe
   ];
 }
 
-function renderPrimitive(primitive: CanvasPrimitive, tokens: TokenOverrides, state?: VisualTimelineState) {
+function renderPrimitive(primitive: CanvasPrimitive, tokens: TokenOverrides, state?: VisualTimelineState, resourcePolicy?: ResourcePolicy) {
   const properties = state?.properties.get(primitive.id);
   const bounds = primitiveBounds(primitive, properties);
   const { x, y, width, height } = bounds;
@@ -149,13 +153,15 @@ function renderPrimitive(primitive: CanvasPrimitive, tokens: TokenOverrides, sta
     const fontWeight = resolveVisualValue(properties?.fontWeight ?? primitive.style?.fontWeight ?? primitive.props?.fontWeight, tokens);
     return [`      <text data-livery-id="${escapeXml(primitive.id)}" x="${x}" y="${y + height}" font-family="Inter,system-ui,sans-serif" font-size="${fontSize}"${fontWeight !== undefined ? ` font-weight="${fontWeight}"` : ""} fill="${fill}"${attributes}>${escapeXml(primitive.label ?? String(primitive.props?.text ?? ""))}</text>`];
   }
-  if (primitive.kind === "image" && typeof primitive.props?.src === "string") return [`      <image data-livery-id="${escapeXml(primitive.id)}" href="${escapeXml(primitive.props.src)}" x="${x}" y="${y}" width="${width}" height="${height}" preserveAspectRatio="xMidYMid meet"${attributes}/>`];
+  if (primitive.kind === "image" && typeof primitive.props?.src === "string") return isImageSourceAllowed(primitive.props.src, resourcePolicy)
+    ? [`      <image data-livery-id="${escapeXml(primitive.id)}" href="${escapeXml(primitive.props.src)}" x="${x}" y="${y}" width="${width}" height="${height}" preserveAspectRatio="xMidYMid meet"${attributes}/>`]
+    : [];
   if (primitive.kind === "icon") return renderIconPrimitive(primitive, bounds, stroke, strokeWidth, attributes);
   if (primitive.kind === "group") return [];
   return [`      <rect data-livery-id="${escapeXml(primitive.id)}" x="${x}" y="${y}" width="${width}" height="${height}" rx="${properties?.radius ?? primitive.style?.radius ?? primitive.props?.radius ?? 0}" fill="${fill}" stroke="${stroke}"${paint}${attributes}/>`];
 }
 
-function renderCanvasPrimitives(primitives: CanvasPrimitive[], tokens: TokenOverrides, state?: VisualTimelineState) {
+function renderCanvasPrimitives(primitives: CanvasPrimitive[], tokens: TokenOverrides, state?: VisualTimelineState, resourcePolicy?: ResourcePolicy) {
   const byParent = new Map<string | undefined, CanvasPrimitive[]>();
   for (const primitive of primitives) {
     const siblings = byParent.get(primitive.parent) ?? [];
@@ -165,7 +171,7 @@ function renderCanvasPrimitives(primitives: CanvasPrimitive[], tokens: TokenOver
   const renderLevel = (parent: string | undefined, indent: string): string[] => [...(byParent.get(parent) ?? [])]
     .sort((a, b) => a.layer - b.layer || a.id.localeCompare(b.id))
     .flatMap((primitive) => {
-      if (primitive.kind !== "group") return renderPrimitive(primitive, tokens, state).map((line) => `${indent}${line.trimStart()}`);
+      if (primitive.kind !== "group") return renderPrimitive(primitive, tokens, state, resourcePolicy).map((line) => `${indent}${line.trimStart()}`);
       const properties = state?.properties.get(primitive.id);
       const transform = transformValue(primitive, properties, primitive.bounds);
       return [

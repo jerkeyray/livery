@@ -12,6 +12,10 @@ describe("PNG exports", () => {
     expect(readPngSize(png)).toEqual({ height: 20, width: 40 });
   });
 
+  it("rejects unrestricted remote resources during direct rasterization", () => {
+    expect(() => svgToPng('<svg xmlns="http://www.w3.org/2000/svg"><image href="https://example.com/a.png"/></svg>')).toThrow("resource policy");
+  });
+
   it("compiles and exports PNG in one call", async () => {
     const result = await exportHeadlessPng(source, { outputWidth: 320, width: 640 });
 

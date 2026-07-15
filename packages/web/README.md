@@ -13,5 +13,8 @@ const visual = mountLiveryVisual(element, `figure hello("Hello") {
 }`);
 
 visual.setState("complete");
+visual.update(nextStreamedSource);
 visual.destroy();
 ```
+
+Read `visual.revision.status` to distinguish `empty`, `ready`, `retained`, and `invalid` source. By default the runtime retains its last valid scene and re-solves through `ResizeObserver` when no explicit width is supplied.

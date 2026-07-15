@@ -1,6 +1,6 @@
 {
   "name": "@jerkeyray/web",
-  "version": "0.1.0",
+  "version": "0.1.0-alpha.0",
   "description": "Framework-independent browser renderer and runtime for Livery visuals.",
   "license": "MIT",
   "author": "Aditya Srivastava",
@@ -41,6 +41,6 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@jerkeyray/core": "workspace:*"
+    "@jerkeyray/core": "0.1.0-alpha.0"
   }
 }

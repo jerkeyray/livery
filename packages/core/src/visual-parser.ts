@@ -401,6 +401,14 @@ class VisualParser {
 
   private expectSymbol(symbol: string, message: string) {
     if (this.matchSymbol(symbol)) return true;
+    if (this.at("eof")) {
+      const span = this.current().span;
+      this.diagnostics.push({
+        ...diagnostic("syntax.expected_token", message, span),
+        repair: { description: `Insert ${symbol}.`, edits: [{ span, text: symbol }] },
+      });
+      return false;
+    }
     this.error("syntax.expected_token", message);
     return false;
   }
@@ -454,7 +462,14 @@ function tokenize(source: string, diagnostics: Diagnostic[]): Token[] {
           value += escaped === "n" ? "\n" : escaped === "r" ? "\r" : escaped === "t" ? "\t" : escaped;
         } else value += next;
       }
-      if (!closed) diagnostics.push(diagnostic("syntax.unterminated_string", "String literal is missing a closing quote.", { start, end: point() }));
+      if (!closed) {
+        const end = point();
+        const insertion = { start: end, end };
+        diagnostics.push({
+          ...diagnostic("syntax.unterminated_string", "String literal is missing a closing quote.", { start, end }),
+          repair: { description: "Close the string literal.", edits: [{ span: insertion, text: '"' }] },
+        });
+      }
       push("string", value, raw, start);
       continue;
     }

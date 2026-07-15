@@ -88,11 +88,17 @@ export type ComponentParameter = {
 
 export type ComponentDefinition = {
   name: string;
+  category: "people" | "compute" | "storage" | "messaging" | "device" | "ai" | "content" | "chart";
+  description: string;
+  status: "supported" | "experimental";
   parameters: ComponentParameter[];
   root: VisualNode;
   ports: AnchorName[];
   variants: string[];
   tokens: string[];
   intrinsicSize: { minWidth: number; minHeight: number };
+  sizing: { minWidth: number; minHeight: number; maxWidth?: number };
   accessibility: { role: "figure" | "group" | "img"; labelParameter: string };
+  example: string;
+  examples: string[];
 };

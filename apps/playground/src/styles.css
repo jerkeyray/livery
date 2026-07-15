@@ -81,6 +81,9 @@ button, input { font: inherit; }
 .pane-title svg { color: #70706b; }
 .pane-title span, .pane-meta { overflow: hidden; color: #888883; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .editor-header-actions { display: flex; min-width: 0; align-items: center; gap: 10px; }
+.editor-icon-button { display: inline-grid; width: 30px; height: 30px; flex: 0 0 auto; place-items: center; border: 1px solid #d8d8d3; border-radius: 5px; background: #fff; color: #5f6368; }
+.editor-icon-button:hover { background: #f7f7f5; color: #202124; }
+.editor-icon-button:focus-visible { outline: 2px solid #2563eb; outline-offset: 1px; }
 .editor-header-actions select {
   max-width: 164px;
   height: 28px;

@@ -1,6 +1,6 @@
 {
   "name": "@jerkeyray/core",
-  "version": "0.1.0",
+  "version": "0.1.0-alpha.0",
   "description": "Compiler, layout contracts, headless rendering, and portable exports for Livery visuals.",
   "license": "MIT",
   "author": "Aditya Srivastava",

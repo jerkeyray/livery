@@ -10,6 +10,46 @@ const technicalComponents = [
   "callout", "badge", "legend", "boundary", "barChart", "lineChart", "areaChart", "progress",
 ] as const;
 
+const componentMetadata: Record<(typeof technicalComponents)[number], {
+  category: ComponentDefinition["category"];
+  description: string;
+  status?: ComponentDefinition["status"];
+}> = {
+  person: { category: "people", description: "A single person or user." },
+  team: { category: "people", description: "A group of people acting together." },
+  service: { category: "compute", description: "A software service or application boundary." },
+  api: { category: "compute", description: "An application programming interface." },
+  database: { category: "storage", description: "A persistent database." },
+  cache: { category: "storage", description: "A low-latency cache." },
+  objectStore: { category: "storage", description: "An object or blob store." },
+  warehouse: { category: "storage", description: "An analytical data warehouse." },
+  queue: { category: "messaging", description: "A queued message channel." },
+  topic: { category: "messaging", description: "A publish-subscribe topic." },
+  stream: { category: "messaging", description: "An ordered event stream." },
+  event: { category: "messaging", description: "An event or emitted message." },
+  browser: { category: "device", description: "A web browser client." },
+  mobile: { category: "device", description: "A mobile device or application." },
+  terminal: { category: "device", description: "A command-line terminal." },
+  server: { category: "compute", description: "A server or compute host." },
+  agent: { category: "ai", description: "An autonomous or assisted agent." },
+  model: { category: "ai", description: "A machine-learning or language model." },
+  tool: { category: "ai", description: "A tool callable by an agent or model." },
+  worker: { category: "compute", description: "A background worker or process." },
+  file: { category: "content", description: "A file artifact." },
+  document: { category: "content", description: "A structured document." },
+  code: { category: "content", description: "A source-code or protocol block." },
+  table: { category: "content", description: "A compact structured table." },
+  note: { category: "content", description: "A short contextual note." },
+  callout: { category: "content", description: "An annotation connected to visual content." },
+  badge: { category: "content", description: "A compact status or category badge." },
+  legend: { category: "content", description: "A legend explaining visual encodings." },
+  boundary: { category: "content", description: "A labeled grouping boundary." },
+  barChart: { category: "chart", description: "A basic bar chart.", status: "experimental" },
+  lineChart: { category: "chart", description: "A basic line chart.", status: "experimental" },
+  areaChart: { category: "chart", description: "A basic area chart.", status: "experimental" },
+  progress: { category: "chart", description: "A quantitative progress indicator.", status: "experimental" },
+};
+
 export const standardLibrary = Object.fromEntries(
   technicalComponents.map((name) => [name, component(name)]),
 ) as Record<(typeof technicalComponents)[number], ComponentDefinition>;
@@ -34,8 +74,13 @@ export function instantiateStandardComponent(
 
 function component(name: string): ComponentDefinition {
   const geometry = resolveComponentRecipe(`lib.${name}`, undefined, canonicalTheme).geometry;
+  const metadata = componentMetadata[name as keyof typeof componentMetadata];
+  const example = `${name}("${humanize(name)}")`;
   return {
     name,
+    category: metadata.category,
+    description: metadata.description,
+    status: metadata.status ?? "supported",
     parameters: [
       { name: "label", type: "string", required: false },
       { name: "variant", type: "string", required: false },
@@ -51,7 +96,10 @@ function component(name: string): ComponentDefinition {
     variants: ["default", "muted", "emphasis"],
     tokens: ["color.surface", "color.border", "color.text", "space.md", "radius.md", "stroke.normal"],
     intrinsicSize: { minWidth: geometry?.minWidth ?? 120, minHeight: geometry?.minHeight ?? 64 },
+    sizing: { minWidth: geometry?.minWidth ?? 120, minHeight: geometry?.minHeight ?? 64, ...(geometry?.maxWidth ? { maxWidth: geometry.maxWidth } : {}) },
     accessibility: { role: "group", labelParameter: "label" },
+    example,
+    examples: [example],
   };
 }
 

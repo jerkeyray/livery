@@ -106,12 +106,14 @@ describe("visual language fidelity", () => {
       symbol = icon(name: "star", x: 88, y: 34, width: 28, height: 28)
       canvas(title, dot, picture, symbol, width: 140, height: 80)
     }`);
-    const svg = boardSceneToSvg(scene);
+    const deniedSvg = boardSceneToSvg(scene);
+    const svg = boardSceneToSvg(scene, { resourcePolicy: { allowedImageHosts: ["example.com"] } });
 
     expect(svg).toContain(">Hello</text>");
     expect(svg).toContain('fill="#123456"');
     expect(svg).toContain('fill="#ff0000"');
     expect(svg).toContain('stroke="#00ff00"');
+    expect(deniedSvg).not.toContain("<image");
     expect(svg).toContain("<image");
     expect(svg).toContain('href="https://example.com/image.png"');
     expect(svg).toContain('data-livery-icon="star"');

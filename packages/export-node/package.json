@@ -1,6 +1,6 @@
 {
   "name": "@jerkeyray/export-node",
-  "version": "0.1.0",
+  "version": "0.1.0-alpha.0",
   "description": "Optional Node and Bun PNG export adapter for Livery visuals.",
   "license": "MIT",
   "author": "Aditya Srivastava",
@@ -24,7 +24,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@jerkeyray/core": "workspace:*",
+    "@jerkeyray/core": "0.1.0-alpha.0",
     "@resvg/resvg-js": "2.6.2"
   }
 }

@@ -1,13 +1,36 @@
+import { autocompletion, type CompletionContext } from "@codemirror/autocomplete";
 import { StreamLanguage } from "@codemirror/language";
 import { setDiagnostics, type Diagnostic as EditorDiagnostic } from "@codemirror/lint";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { basicSetup } from "codemirror";
 import { useLayoutEffect, useRef } from "react";
-import type { Diagnostic } from "@jerkeyray/core";
+import { applyDiagnosticFix, getLanguageCatalog, type Diagnostic } from "@jerkeyray/core";
 
-const keywords = new Set(["component", "figure", "return", "timeline", "state", "transition", "show", "hide", "focus", "trace", "set", "morph"]);
-const constructors = new Set(["row", "column", "grid", "stack", "overlay", "canvas", "text", "box", "circle", "line", "path", "image", "icon", "connect", "person", "team", "service", "api", "database", "cache", "queue", "stream", "browser", "agent", "model", "tool", "note", "callout"]);
+const catalog = getLanguageCatalog();
+const keywords = new Set([...catalog.keywords, ...catalog.timelineOperations.map(({ name }) => name)]);
+const constructors = new Set([
+  ...catalog.primitives,
+  ...catalog.layouts.map(({ name }) => name),
+  ...catalog.constraints.map(({ name }) => name),
+  ...catalog.components.map(({ name }) => name),
+]);
+const completions = [
+  ...catalog.keywords.map((label) => ({ label, type: "keyword" })),
+  ...catalog.primitives.map((label) => ({ label, type: "function", apply: `${label}()` })),
+  ...catalog.layouts.map(({ name: label, description: info }) => ({ label, type: "function", info, apply: `${label}()` })),
+  ...catalog.constraints.map(({ name: label, description: info }) => ({ label, type: "function", info, apply: `${label}()` })),
+  ...catalog.timelineOperations.map(({ name: label, description: info }) => ({ label, type: "function", info, apply: `${label}()` })),
+  ...catalog.components.map(({ name: label, description: info, status }) => ({ label, type: "class", info: `${info}${status === "experimental" ? " Experimental." : ""}`, apply: `${label}()` })),
+  ...catalog.anchors.map((label) => ({ label, type: "property" })),
+  ...catalog.tokens.map((token) => ({ label: `$${token}`, type: "constant", detail: "theme token" })),
+];
+
+function completeLivery(context: CompletionContext) {
+  const word = context.matchBefore(/[A-Za-z_][A-Za-z0-9_.-]*/);
+  if (!word && !context.explicit) return null;
+  return { from: word?.from ?? context.pos, options: completions, validFor: /^[A-Za-z_][A-Za-z0-9_.-]*$/ };
+}
 
 const liveryLanguage = StreamLanguage.define({
   startState: () => ({}),
@@ -65,6 +88,7 @@ export function LiveryEditor({ diagnostics, onChange, source }: { diagnostics: D
         doc: source,
         extensions: [
           basicSetup,
+          autocompletion({ override: [completeLivery] }),
           liveryLanguage,
           editorTheme,
           EditorView.updateListener.of((update) => {
@@ -95,13 +119,24 @@ export function LiveryEditor({ diagnostics, onChange, source }: { diagnostics: D
     const view = viewRef.current;
     if (!view) return;
     const length = view.state.doc.length;
-    const mapped: EditorDiagnostic[] = diagnostics.map((diagnostic) => ({
-      from: Math.max(0, Math.min(length, diagnostic.span?.start.offset ?? 0)),
-      to: Math.max(0, Math.min(length, diagnostic.span?.end.offset ?? diagnostic.span?.start.offset ?? 0)),
-      severity: diagnostic.severity,
-      message: diagnostic.message,
-      source: diagnostic.code,
-    }));
+    const mapped: EditorDiagnostic[] = diagnostics.map((diagnostic) => {
+      const fixed = diagnostic.repair?.edits?.length ? applyDiagnosticFix(view.state.doc.toString(), diagnostic) : undefined;
+      return {
+        from: Math.max(0, Math.min(length, diagnostic.span?.start.offset ?? 0)),
+        to: Math.max(0, Math.min(length, diagnostic.span?.end.offset ?? diagnostic.span?.start.offset ?? 0)),
+        severity: diagnostic.severity,
+        message: diagnostic.message,
+        source: diagnostic.code,
+        ...(fixed !== undefined ? {
+          actions: [{
+            name: diagnostic.repair?.description ?? "Apply fix",
+            apply(target: EditorView) {
+              target.dispatch({ changes: { from: 0, to: target.state.doc.length, insert: fixed } });
+            },
+          }],
+        } : {}),
+      };
+    });
     view.dispatch(setDiagnostics(view.state, mapped));
   }, [diagnostics]);
 

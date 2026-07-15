@@ -1,0 +1,15 @@
+{
+  "name": "@jerkeyray/docs",
+  "version": "0.1.0-alpha.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun ../../scripts/generate-docs-reference.ts && vitepress build .",
+    "dev": "vitepress dev .",
+    "typecheck": "bun ../../scripts/check-docs.ts"
+  },
+  "dependencies": {
+    "@jerkeyray/core": "workspace:*",
+    "vitepress": "^1.6.4"
+  }
+}

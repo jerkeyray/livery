@@ -11,9 +11,15 @@ export type SourceSpan = {
   end: SourcePosition;
 };
 
+export type TextEdit = {
+  span: SourceSpan;
+  text: string;
+};
+
 export type RepairHint = {
   description: string;
   knownIds?: string[];
+  edits?: TextEdit[];
 };
 
 export type Diagnostic = {
@@ -37,4 +43,20 @@ export function diagnostic(
     severity,
     ...(span ? { span } : {}),
   };
+}
+
+export function applyDiagnosticFix(source: string, item: Diagnostic): string | undefined {
+  const edits = item.repair?.edits;
+  if (!edits?.length) return undefined;
+  const ordered = [...edits].sort((left, right) => right.span.start.offset - left.span.start.offset);
+  let nextStart = source.length;
+  for (const edit of ordered) {
+    const { start, end } = edit.span;
+    if (start.offset < 0 || end.offset < start.offset || end.offset > source.length || end.offset > nextStart) return undefined;
+    nextStart = start.offset;
+  }
+  return ordered.reduce(
+    (result, edit) => `${result.slice(0, edit.span.start.offset)}${edit.text}${result.slice(edit.span.end.offset)}`,
+    source,
+  );
 }

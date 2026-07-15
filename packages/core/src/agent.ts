@@ -1,12 +1,37 @@
 import type { Diagnostic } from "./diagnostics.js";
+import { getLanguageCatalog } from "./language-catalog.js";
 
-export const LIVERY_AGENT_GUIDE = `Generate only Livery visual source. Use one figure id("Optional title") { ... }.
-Create named library components: api = service("API"), db = database("Orders").
-Compose with row, column, grid, stack, or overlay calls. Prefer constraints and spacing tokens xs, sm, md, lg, xl over coordinates.
-Connect stable anchors: read = api.right -> db.left("read").
-Reusable component Name(param: string) blocks may bind children and return one layout block.
-Optional timeline blocks contain named states using show, hide, focus, trace, set, or morph.
-Reference only declared values. Keep labels concise. Do not emit arbitrary colors, SVG, Markdown fences, prose, loops, or JavaScript.`;
+export type AgentGuideOptions = { mode: "compact" | "reference" };
+
+export function createAgentGuide({ mode }: AgentGuideOptions): string {
+  const catalog = getLanguageCatalog();
+  const supported = catalog.components.filter(({ status }) => status === "supported").map(({ name }) => name);
+  const compact = [
+    "Generate only Livery visual source: one figure, without Markdown or prose.",
+    `Bind primitives or library components (${supported.join(", ")}).`,
+    `Compose with ${catalog.layouts.map(({ name }) => name).join(", ")}; prefer spacing tokens and constraints over macro coordinates.`,
+    `Connect stable ${catalog.anchors.join("/")} anchors: read = api.right -> db.left("read").`,
+    "Use concise labels, unique IDs, and only declared references.",
+    `Optional timelines use ${catalog.timelineOperations.map(({ name }) => name).join(", ")}.`,
+    "No JavaScript, I/O, recursion, arbitrary SVG, unbounded loops, or unsupported properties.",
+  ].join("\n");
+  if (mode === "compact") return compact;
+  const componentReference = catalog.components.map((component) =>
+    `- ${component.name} [${component.status}, ${component.category}]: ${component.description} Ports: ${component.ports.join(", ")}. Example: ${component.example}`,
+  );
+  return [
+    compact,
+    "",
+    `Keywords: ${catalog.keywords.join(", ")}.`,
+    `Primitives: ${catalog.primitives.join(", ")}.`,
+    `Constraints: ${catalog.constraints.map(({ name }) => name).join(", ")}.`,
+    `Tokens: ${catalog.tokens.join(", ")}.`,
+    "Standard library:",
+    ...componentReference,
+  ].join("\n");
+}
+
+export const LIVERY_AGENT_GUIDE = createAgentGuide({ mode: "compact" });
 
 export type RepairPromptOptions = {
   contextLines?: number;

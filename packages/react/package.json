@@ -1,6 +1,6 @@
 {
   "name": "@jerkeyray/react",
-  "version": "0.1.0",
+  "version": "0.1.0-alpha.0",
   "description": "React renderer for token-efficient Livery diagrams and visual stories.",
   "license": "MIT",
   "author": "Aditya Srivastava",
@@ -25,8 +25,8 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@jerkeyray/core": "workspace:*",
-    "@jerkeyray/web": "workspace:*"
+    "@jerkeyray/core": "0.1.0-alpha.0",
+    "@jerkeyray/web": "0.1.0-alpha.0"
   },
   "peerDependencies": {
     "react": ">=18",

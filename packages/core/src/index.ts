@@ -9,6 +9,7 @@ export * from "./language/formatter.js";
 export * from "./language/parser.js";
 export * from "./language/syntax.js";
 export * from "./language/tokenizer.js";
+export * from "./language-catalog.js";
 export * from "./layout.js";
 export * from "./layout-adapter.js";
 export * from "./lint.js";
@@ -33,5 +34,6 @@ export * from "./text.js";
 export * from "./text-metrics.js";
 export * from "./glyphs.js";
 export * from "./runtime.js";
+export * from "./resources.js";
 
 export const LIVERY_ARTIFACT_VERSION = "0.1" as const;

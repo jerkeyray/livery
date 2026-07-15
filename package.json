@@ -20,9 +20,18 @@
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json && bun run --filter '@jerkeyray/*' typecheck",
     "bench:agent": "tsx scripts/benchmark-agent.ts",
-    "bench:tokens": "tsx scripts/benchmark-tokens.ts"
+    "bench:tokens": "tsx scripts/benchmark-tokens.ts",
+    "eval:agent": "tsx scripts/evaluate-agents.ts",
+    "docs:check": "bun scripts/generate-docs-reference.ts && bun scripts/check-docs.ts",
+    "changeset": "changeset",
+    "version:packages": "changeset version",
+    "release:packages": "changeset publish --tag alpha",
+    "lint:packages": "publint packages/core packages/web packages/react packages/layout-elk packages/export-node packages/cli && attw --profile esm-only --pack packages/core && attw --profile esm-only --exclude-entrypoints ./styles.css --pack packages/web && attw --profile esm-only --exclude-entrypoints ./styles.css --pack packages/react && attw --profile esm-only --pack packages/layout-elk && attw --profile esm-only --pack packages/export-node && attw --profile esm-only --pack packages/cli",
+    "verify:release": "bun run typecheck && bun run test && bun run eval:agent && bun run docs:check && bun run build && bun run lint:packages && bun scripts/smoke-packages.ts"
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@changesets/cli": "^2.31.0",
     "@playwright/test": "^1.61.1",
     "@tsdown/css": "^0.22.5",
     "@types/node": "^26.1.1",
@@ -30,6 +39,8 @@
     "@types/react-dom": "^19.2.3",
     "@vitest/coverage-v8": "^4.1.10",
     "gpt-tokenizer": "^3.4.0",
+    "happy-dom": "^20.0.10",
+    "publint": "^0.3.21",
     "tsdown": "^0.22.5",
     "tsx": "^4.23.0",
     "typescript": "^6.0.3",
