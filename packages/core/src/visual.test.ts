@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canonicalTheme, instantiateStandardComponent, resolveComponentRecipe, resolveComponentStyle, resolveTheme, resolveVisualValue, standardLibrary, visualDocumentSchema } from "./index.js";
+import { canonicalGlyph, canonicalTheme, instantiateStandardComponent, resolveComponentRecipe, resolveComponentStyle, resolveTheme, resolveVisualValue, standardLibrary, visualDocumentSchema } from "./index.js";
 
 describe("programmable visual contracts", () => {
   it("builds standard components from public visual primitives", () => {
@@ -32,10 +32,11 @@ describe("programmable visual contracts", () => {
       states: { focused: { fill: "$color.accentSoft" } },
     });
     expect(resolveComponentRecipe("lib.service", undefined, canonicalTheme)).toMatchObject({
-      detail: { glyph: "none" },
-      geometry: { detailWidth: 0 },
-      typography: { align: "center" },
+      detail: { glyph: "service" },
+      geometry: { detailWidth: 24 },
+      typography: { align: "start" },
     });
+    expect(canonicalGlyph("service")).toEqual(expect.arrayContaining([expect.stringContaining("M4 5")]));
   });
 
   it("documents standard component ports, tokens, sizing, and accessibility", () => {

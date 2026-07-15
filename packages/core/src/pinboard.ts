@@ -18,6 +18,7 @@ import type {
 } from "./board.js";
 import type { AnchorName, Connector, LayoutKind, Timeline, VisualConstraint, VisualDocument, VisualNode, VisualValue } from "./visual.js";
 import { canonicalTheme, resolveComponentRecipe, resolveTheme, resolveVisualValue, type LiveryTheme, type TokenOverrides } from "./theme.js";
+import { measureVisualText, measureVisualTextBlock } from "./text-metrics.js";
 
 export type PinboardOptions = { width?: number; maxCandidates?: number; maxElements?: number; theme?: LiveryTheme; tokenOverrides?: TokenOverrides };
 
@@ -88,7 +89,7 @@ function buildCandidate(document: VisualDocument, width: number, strategy: Strat
   const rootColumnGap = Math.max(gapFor(document.root.layout?.gap), ...document.connectors.map((connector) => {
     if (!connector.label) return MIN_GAP;
     const endpointPadding = Math.max(endpointClearance(document.root, connector.from.node), endpointClearance(document.root, connector.to.node));
-    return measureText(connector.label, tokenNumber(tokens, "type.caption", 10)) + 14 + endpointPadding * 2;
+    return measureVisualText(connector.label, { fontSize: tokenNumber(tokens, "type.caption", 10), fontWeight: 600 }) + 14 + endpointPadding * 2;
   }));
   const rootRowGap = Math.max(gapFor(document.root.layout?.gap), ...document.connectors.map((connector) => {
     if (!connector.label) return MIN_GAP;
@@ -274,10 +275,13 @@ function measure(
     const label = node.label ?? node.id;
     const fontSize = visualNumber(recipe.typography?.fontSize, tokens, tokenNumber(tokens, "type.body", 13));
     const lineHeight = Math.max(visualNumber(recipe.typography?.lineHeight, tokens, Math.ceil(fontSize * 1.38)), Math.ceil(fontSize * 1.1));
-    const preferredWidth = node.layout?.width ?? (/\s/.test(label) ? minimumWidth : Math.max(minimumWidth, Math.min(measureText(label, fontSize) + horizontalSpace, Math.max(minimumWidth, 168))));
+    const fontWeight = Number(resolveVisualValue(recipe.typography?.fontWeight, tokens) ?? 650);
+    const measuredLabelWidth = measureVisualText(label, { fontSize, fontWeight });
+    const recipeMaximumWidth = Math.max(minimumWidth, geometry?.maxWidth ?? 184);
+    const preferredWidth = node.layout?.width ?? Math.max(minimumWidth, Math.min(measuredLabelWidth + horizontalSpace, recipeMaximumWidth));
     const width = Math.min(preferredWidth, maxWidth);
     const textWidth = Math.max(24, width - horizontalSpace);
-    const contentHeight = wrapText(label, textWidth, fontSize).length * lineHeight + (geometry?.paddingY ?? 14) * 2;
+    const contentHeight = measureVisualTextBlock(label, textWidth, { fontSize, fontWeight, lineHeight }).height + (geometry?.paddingY ?? 14) * 2;
     return { width, height: node.layout?.height ?? Math.max(geometry?.minHeight ?? NODE_HEIGHT, contentHeight) };
   }
   if (node.kind === "canvas" || node.layout?.kind === "canvas") {
@@ -548,18 +552,19 @@ function labelBounds(node: VisualNode, bounds: BoardRect, theme: LiveryTheme, to
   const width = Math.max(1, bounds.x + bounds.width - paddingX - x);
   const fontSize = visualNumber(recipe.typography?.fontSize, tokens, tokenNumber(tokens, "type.body", 13));
   const lineHeight = Math.max(visualNumber(recipe.typography?.lineHeight, tokens, Math.ceil(fontSize * 1.38)), Math.ceil(fontSize * 1.1));
-  const height = wrapText(node.label ?? node.id, width, fontSize).length * lineHeight;
+  const fontWeight = Number(resolveVisualValue(recipe.typography?.fontWeight, tokens) ?? 650);
+  const height = measureVisualTextBlock(node.label ?? node.id, width, { fontSize, fontWeight, lineHeight }).height;
   return { x, y: bounds.y + (bounds.height - height) / 2, width, height };
 }
 
 function placeConnectorLabel(text: string, points: BoardPoint[], envelopes: CollisionEnvelope[], reserved: BoardRect[], board: BoardRect, tokens: TokenOverrides) {
   const fontSize = tokenNumber(tokens, "type.caption", 10);
-  const width = measureText(text, fontSize) + 12;
-  const height = Math.max(20, Math.ceil(fontSize * 1.4) + 6);
+  const width = measureVisualText(text, { fontSize, fontWeight: 600 }) + 8;
+  const height = Math.max(16, Math.ceil(fontSize * 1.2) + 4);
   const segments = points.slice(1).map((point, index) => ({ a: points[index]!, b: point })).sort((a, b) => distance(b.a, b.b) - distance(a.a, a.b));
   for (const segment of segments) {
     const horizontal = Math.abs(segment.a.x - segment.b.x) >= Math.abs(segment.a.y - segment.b.y);
-    const offsets = horizontal ? [-16, 16, -30, 30, 0] : [width / 2 + 8, -width / 2 - 8, width / 2 + 20, -width / 2 - 20, 0];
+    const offsets = horizontal ? [-10, 10, -22, 22, 0] : [width / 2 + 4, -width / 2 - 4, width / 2 + 16, -width / 2 - 16, 0];
     const candidates = [0.5, 0.25, 0.75].flatMap((position) => {
       const center = {
         x: segment.a.x + (segment.b.x - segment.a.x) * position,
@@ -595,7 +600,7 @@ function placeConnectorLabel(text: string, points: BoardPoint[], envelopes: Coll
   return undefined;
 }
 
-function fallbackConnectorLabel(text: string, points: BoardPoint[], board: BoardRect, tokens: TokenOverrides) { const fontSize = tokenNumber(tokens, "type.caption", 10); const width = measureText(text, fontSize) + 12; const height = Math.max(20, Math.ceil(fontSize * 1.4) + 6); const center = midpoint(points[0]!, points.at(-1)!); return { text, x: Math.max(0, Math.min(board.width - width, center.x - width / 2)), y: Math.max(0, Math.min(board.height - height, center.y - height / 2)), width, height }; }
+function fallbackConnectorLabel(text: string, points: BoardPoint[], board: BoardRect, tokens: TokenOverrides) { const fontSize = tokenNumber(tokens, "type.caption", 10); const width = measureVisualText(text, { fontSize, fontWeight: 600 }) + 8; const height = Math.max(16, Math.ceil(fontSize * 1.2) + 4); const center = midpoint(points[0]!, points.at(-1)!); return { text, x: Math.max(0, Math.min(board.width - width, center.x - width / 2)), y: Math.max(0, Math.min(board.height - height, center.y - height / 2)), width, height }; }
 
 function tracksFor(envelopes: CollisionEnvelope[], axis: "x" | "y"): BoardTrack[] {
   const values = [...new Set(envelopes.map((envelope) => envelope[axis]))].sort((a, b) => a - b);
@@ -610,8 +615,6 @@ function lead(point: BoardPoint, side: AnchorName, amount: number): BoardPoint {
 function compactPoints(points: BoardPoint[]) { return points.filter((point, index) => index === 0 || point.x !== points[index - 1]!.x || point.y !== points[index - 1]!.y); }
 function midpoint(a: BoardPoint, b: BoardPoint) { return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }
 function distance(a: BoardPoint, b: BoardPoint) { return Math.abs(a.x - b.x) + Math.abs(a.y - b.y); }
-function measureText(value: string, fontSize = 13) { return Math.max(24, value.length * fontSize * 0.56); }
-function wrapText(value: string, width: number, fontSize = 13) { const limit = Math.max(1, Math.floor(width / (fontSize * 0.56))); const lines: string[] = []; let line = ""; for (const sourceWord of value.split(/\s+/)) { let word = sourceWord; while (word.length > limit) { if (line) { lines.push(line); line = ""; } lines.push(word.slice(0, limit)); word = word.slice(limit); } if (!word) continue; const next = line ? `${line} ${word}` : word; if (line && next.length > limit) { lines.push(line); line = word; } else line = next; } if (line) lines.push(line); return lines.length ? lines : [""]; }
 function tokenNumber(tokens: TokenOverrides, name: string, fallback: number) { const value = tokens[name]; return typeof value === "number" && Number.isFinite(value) ? value : fallback; }
 function visualNumber(value: VisualValue | undefined, tokens: TokenOverrides, fallback: number) { const resolved = resolveVisualValue(value, tokens); return typeof resolved === "number" && Number.isFinite(resolved) ? resolved : fallback; }
 function sum(values: number[]) { return values.reduce((total, value) => total + value, 0); }
@@ -634,7 +637,7 @@ function clipChannel(routeChannel: RouteChannel, width: number, height: number):
 function candidateCost(strategy: Strategy, scene: BoardScene, metrics: ReturnType<typeof validateBoardScene>["metrics"]) {
   const strategyPenalty = [0, 80, 160, 360, 520][STRATEGIES.indexOf(strategy)] ?? 700;
   const sparsePenalty = Math.max(0, 0.24 - metrics.occupancyRatio) * 1800;
-  return strategyPenalty + scene.board.height * 1.5 + metrics.crossingCount * 5000 + metrics.bendCount * 16 + Math.max(0, metrics.normalizedRouteLength - 1) * 120 + metrics.whitespaceImbalance * 900 + sparsePenalty;
+  return strategyPenalty + scene.board.height * 1.5 + metrics.crossingCount * 5000 + metrics.bendCount * 16 + Math.max(0, metrics.normalizedRouteLength - 1) * 120 + metrics.aspectImbalance * 180 + metrics.whitespaceImbalance * 900 + sparsePenalty;
 }
 function hasComponentDetail(recipe: ReturnType<typeof resolveComponentRecipe>) { return Boolean(recipe.detail && recipe.detail.glyph !== "none" && recipe.shape !== "storage"); }
 function endpointClearance(node: VisualNode, targetId: string, inherited = CLEARANCE): number {

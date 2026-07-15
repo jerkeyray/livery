@@ -2,7 +2,7 @@ import type { SemanticTone } from "./artifact.js";
 import type { VisualStyle, VisualValue } from "./visual.js";
 
 export type ScaleTokens = Record<string, string | number>;
-export type ComponentGeometry = { minWidth: number; minHeight: number; paddingX: number; paddingY: number; detailWidth: number; labelGap: number };
+export type ComponentGeometry = { minWidth: number; maxWidth: number; minHeight: number; paddingX: number; paddingY: number; detailWidth: number; labelGap: number };
 export type ComponentTypography = { color?: VisualValue; fontSize?: VisualValue; fontWeight?: VisualValue; lineHeight?: VisualValue; align?: "start" | "center" | "end" };
 export type ComponentDetail = { glyph: string; size: number; strokeWidth: number };
 export type ComponentRecipe = {
@@ -39,13 +39,13 @@ export const canonicalTheme: LiveryTheme = {
   tokens: {
     color: {
       background: "#ffffff",
-      canvas: "#f7f9fc",
+      canvas: "#f8fafc",
       surface: "#ffffff",
       surfaceMuted: "#f4f6f8",
-      text: "#111827",
-      muted: "#667085",
-      border: "#d8dee8",
-      connector: "#7c8ba1",
+      text: "#172033",
+      muted: "#64748b",
+      border: "#cbd5e1",
+      connector: "#8492a6",
       accent: "#2563eb",
       accentSoft: "#eff6ff",
       info: "#2563eb",
@@ -57,22 +57,22 @@ export const canonicalTheme: LiveryTheme = {
     type: { caption: 10, body: 13, label: 14, title: 18 },
     radius: { none: 0, sm: 4, md: 6, lg: 8, pill: 999 },
     stroke: { hairline: 1, normal: 1.5, strong: 2 },
-    elevation: { none: "none", low: "0 1px 2px rgb(15 23 42 / 8%)", raised: "0 8px 24px rgb(15 23 42 / 10%)" },
+    elevation: { none: "none", low: "0 1px 2px rgb(15 23 42 / 6%)", raised: "0 6px 18px rgb(15 23 42 / 9%)" },
     motion: { fast: 120, normal: 220, slow: 400 },
   },
   components: {
     box: nodeRecipe("none", { detailWidth: 0 }),
     text: { typography: { color: "$color.text", fontSize: "$type.body", fontWeight: 500, lineHeight: 18 } },
     connector: { surface: { stroke: "$color.connector", strokeWidth: "$stroke.normal" }, states: { traced: { stroke: "$color.accent", strokeWidth: "$stroke.strong" } } },
-    "lib.person": nodeRecipe("person", { minWidth: 124, detailWidth: 26 }),
-    "lib.team": nodeRecipe("team", { minWidth: 132, detailWidth: 28 }),
-    "lib.service": labelNodeRecipe(),
-    "lib.api": labelNodeRecipe(),
+    "lib.person": nodeRecipe("person", { minWidth: 132, detailWidth: 28 }),
+    "lib.team": nodeRecipe("team", { minWidth: 140, detailWidth: 30 }),
+    "lib.service": nodeRecipe("service"),
+    "lib.api": nodeRecipe("api"),
     "lib.server": nodeRecipe("server"),
     "lib.worker": nodeRecipe("worker"),
-    "lib.tool": nodeRecipe("tool", { minWidth: 116, minHeight: 60, paddingX: 14, detailWidth: 22, labelGap: 8 }),
-    "lib.agent": nodeRecipe("agent", { minWidth: 152, minHeight: 76, detailWidth: 30, labelGap: 12 }),
-    "lib.model": nodeRecipe("model", { minWidth: 148, minHeight: 76, detailWidth: 30, labelGap: 12 }),
+    "lib.tool": nodeRecipe("tool", { minWidth: 124, minHeight: 64, paddingX: 14, detailWidth: 24, labelGap: 9 }),
+    "lib.agent": nodeRecipe("agent", { minWidth: 148, minHeight: 72, detailWidth: 28, labelGap: 11 }),
+    "lib.model": nodeRecipe("model", { minWidth: 148, minHeight: 72, detailWidth: 28, labelGap: 11 }),
     "lib.database": nodeRecipe("database", { minWidth: 124 }, "storage"),
     "lib.objectStore": nodeRecipe("database", { minWidth: 132 }, "storage"),
     "lib.warehouse": nodeRecipe("database", { minWidth: 136 }, "storage"),
@@ -88,14 +88,14 @@ export const canonicalTheme: LiveryTheme = {
     "lib.document": nodeRecipe("document"),
     "lib.code": nodeRecipe("code", { minWidth: 144 }),
     "lib.table": nodeRecipe("table", { minWidth: 144 }),
-    "lib.note": nodeRecipe("note", { minWidth: 132 }, "callout"),
-    "lib.callout": nodeRecipe("callout", { minWidth: 140 }, "callout"),
+    "lib.note": raisedRecipe("note", { minWidth: 180, maxWidth: 220 }, "callout"),
+    "lib.callout": raisedRecipe("callout", { minWidth: 196, maxWidth: 232 }, "callout"),
     "lib.boundary": nodeRecipe("boundary", { minWidth: 160, minHeight: 96 }, "boundary"),
     "lib.badge": nodeRecipe("badge", { minWidth: 96, minHeight: 40, detailWidth: 0 }),
     "lib.legend": nodeRecipe("legend", { minWidth: 144 }),
-    "lib.barChart": nodeRecipe("barChart", { minWidth: 180, minHeight: 112 }),
-    "lib.lineChart": nodeRecipe("lineChart", { minWidth: 180, minHeight: 112 }),
-    "lib.areaChart": nodeRecipe("areaChart", { minWidth: 180, minHeight: 112 }),
+    "lib.barChart": nodeRecipe("barChart", { minWidth: 180, minHeight: 104 }),
+    "lib.lineChart": nodeRecipe("lineChart", { minWidth: 180, minHeight: 104 }),
+    "lib.areaChart": nodeRecipe("areaChart", { minWidth: 180, minHeight: 104 }),
     "lib.progress": nodeRecipe("progress", { minWidth: 140 }),
   },
 };
@@ -156,18 +156,17 @@ function flattenTokens(theme: LiveryTheme) {
 
 function nodeRecipe(glyph: string, geometry: Partial<ComponentGeometry> = {}, shape: ComponentRecipe["shape"] = "rect"): ComponentRecipe {
   return {
-    geometry: { minWidth: 128, minHeight: 68, paddingX: 16, paddingY: 14, detailWidth: 24, labelGap: 10, ...geometry },
+    geometry: { minWidth: 128, maxWidth: 184, minHeight: 68, paddingX: 16, paddingY: 14, detailWidth: 24, labelGap: 10, ...geometry },
     surface: { fill: "$color.surface", stroke: "$color.border", strokeWidth: "$stroke.hairline", radius: "$radius.md" },
-    typography: { color: "$color.text", fontSize: "$type.body", fontWeight: 650, lineHeight: 18, align: shape === "storage" ? "center" : "start" },
+    typography: { color: "$color.text", fontSize: "$type.body", fontWeight: 600, lineHeight: 18, align: shape === "storage" ? "center" : "start" },
     detail: { glyph, size: 18, strokeWidth: 1.4 },
     shape,
-    elevation: "low",
+    elevation: "none",
     states: { focused: { fill: "$color.accentSoft", stroke: "$color.accent", strokeWidth: "$stroke.strong" }, muted: { opacity: 0.62 } },
     variants: { muted: { fill: "$color.surfaceMuted" }, emphasis: { stroke: "$color.accent", strokeWidth: "$stroke.strong" } },
   };
 }
 
-function labelNodeRecipe(): ComponentRecipe {
-  const recipe = nodeRecipe("none", { detailWidth: 0 });
-  return { ...recipe, typography: { ...recipe.typography, align: "center" } };
+function raisedRecipe(glyph: string, geometry: Partial<ComponentGeometry> = {}, shape: ComponentRecipe["shape"] = "rect"): ComponentRecipe {
+  return { ...nodeRecipe(glyph, geometry, shape), elevation: "low" };
 }

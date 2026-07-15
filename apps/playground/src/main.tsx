@@ -15,42 +15,13 @@ import "@jerkeyray/react/styles.css";
 import "./styles.css";
 import { LiveryEditor } from "./LiveryEditor.js";
 import agentTraceSource from "../../../fixtures/visual/agent-trace.livery?raw";
+import checkoutSource from "../../../fixtures/visual/checkout-board.livery?raw";
 import dataTransformSource from "../../../fixtures/visual/data-pipeline-canvas.livery?raw";
 import mechanismSource from "../../../fixtures/visual/mechanism.livery?raw";
 import protocolSource from "../../../fixtures/visual/protocol.livery?raw";
 import scientificSource from "../../../fixtures/visual/scientific-motion.livery?raw";
 
-const initialSource = `figure checkout("Checkout request") {
-  customer = person("Customer")
-  api = service("Checkout API")
-  payment = service("Payment provider")
-  orders = database("Orders")
-
-  submit = customer.right -> api.left("submit order")
-  authorize = api.right -> payment.left("authorize")
-  persist = api.right -> orders.left("persist")
-
-  grid(customer, api, payment, orders, columns: 3, gap: 56)
-
-  timeline checkout {
-    state request {
-      show(customer, api)
-      trace(submit)
-    }
-    state authorization {
-      show(payment)
-      trace(authorize)
-      focus(payment)
-    }
-    state complete {
-      show(orders)
-      trace(persist)
-      set(persist, tone: success)
-    }
-    transition request -> authorization(duration: normal)
-    transition authorization -> complete(duration: normal)
-  }
-}`;
+const initialSource = checkoutSource;
 
 const examples = [
   { id: "checkout", label: "Checkout flow", file: "checkout.livery", source: initialSource },
@@ -60,6 +31,9 @@ const examples = [
   { id: "agent-trace", label: "Agent tool trace", file: "agent-trace.livery", source: agentTraceSource },
   { id: "protocol", label: "Request protocol", file: "protocol.livery", source: protocolSource },
 ] as const;
+
+const qualityExamples = examples.filter(({ id }) => id !== "protocol");
+const galleryWidths = [320, 480, 720, 1024] as const;
 
 function Playground() {
   const [source, setSource] = useState(initialSource);
@@ -177,6 +151,35 @@ function WebPreview({ debug, source, state, timeline, width }: { debug: boolean;
   return <div className="livery livery-visual" ref={hostRef} />;
 }
 
+function QualityGallery() {
+  const requestedWidth = Number(new URLSearchParams(window.location.search).get("width"));
+  const width = galleryWidths.find((candidate) => candidate === requestedWidth) ?? 720;
+  return (
+    <main className="quality-gallery">
+      <header className="quality-gallery-header">
+        <div><strong>Livery quality gallery</strong><span>{width}px logical width</span></div>
+        <nav aria-label="Gallery width">
+          {galleryWidths.map((candidate) => <a aria-current={candidate === width ? "page" : undefined} href={`?gallery=1&width=${candidate}`} key={candidate}>{candidate}</a>)}
+        </nav>
+      </header>
+      <div className="quality-gallery-list">
+        {qualityExamples.map((example) => {
+          const result = render(example.source, { width });
+          return (
+            <section className="quality-gallery-item" key={example.id}>
+              <header><strong>{example.label}</strong><span>{result.scene ? `${result.scene.elements.length} elements, ${result.scene.connectors.length} connectors` : "invalid"}</span></header>
+              <div className="quality-gallery-stage" style={{ width }}>
+                <LiveryVisual source={example.source} width={width} />
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    </main>
+  );
+}
+
 declare global { interface Window { __liveryPlaygroundRoot?: Root } }
 const root = (window.__liveryPlaygroundRoot ??= createRoot(document.getElementById("root")!));
-root.render(<StrictMode><Playground /></StrictMode>);
+const gallery = new URLSearchParams(window.location.search).has("gallery");
+root.render(<StrictMode>{gallery ? <QualityGallery /> : <Playground />}</StrictMode>);

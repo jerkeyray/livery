@@ -1,20 +1,30 @@
 component ValveMechanism() {
-  body = box(x: 36, y: 54, width: 156, height: 54, radius: 10, fill: "$color.surface")
-  shaft = line(x: 82, y: 20, width: 64, height: 2, stroke: "$color.accent")
-  wheel = circle(x: 92, y: 4, width: 44, height: 44, fill: "$color.surface")
-  bolts = repeat(count: 4, kind: circle, x: 52, y: 72, width: 10, height: 10, stepX: 36, fill: "$color.surface")
+  pipe = box(x: 14, y: 88, width: 272, height: 48, radius: 8, fill: "$color.surfaceMuted", stroke: "$color.border")
+  body = box(x: 88, y: 66, width: 124, height: 92, radius: 12, fill: "$color.surface", stroke: "$color.muted")
+  bore = line(x: 28, y: 111, width: 244, height: 2, stroke: "$color.muted", strokeWidth: 2)
+  disc = box(x: 146, y: 79, width: 8, height: 66, radius: 4, fill: "$color.surface", stroke: "$color.muted")
+  stem = box(x: 147, y: 38, width: 6, height: 44, radius: 3, fill: "$color.surfaceMuted", stroke: "$color.muted")
+  handle = path(d: "M 0 12 H 92 M 12 4 V 20 M 80 4 V 20", x: 104, y: 10, width: 92, height: 20, fill: "none", stroke: "$color.muted", strokeWidth: 2)
+  hub = circle(x: 137, y: 29, width: 26, height: 26, fill: "$color.surface", stroke: "$color.muted", strokeWidth: 2)
+  bolts = repeat(count: 4, kind: circle, x: 104, y: 84, width: 8, height: 8, stepX: 25, fill: "$color.surface", stroke: "$color.connector")
+  caption = text("OPEN", x: 132, y: 166, width: 42, height: 12, fill: "$color.muted", fontSize: 10, fontWeight: 600)
 
-  return canvas(width: 228, height: 136, bleed: 4) {
+  return canvas(width: 300, height: 190, bleed: 4) {
+    pipe
     body
-    shaft
-    wheel
+    bore
+    disc
+    stem
+    handle
+    hub
     bolts
+    caption
   }
 }
 
 figure valve("Valve mechanism") {
   mechanism = ValveMechanism()
-  note = callout("Quarter-turn actuator")
-  annotation = mechanism.right -> note.left("controls flow")
+  note = callout("Quarter-turn handle rotates the internal disc")
+  annotation = mechanism.right -> note.left("controls flow", variant: data)
   row(mechanism, note, gap: xl)
 }

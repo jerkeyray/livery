@@ -207,6 +207,55 @@ button, input { font: inherit; }
 
 .mobile-tabs { display: none; }
 
+.quality-gallery {
+  min-height: 100dvh;
+  padding: 24px;
+  background: #efefec;
+}
+.quality-gallery-header {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  max-width: 1120px;
+  margin: 0 auto 20px;
+  padding: 12px 0;
+  background: #efefec;
+}
+.quality-gallery-header > div { display: flex; align-items: baseline; gap: 10px; }
+.quality-gallery-header strong { color: #202124; font-size: 14px; }
+.quality-gallery-header span { color: #777772; font-size: 11px; }
+.quality-gallery-header nav { display: flex; border: 1px solid #d6d6d1; background: #fafaf8; }
+.quality-gallery-header a {
+  padding: 6px 10px;
+  border-right: 1px solid #d6d6d1;
+  color: #676763;
+  font-size: 11px;
+  font-weight: 650;
+  text-decoration: none;
+}
+.quality-gallery-header a:last-child { border-right: 0; }
+.quality-gallery-header a[aria-current="page"] { background: #202124; color: #fff; }
+.quality-gallery-list { display: grid; max-width: 1120px; margin: 0 auto; gap: 16px; }
+.quality-gallery-item { border: 1px solid #d8d8d3; background: #fff; }
+.quality-gallery-item > header {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 12px;
+  border-bottom: 1px solid #e5e5e1;
+  color: #343431;
+  font-size: 11px;
+}
+.quality-gallery-item > header span { color: #888883; }
+.quality-gallery-stage { margin: 20px auto; max-width: calc(100% - 24px); }
+.quality-gallery-stage svg { display: block; width: 100%; height: auto; }
+
 @media (max-width: 800px) {
   .studio { grid-template-rows: 48px 42px minmax(0, 1fr); }
   .mobile-tabs { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid #d8d8d3; background: #fafaf8; }
@@ -228,4 +277,6 @@ button, input { font: inherit; }
   .preview-controls { gap: 4px; }
   .segmented-control button { min-width: 46px; padding-inline: 7px; }
   .timeline-bar { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .quality-gallery { padding: 12px; }
+  .quality-gallery-header { align-items: flex-start; flex-direction: column; gap: 8px; }
 }

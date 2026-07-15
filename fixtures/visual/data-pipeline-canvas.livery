@@ -1,10 +1,14 @@
 component PacketStream() {
-  guide = line(x: 16, y: 56, width: 208, height: 2, stroke: "$color.border")
-  packets = repeat(count: 6, kind: box, x: 20, y: 42, width: 20, height: 28, stepX: 34, radius: 4, fill: "$color.surface")
+  title = text("field map", x: 18, y: 14, width: 76, height: 12, fill: "$color.muted", fontSize: 10, fontWeight: 600)
+  guide = line(x: 18, y: 65, width: 220, height: 2, stroke: "$color.border")
+  packets = repeat(count: 6, kind: box, x: 22, y: 48, width: 24, height: 34, stepX: 36, radius: 4, fill: "$color.surface", stroke: "$color.connector")
+  schema = path(d: "M 0 0 H 24 M 0 7 H 16 M 0 14 H 20", x: 22, y: 92, width: 24, height: 14, fill: "none", stroke: "$color.muted")
 
-  return canvas(width: 240, height: 112, bleed: 0) {
+  return canvas(width: 256, height: 122, bleed: 0) {
+    title
     guide
     packets
+    schema
   }
 }
 
@@ -12,8 +16,8 @@ figure packet_transform("Packet transformation") {
   input = table("Raw rows")
   stream = PacketStream()
   output = table("Normalized rows")
-  ingest = input.right -> stream.left("map fields")
-  emit = stream.right -> output.left("validate")
+  ingest = input.right -> stream.left("parse", variant: data)
+  emit = stream.right -> output.left("validate", variant: data)
   row(input, stream, output, gap: xl)
 
   timeline transform {

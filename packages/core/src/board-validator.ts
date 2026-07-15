@@ -89,6 +89,7 @@ export function validateBoardScene(scene: BoardScene): ValidationReport {
       routeLength,
       normalizedRouteLength: routeLength / Math.max(1, directRouteLength),
       bendCount: scene.connectors.reduce((total, connector) => total + Math.max(0, connector.points.length - 2), 0),
+      aspectImbalance: contentBounds ? Math.abs(Math.log(Math.max(0.01, contentBounds.width / Math.max(1, contentBounds.height)) / Math.max(0.01, scene.board.width / Math.max(1, scene.board.height)))) : 0,
       whitespaceImbalance: contentBounds ? Math.abs((contentBounds.x + contentBounds.width / 2) - scene.board.width / 2) / scene.board.width + Math.abs((contentBounds.y + contentBounds.height / 2) - scene.board.height / 2) / scene.board.height : 0,
     },
   };

@@ -157,6 +157,7 @@ export type ValidationReport = {
     routeLength: number;
     normalizedRouteLength: number;
     bendCount: number;
+    aspectImbalance: number;
     whitespaceImbalance: number;
   };
 };

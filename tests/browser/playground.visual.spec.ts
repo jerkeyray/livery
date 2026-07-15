@@ -6,7 +6,7 @@ test("desktop studio and timeline states remain visually coherent", async ({ pag
   await expect(page.getByText("Ready", { exact: true })).toBeVisible();
   const figure = page.getByRole("img", { name: /Checkout request/ });
   await expect(figure).toBeVisible();
-  await expect(figure).toHaveAttribute("viewBox", "0 0 760 282");
+  await expect(figure).toHaveAttribute("viewBox", "0 0 760 274");
   await expect(figure.locator("title")).toHaveCount(0);
   await expectNoViewportOverflow(page);
   await expect(page).toHaveScreenshot("playground-desktop.png", { animations: "disabled" });
@@ -41,7 +41,7 @@ test("chat output reflows without clipping", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Chat", exact: true }).click();
   const figure = page.getByRole("img", { name: /Checkout request/ });
-  await expect(figure).toHaveAttribute("viewBox", "0 0 360 514");
+  await expect(figure).toHaveAttribute("viewBox", "0 0 360 490");
   await expectNoViewportOverflow(page);
   await expect(page).toHaveScreenshot("checkout-chat.png", { animations: "disabled" });
 });
@@ -77,6 +77,20 @@ test("example figures replace source and render their own timelines", async ({ p
   await selector.selectOption("scientific");
   await expect(page.getByRole("button", { name: "quarter", exact: true })).toBeVisible();
 });
+
+for (const width of [320, 480, 720, 1024]) {
+  test(`quality gallery remains coherent at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width: Math.max(1180, width + 96), height: 900 });
+    await page.goto(`/?gallery=1&width=${width}`);
+    await expect(page.getByText(`${width}px logical width`)).toBeVisible();
+    await expect(page.getByRole("img")).toHaveCount(5);
+    for (const figure of await page.getByRole("img").all()) {
+      await expect(figure).toHaveAttribute("viewBox", new RegExp(`^0 0 ${width} `));
+    }
+    await expectNoViewportOverflow(page);
+    await expect(page).toHaveScreenshot(`quality-gallery-${width}.png`, { animations: "disabled", fullPage: true });
+  });
+}
 
 async function expectNoViewportOverflow(page: import("@playwright/test").Page) {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);

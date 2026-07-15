@@ -1,10 +1,29 @@
 figure checkout_board("Checkout request") {
   customer = person("Customer")
-  api = service("Checkout API")
+  api = api("Checkout API")
   payment = service("Payment provider")
   orders = database("Orders")
   submit = customer.right -> api.left("submit order")
   authorize = api.right -> payment.left("authorize")
   persist = api.right -> orders.left("persist")
   row(customer, api, payment, orders, gap: xl)
+
+  timeline checkout {
+    state request {
+      show(customer, api)
+      trace(submit)
+    }
+    state authorization {
+      show(payment)
+      trace(authorize)
+      focus(payment)
+    }
+    state complete {
+      show(orders)
+      trace(persist)
+      set(persist, tone: success)
+    }
+    transition request -> authorization(duration: normal)
+    transition authorization -> complete(duration: normal)
+  }
 }

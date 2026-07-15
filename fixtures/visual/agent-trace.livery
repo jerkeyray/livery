@@ -2,8 +2,8 @@ figure agent_trace("Agent tool trace") {
   agent = lib.agent(label: "Research agent")
   search = lib.tool(label: "Search")
   model = lib.model(label: "Reasoning model")
-  use_search = connect(agent.right, search.left, label: "query")
-  reason = connect(search.right, model.left, label: "results")
+  use_search = connect(agent.right, search.left, label: "query", variant: async)
+  reason = connect(search.right, model.left, label: "evidence", variant: data)
   row(gap: xl) {
     agent
     search

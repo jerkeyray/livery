@@ -110,19 +110,19 @@
         {
           "id": "column.0",
           "index": 0,
-          "position": 31.680000000000007,
-          "size": 138.24
+          "position": 31.190909500000032,
+          "size": 144
         },
         {
           "id": "column.1",
           "index": 1,
-          "position": 251.12,
-          "size": 140
+          "position": 245.82607950000002,
+          "size": 156.34784099999996
         },
         {
           "id": "column.2",
           "index": 2,
-          "position": 472.32,
+          "position": 472.80909049999997,
           "size": 136
         }
       ],
@@ -178,9 +178,9 @@
         {
           "id": "channel.free.right",
           "axis": "vertical",
-          "x": 608.3199999999999,
+          "x": 608.8090904999999,
           "y": 0,
-          "width": 7.680000000000064,
+          "width": 7.190909500000089,
           "height": 120,
           "capacity": 16,
           "used": 0
@@ -188,9 +188,9 @@
         {
           "id": "channel.v.customer.api",
           "axis": "vertical",
-          "x": 169.92000000000002,
+          "x": 175.19090950000003,
           "y": 18,
-          "width": 81.19999999999999,
+          "width": 70.63516999999999,
           "height": 80,
           "capacity": 16,
           "used": 1
@@ -198,9 +198,9 @@
         {
           "id": "channel.v.customer.orders",
           "axis": "vertical",
-          "x": 169.92000000000002,
+          "x": 175.19090950000003,
           "y": 18,
-          "width": 302.4,
+          "width": 297.61818099999994,
           "height": 80,
           "capacity": 16,
           "used": 2
@@ -208,9 +208,9 @@
         {
           "id": "channel.v.api.orders",
           "axis": "vertical",
-          "x": 391.12,
+          "x": 402.1739205,
           "y": 18,
-          "width": 81.19999999999999,
+          "width": 70.63517000000002,
           "height": 80,
           "capacity": 16,
           "used": 1
@@ -222,15 +222,15 @@
         "id": "root",
         "kind": "group",
         "bounds": {
-          "x": 37.68000000000001,
+          "x": 37.19090950000003,
           "y": 24,
-          "width": 564.64,
+          "width": 565.6181809999999,
           "height": 68
         },
         "visualBounds": {
-          "x": 37.68000000000001,
+          "x": 37.19090950000003,
           "y": 24,
-          "width": 564.64,
+          "width": 565.6181809999999,
           "height": 68
         },
         "layer": 0,
@@ -253,7 +253,7 @@
             "owner": "root",
             "side": "right",
             "point": {
-              "x": 602.3199999999999,
+              "x": 602.8090904999999,
               "y": 58
             },
             "direction": {
@@ -279,7 +279,7 @@
             "owner": "root",
             "side": "left",
             "point": {
-              "x": 37.68000000000001,
+              "x": 37.19090950000003,
               "y": 58
             },
             "direction": {
@@ -293,22 +293,22 @@
         "id": "customer",
         "kind": "lib.person",
         "bounds": {
-          "x": 37.68000000000001,
+          "x": 37.19090950000003,
           "y": 24,
-          "width": 126.24000000000001,
+          "width": 132,
           "height": 68
         },
         "visualBounds": {
-          "x": 37.68000000000001,
+          "x": 37.19090950000003,
           "y": 24,
-          "width": 126.24000000000001,
+          "width": 132,
           "height": 68
         },
         "label": "Customer",
         "labelBounds": {
-          "x": 89.68,
+          "x": 91.19090950000003,
           "y": 49,
-          "width": 58.24000000000001,
+          "width": 62,
           "height": 18
         },
         "parent": "root",
@@ -319,7 +319,7 @@
             "owner": "customer",
             "side": "top",
             "point": {
-              "x": 100.80000000000001,
+              "x": 103.19090950000003,
               "y": 24
             },
             "direction": {
@@ -332,7 +332,7 @@
             "owner": "customer",
             "side": "right",
             "point": {
-              "x": 163.92000000000002,
+              "x": 169.19090950000003,
               "y": 58
             },
             "direction": {
@@ -345,7 +345,7 @@
             "owner": "customer",
             "side": "bottom",
             "point": {
-              "x": 100.80000000000001,
+              "x": 103.19090950000003,
               "y": 92
             },
             "direction": {
@@ -358,7 +358,7 @@
             "owner": "customer",
             "side": "left",
             "point": {
-              "x": 37.68000000000001,
+              "x": 37.19090950000003,
               "y": 58
             },
             "direction": {
@@ -375,22 +375,22 @@
         "id": "api",
         "kind": "lib.service",
         "bounds": {
-          "x": 257.12,
+          "x": 251.82607950000002,
           "y": 24,
-          "width": 128,
+          "width": 144.34784099999996,
           "height": 68
         },
         "visualBounds": {
-          "x": 257.12,
+          "x": 251.82607950000002,
           "y": 24,
-          "width": 128,
+          "width": 144.34784099999996,
           "height": 68
         },
         "label": "Checkout API",
         "labelBounds": {
-          "x": 273.12,
+          "x": 301.8260795,
           "y": 49,
-          "width": 96,
+          "width": 78.34784100000002,
           "height": 18
         },
         "parent": "root",
@@ -401,7 +401,7 @@
             "owner": "api",
             "side": "top",
             "point": {
-              "x": 321.12,
+              "x": 324,
               "y": 24
             },
             "direction": {
@@ -414,7 +414,7 @@
             "owner": "api",
             "side": "right",
             "point": {
-              "x": 385.12,
+              "x": 396.1739205,
               "y": 58
             },
             "direction": {
@@ -427,7 +427,7 @@
             "owner": "api",
             "side": "bottom",
             "point": {
-              "x": 321.12,
+              "x": 324,
               "y": 92
             },
             "direction": {
@@ -440,7 +440,7 @@
             "owner": "api",
             "side": "left",
             "point": {
-              "x": 257.12,
+              "x": 251.82607950000002,
               "y": 58
             },
             "direction": {
@@ -457,20 +457,20 @@
         "id": "orders",
         "kind": "lib.database",
         "bounds": {
-          "x": 478.32,
+          "x": 478.80909049999997,
           "y": 24,
           "width": 124,
           "height": 68
         },
         "visualBounds": {
-          "x": 478.32,
+          "x": 478.80909049999997,
           "y": 24,
           "width": 124,
           "height": 68
         },
         "label": "Orders",
         "labelBounds": {
-          "x": 494.32,
+          "x": 494.80909049999997,
           "y": 49,
           "width": 91.99999999999994,
           "height": 18
@@ -483,7 +483,7 @@
             "owner": "orders",
             "side": "top",
             "point": {
-              "x": 540.3199999999999,
+              "x": 540.8090904999999,
               "y": 24
             },
             "direction": {
@@ -496,7 +496,7 @@
             "owner": "orders",
             "side": "right",
             "point": {
-              "x": 602.3199999999999,
+              "x": 602.8090904999999,
               "y": 58
             },
             "direction": {
@@ -509,7 +509,7 @@
             "owner": "orders",
             "side": "bottom",
             "point": {
-              "x": 540.3199999999999,
+              "x": 540.8090904999999,
               "y": 92
             },
             "direction": {
@@ -522,7 +522,7 @@
             "owner": "orders",
             "side": "left",
             "point": {
-              "x": 478.32,
+              "x": 478.80909049999997,
               "y": 58
             },
             "direction": {
@@ -545,20 +545,20 @@
         "toPin": "api.left",
         "points": [
           {
-            "x": 163.92000000000002,
+            "x": 169.19090950000003,
             "y": 58
           },
           {
-            "x": 257.12,
+            "x": 251.82607950000002,
             "y": 58
           }
         ],
         "label": {
           "text": "submit order",
-          "x": 170.92000000000002,
-          "y": 32,
-          "width": 79.2,
-          "height": 20
+          "x": 178.19090950000003,
+          "y": 40,
+          "width": 64.63516999999999,
+          "height": 16
         },
         "channelIds": [
           "channel.v.customer.api",
@@ -573,20 +573,20 @@
         "toPin": "orders.left",
         "points": [
           {
-            "x": 385.12,
+            "x": 396.1739205,
             "y": 58
           },
           {
-            "x": 478.32,
+            "x": 478.80909049999997,
             "y": 58
           }
         ],
         "label": {
           "text": "persist",
-          "x": 406.12,
-          "y": 32,
-          "width": 51.2,
-          "height": 20
+          "x": 417.82678050000004,
+          "y": 40,
+          "width": 39.32945,
+          "height": 16
         },
         "tone": "success",
         "channelIds": [
@@ -601,25 +601,25 @@
         "id": "customer.collision",
         "owner": "customer",
         "kind": "component",
-        "x": 31.680000000000007,
+        "x": 31.190909500000032,
         "y": 18,
-        "width": 138.24,
+        "width": 144,
         "height": 80
       },
       {
         "id": "api.collision",
         "owner": "api",
         "kind": "component",
-        "x": 251.12,
+        "x": 245.82607950000002,
         "y": 18,
-        "width": 140,
+        "width": 156.34784099999996,
         "height": 80
       },
       {
         "id": "orders.collision",
         "owner": "orders",
         "kind": "component",
-        "x": 472.32,
+        "x": 472.80909049999997,
         "y": 18,
         "width": 136,
         "height": 80
@@ -640,11 +640,12 @@
       "elementCount": 4,
       "connectorCount": 2,
       "crossingCount": 0,
-      "occupiedArea": 33139.2,
-      "occupancyRatio": 0.43149999999999994,
-      "routeLength": 186.39999999999998,
+      "occupiedArea": 34907.82728,
+      "occupancyRatio": 0.45452900104166666,
+      "routeLength": 165.27033999999995,
       "normalizedRouteLength": 1,
       "bendCount": 0,
+      "aspectImbalance": 0.30290999563823306,
       "whitespaceImbalance": 0.016666666666666757
     }
   },

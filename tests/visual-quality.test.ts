@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 
 const proofFixtures = [
   "checkout-board.livery",
+  "agent-trace.livery",
   "mechanism.livery",
   "data-pipeline-canvas.livery",
   "scientific-motion.livery",
@@ -32,6 +33,9 @@ describe("visual quality regressions", () => {
         expect(svg).toContain(`viewBox="0 0 ${width} ${outputHeight}"`);
         expect(svg).not.toMatch(/(?:NaN|Infinity|undefined)/);
         expect(layout.report.metrics.crossingCount).toBe(0);
+        expect(layout.report.metrics.normalizedRouteLength).toBeLessThanOrEqual(3);
+        expect(Number.isFinite(layout.report.metrics.aspectImbalance)).toBe(true);
+        expect(new Set(layout.scene.readingOrder).size).toBe(layout.scene.readingOrder.length);
         expect(layout.scene.elements.every(({ visualBounds }) =>
           visualBounds.x >= 0
           && visualBounds.y >= 0
@@ -54,6 +58,44 @@ describe("visual quality regressions", () => {
       expect(group).toContain(`data-livery-id="${connector.id}"`);
       expect(group).toContain("marker-end=");
       if (connector.label) expect(group).toContain(connector.label.text);
+    }
+  });
+
+  it("uses stable family glyphs without category color", () => {
+    const checks = [
+      ["checkout-board.livery", ["person", "service"]],
+      ["agent-trace.livery", ["agent", "tool", "model"]],
+      ["data-pipeline-canvas.livery", ["table"]],
+      ["scientific-motion.livery", ["note"]],
+    ] as const;
+    for (const [file, glyphs] of checks) {
+      const { document } = compileVisual(readFileSync(resolve("fixtures/visual", file), "utf8"));
+      const layout = solvePinboard(document!, { width: 720 });
+      expect(layout.ok).toBe(true);
+      if (!layout.ok) continue;
+      const svg = boardSceneToSvg(layout.scene);
+      for (const glyph of glyphs) expect(svg).toContain(`data-livery-glyph="${glyph}"`);
+      expect(svg).not.toMatch(/data-livery-glyph="[^"]+"[^>]*(?:#2563eb|#7c3aed|#db2777)/);
+    }
+  });
+
+  it("attaches every connector label to one routed segment", () => {
+    for (const file of proofFixtures) {
+      const { document } = compileVisual(readFileSync(resolve("fixtures/visual", file), "utf8"));
+      const layout = solvePinboard(document!, { width: 720 });
+      expect(layout.ok).toBe(true);
+      if (!layout.ok) continue;
+      for (const connector of layout.scene.connectors) {
+        if (!connector.label) continue;
+        const center = { x: connector.label.x + connector.label.width / 2, y: connector.label.y + connector.label.height / 2 };
+        const attached = connector.points.slice(1).some((point, index) => {
+          const previous = connector.points[index]!;
+          if (previous.y === point.y) return center.x >= Math.min(previous.x, point.x) && center.x <= Math.max(previous.x, point.x) && Math.abs(center.y - point.y) <= 24;
+          if (previous.x === point.x) return center.y >= Math.min(previous.y, point.y) && center.y <= Math.max(previous.y, point.y) && Math.abs(center.x - point.x) <= connector.label!.width / 2 + 20;
+          return false;
+        });
+        expect(attached, `${file}:${connector.id}`).toBe(true);
+      }
     }
   });
 

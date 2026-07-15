@@ -1,43 +1,50 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="640" height="162" viewBox="0 0 640 162" role="img" aria-label="Checkout fixture" aria-describedby="checkout-desc">
   <desc id="checkout-desc">Checkout fixture: 4 elements and 2 connections.</desc>
-  <rect width="640" height="162" fill="#f7f9fc"/>
+  <rect width="640" height="162" fill="#f8fafc"/>
   <defs>
-    <marker id="checkout-arrow-submission" markerWidth="6" markerHeight="6" refX="5.5" refY="3" orient="auto"><path d="M 0 0 L 6 3 L 0 6 z" fill="#7c8ba1"/></marker>
-    <marker id="checkout-arrow-persistence" markerWidth="6" markerHeight="6" refX="5.5" refY="3" orient="auto"><path d="M 0 0 L 6 3 L 0 6 z" fill="#15803d"/></marker>
+    <marker id="checkout-arrow-submission" markerWidth="5" markerHeight="5" refX="4.6" refY="2.5" orient="auto"><path d="M 0 0 L 5 2.5 L 0 5 z" fill="#8492a6"/></marker>
+    <marker id="checkout-arrow-persistence" markerWidth="5" markerHeight="5" refX="4.6" refY="2.5" orient="auto"><path d="M 0 0 L 5 2.5 L 0 5 z" fill="#15803d"/></marker>
     <filter id="checkout-card-shadow" x="-15%" y="-20%" width="130%" height="150%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#101828" flood-opacity="0.08"/></filter>
   </defs>
-  <text x="20" y="27" font-family="Inter,system-ui,sans-serif" font-size="14" font-weight="700" fill="#111827">Checkout fixture</text>
+  <text x="20" y="27" font-family="Inter,system-ui,sans-serif" font-size="14" font-weight="700" fill="#172033">Checkout fixture</text>
   <g transform="translate(0 42)">
     <g data-livery-connector="submission" data-livery-variant="directional">
-      <path data-livery-id="submission" d="M 163.92000000000002 58 L 257.12 58" fill="none" stroke="#7c8ba1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#checkout-arrow-submission)"/>
-      <rect x="170.92000000000002" y="32" width="79.2" height="20" rx="4" fill="#f7f9fc" fill-opacity="0.96"/>
-      <text x="210.52" y="46" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="700" fill="#667085">submit order</text>
+      <path data-livery-id="submission" d="M 169.19090950000003 58 L 251.82607950000002 58" fill="none" stroke="#8492a6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#checkout-arrow-submission)"/>
+      <rect x="178.19090950000003" y="40" width="64.63516999999999" height="16" rx="2" fill="#f8fafc" fill-opacity="0.98"/>
+      <text x="210.50849450000004" y="48" dominant-baseline="middle" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600" fill="#64748b">submit order</text>
     </g>
     <g data-livery-connector="persistence" data-livery-variant="directional">
-      <path data-livery-id="persistence" d="M 385.12 58 L 478.32 58" fill="none" stroke="#15803d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#checkout-arrow-persistence)"/>
-      <rect x="406.12" y="32" width="51.2" height="20" rx="4" fill="#f7f9fc" fill-opacity="0.96"/>
-      <text x="431.72" y="46" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="700" fill="#667085">persist</text>
+      <path data-livery-id="persistence" d="M 396.1739205 58 L 478.80909049999997 58" fill="none" stroke="#15803d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#checkout-arrow-persistence)"/>
+      <rect x="417.82678050000004" y="40" width="39.32945" height="16" rx="2" fill="#f8fafc" fill-opacity="0.98"/>
+      <text x="437.4915055" y="48" dominant-baseline="middle" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="10" font-weight="600" fill="#64748b">persist</text>
     </g>
-    <g data-livery-id="customer" filter="url(#checkout-card-shadow)">
-      <rect x="37.68000000000001" y="24" width="126.24000000000001" height="68" rx="6" fill="#ffffff" stroke="#d8dee8" stroke-width="1"/>
-      <circle cx="59.68000000000001" cy="50" r="5" fill="none" stroke="#667085" stroke-width="1.4"/>
-      <path d="M 51.68000000000001 66 Q 59.68000000000001 57 67.68 66" fill="none" stroke="#667085" stroke-width="1.4" stroke-linecap="round"/>
-      <text x="89.68" y="62" text-anchor="start" font-family="Inter,system-ui,sans-serif" font-size="13" font-weight="650" fill="#111827">
-        <tspan x="89.68" dy="0">Customer</tspan>
+    <g data-livery-id="customer">
+      <rect x="37.19090950000003" y="24" width="132" height="68" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+      <g data-livery-glyph="person" transform="translate(56.19090950000003 49) scale(0.75)" fill="none" stroke="#64748b" stroke-width="1.8666666666666665" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">
+        <path d="M20 21a8 8 0 0 0-16 0"/>
+        <path d="M12 13a4 4 0 1 0 0-8 4 4 0 0 0 0 8"/>
+      </g>
+      <text x="91.19090950000003" y="62" text-anchor="start" font-family="Inter,system-ui,sans-serif" font-size="13" font-weight="600" fill="#172033">
+        <tspan x="91.19090950000003" dy="0">Customer</tspan>
       </text>
     </g>
-    <g data-livery-id="api" filter="url(#checkout-card-shadow)">
-      <rect x="257.12" y="24" width="128" height="68" rx="6" fill="#ffffff" stroke="#d8dee8" stroke-width="1"/>
-      <text x="321.12" y="62" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="13" font-weight="650" fill="#111827">
-        <tspan x="321.12" dy="0">Checkout API</tspan>
+    <g data-livery-id="api">
+      <rect x="251.82607950000002" y="24" width="144.34784099999996" height="68" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+      <g data-livery-glyph="service" transform="translate(268.8260795 49) scale(0.75)" fill="none" stroke="#64748b" stroke-width="1.8666666666666665" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">
+        <path d="M4 5h16v14H4z"/>
+        <path d="M8 9h8"/>
+        <path d="M8 13h5"/>
+      </g>
+      <text x="301.8260795" y="62" text-anchor="start" font-family="Inter,system-ui,sans-serif" font-size="13" font-weight="600" fill="#172033">
+        <tspan x="301.8260795" dy="0">Checkout API</tspan>
       </text>
     </g>
-    <g data-livery-id="orders" filter="url(#checkout-card-shadow)">
-      <rect x="478.32" y="31" width="124" height="54" fill="#ffffff" stroke="#d8dee8" stroke-width="1"/>
-      <ellipse cx="540.3199999999999" cy="31" rx="62" ry="7" fill="#ffffff" stroke="#d8dee8" stroke-width="1"/>
-      <path d="M 478.32 85 A 62 7 0 0 0 602.3199999999999 85" fill="none" stroke="#d8dee8" stroke-width="1"/>
-      <text x="540.3199999999999" y="62" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="13" font-weight="650" fill="#111827">
-        <tspan x="540.3199999999999" dy="0">Orders</tspan>
+    <g data-livery-id="orders">
+      <rect x="478.80909049999997" y="31" width="124" height="54" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+      <ellipse cx="540.8090904999999" cy="31" rx="62" ry="7" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+      <path d="M 478.80909049999997 85 A 62 7 0 0 0 602.8090904999999 85" fill="none" stroke="#cbd5e1" stroke-width="1"/>
+      <text x="540.8090904999999" y="62" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="13" font-weight="600" fill="#172033">
+        <tspan x="540.8090904999999" dy="0">Orders</tspan>
       </text>
     </g>
   </g>

@@ -1,5 +1,7 @@
 import type { BoardRect, BoardScene, CanvasPrimitive, SolvedElement } from "./board.js";
+import { canonicalGlyph } from "./glyphs.js";
 import { canonicalTheme, resolveComponentRecipe, resolveTheme, resolveVisualValue, toneColor, type ComponentRecipe, type LiveryTheme, type TokenOverrides } from "./theme.js";
+import { wrapVisualText } from "./text-metrics.js";
 import type { VisualTimelineState } from "./timeline.js";
 
 export type BoardSvgOptions = {
@@ -22,7 +24,7 @@ export function boardSceneToSvg(scene: BoardScene, options: BoardSvgOptions = {}
     "  <defs>",
     ...scene.connectors.map((connector) => {
       const { stroke } = connectorStyle(connector, options.state, tokens, options.theme ?? canonicalTheme);
-      return `    <marker id="${connectorMarkerId(markerId, connector.id)}" markerWidth="6" markerHeight="6" refX="5.5" refY="3" orient="auto"><path d="M 0 0 L 6 3 L 0 6 z" fill="${stroke}"/></marker>`;
+      return `    <marker id="${connectorMarkerId(markerId, connector.id)}" markerWidth="5" markerHeight="5" refX="4.6" refY="2.5" orient="auto"><path d="M 0 0 L 5 2.5 L 0 5 z" fill="${stroke}"/></marker>`;
     }),
     `    <filter id="${safeId(scene.id)}-card-shadow" x="-15%" y="-20%" width="130%" height="150%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#101828" flood-opacity="0.08"/></filter>`,
     ...scene.canvases.filter(({ clip }) => clip).map((canvas) => `    <clipPath id="${safeId(canvas.id)}-clip"><rect x="${canvas.bounds.x}" y="${canvas.bounds.y}" width="${canvas.bounds.width}" height="${canvas.bounds.height}"/></clipPath>`),
@@ -41,8 +43,8 @@ export function boardSceneToSvg(scene: BoardScene, options: BoardSvgOptions = {}
     lines.push(`    <g data-livery-connector="${escapeXml(connector.id)}"${stateAttributes(connector.id, options.state)} data-livery-variant="${variant}">`);
     lines.push(`      <path data-livery-id="${escapeXml(connector.id)}" d="${pathData(connector.points)}" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"${dash}${markerStart}${markerEnd}/>`);
     if (connector.label) {
-      lines.push(`      <rect x="${connector.label.x}" y="${connector.label.y}" width="${connector.label.width}" height="${connector.label.height}" rx="4" fill="${tokens["color.canvas"]}" fill-opacity="0.96"/>`);
-      lines.push(`      <text x="${connector.label.x + connector.label.width / 2}" y="${connector.label.y + connector.label.height / 2 + 4}" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="${tokens["type.caption"]}" font-weight="700" fill="${tokens["color.muted"]}">${escapeXml(connector.label.text)}</text>`);
+      lines.push(`      <rect x="${connector.label.x}" y="${connector.label.y}" width="${connector.label.width}" height="${connector.label.height}" rx="2" fill="${tokens["color.canvas"]}" fill-opacity="0.98"/>`);
+      lines.push(`      <text x="${connector.label.x + connector.label.width / 2}" y="${connector.label.y + connector.label.height / 2}" dominant-baseline="middle" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="${tokens["type.caption"]}" font-weight="600" fill="${tokens["color.muted"]}">${escapeXml(connector.label.text)}</text>`);
     }
     lines.push("    </g>");
   }
@@ -97,7 +99,7 @@ function renderElement(element: SolvedElement, tokens: TokenOverrides, shadowId:
     const fontWeight = resolveVisualValue(typography?.fontWeight, tokens) ?? 650;
     const lineHeight = Math.max(Number(resolveVisualValue(typography?.lineHeight, tokens) ?? 18), Math.ceil(fontSize * 1.1));
     const color = resolveVisualValue(typography?.color, tokens) ?? tokens["color.text"];
-    const textLines = wrapText(element.label, labelBounds.width, fontSize);
+    const textLines = wrapVisualText(element.label, labelBounds.width, { fontSize, fontWeight: Number(fontWeight) });
     const align = typography?.align ?? "start";
     const labelX = align === "center" ? labelBounds.x + labelBounds.width / 2 : align === "end" ? labelBounds.x + labelBounds.width : labelBounds.x;
     const textAnchor = align === "center" ? "middle" : align === "end" ? "end" : "start";
@@ -110,22 +112,21 @@ function renderElement(element: SolvedElement, tokens: TokenOverrides, shadowId:
 }
 
 function componentDetails(element: SolvedElement, tokens: TokenOverrides, recipe: ComponentRecipe) {
-  const { x, y, height, width } = element.visualBounds;
-  const muted = tokens["color.muted"];
-  const centerY = y + height / 2;
-  const glyph = recipe.detail?.glyph;
-  const strokeWidth = recipe.detail?.strokeWidth ?? 1.4;
-  if (glyph === "person" || glyph === "team") return [`      <circle cx="${x + 22}" cy="${centerY - 8}" r="5" fill="none" stroke="${muted}" stroke-width="${strokeWidth}"/>`, `      <path d="M ${x + 14} ${centerY + 8} Q ${x + 22} ${centerY - 1} ${x + 30} ${centerY + 8}" fill="none" stroke="${muted}" stroke-width="${strokeWidth}" stroke-linecap="round"/>`];
-  if (glyph === "agent") return [`      <path d="M ${x + 22} ${centerY - 12} L ${x + 32} ${centerY - 6} V ${centerY + 6} L ${x + 22} ${centerY + 12} L ${x + 12} ${centerY + 6} V ${centerY - 6} Z" fill="${tokens["color.surfaceMuted"]}" stroke="${muted}" stroke-width="${strokeWidth}"/>`, `      <circle cx="${x + 22}" cy="${centerY}" r="3" fill="${muted}"/>`];
-  if (glyph === "tool") return [`      <path d="M ${x + 15} ${centerY + 8} L ${x + 27} ${centerY - 4} M ${x + 24} ${centerY - 8} A 6 6 0 0 0 ${x + 32} ${centerY - 14} A 7 7 0 0 1 ${x + 24} ${centerY - 2} L ${x + 18} ${centerY + 4} A 4 4 0 1 1 ${x + 15} ${centerY + 8}" fill="none" stroke="${muted}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/>`];
-  if (glyph === "model") return [`      <path d="M ${x + 15} ${centerY} L ${x + 22} ${centerY - 9} L ${x + 30} ${centerY} L ${x + 22} ${centerY + 9} Z" fill="none" stroke="${muted}" stroke-width="${strokeWidth}"/>`, `      <circle cx="${x + 15}" cy="${centerY}" r="2.5" fill="${muted}"/>`, `      <circle cx="${x + 22}" cy="${centerY - 9}" r="2.5" fill="${muted}"/>`, `      <circle cx="${x + 30}" cy="${centerY}" r="2.5" fill="${muted}"/>`, `      <circle cx="${x + 22}" cy="${centerY + 9}" r="2.5" fill="${muted}"/>`];
-  if (["service", "api", "worker", "server"].includes(glyph ?? "")) return [`      <rect x="${x + 14}" y="${centerY - 8}" width="16" height="16" rx="4" fill="${tokens["color.surfaceMuted"]}" stroke="${muted}" stroke-width="${strokeWidth}"/>`, `      <circle cx="${x + 22}" cy="${centerY}" r="2.5" fill="${muted}"/>`];
-  if (glyph === "browser" || glyph === "mobile" || glyph === "terminal") return [`      <rect x="${x + 14}" y="${centerY - 10}" width="18" height="20" rx="3" fill="none" stroke="${muted}" stroke-width="${strokeWidth}"/>`, `      <line x1="${x + 14}" y1="${centerY - 4}" x2="${x + 32}" y2="${centerY - 4}" stroke="${muted}"/>`];
-  if (["cache", "queue", "stream", "event"].includes(glyph ?? "")) return [`      <rect x="${x + 14}" y="${centerY - 9}" width="18" height="18" rx="3" fill="none" stroke="${muted}" stroke-width="${strokeWidth}"/>`, `      <line x1="${x + 18}" y1="${centerY - 3}" x2="${x + 28}" y2="${centerY - 3}" stroke="${muted}"/>`, `      <line x1="${x + 18}" y1="${centerY + 3}" x2="${x + 28}" y2="${centerY + 3}" stroke="${muted}"/>`];
-  if (["note", "callout", "document", "code", "table"].includes(glyph ?? "")) return [`      <path d="M ${x + 15} ${centerY - 10} H ${x + 29} L ${x + 33} ${centerY - 6} V ${centerY + 10} H ${x + 15} Z M ${x + 29} ${centerY - 10} V ${centerY - 6} H ${x + 33}" fill="none" stroke="${muted}" stroke-width="${strokeWidth}" stroke-linejoin="round"/>`];
-  if (glyph === "progress") return [`      <rect x="${x + 14}" y="${centerY - 4}" width="18" height="8" rx="4" fill="${tokens["color.surfaceMuted"]}"/>`, `      <rect x="${x + 14}" y="${centerY - 4}" width="11" height="8" rx="4" fill="${muted}"/>`];
-  if (["barChart", "lineChart", "areaChart"].includes(glyph ?? "")) return [`      <path d="M ${x + 14} ${centerY + 8} V ${centerY - 6} M ${x + 21} ${centerY + 8} V ${centerY - 12} M ${x + 28} ${centerY + 8} V ${centerY - 1}" stroke="${muted}" stroke-width="3" stroke-linecap="round"/>`];
-  return [];
+  const paths = canonicalGlyph(recipe.detail?.glyph);
+  if (!paths?.length) return [];
+  const { x, y, height } = element.visualBounds;
+  const size = recipe.detail?.size ?? 18;
+  const detailWidth = recipe.geometry?.detailWidth ?? 24;
+  const iconX = x + 14 + (detailWidth - size) / 2;
+  const iconY = y + (height - size) / 2;
+  const scale = size / 24;
+  const stroke = tokens["color.muted"];
+  const strokeWidth = recipe.detail?.strokeWidth ?? 1.5;
+  return [
+    `      <g data-livery-glyph="${escapeXml(recipe.detail?.glyph ?? "")}" transform="translate(${iconX} ${iconY}) scale(${scale})" fill="none" stroke="${stroke}" stroke-width="${strokeWidth / scale}" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">`,
+    ...paths.map((path) => `        <path d="${path}"/>`),
+    "      </g>",
+  ];
 }
 
 function renderPrimitive(primitive: CanvasPrimitive, tokens: TokenOverrides, state?: VisualTimelineState) {
@@ -262,5 +263,4 @@ function finiteNumber(value: unknown) { return typeof value === "number" && Numb
 function primitiveBounds(primitive: CanvasPrimitive, properties?: Readonly<Record<string, unknown>>): BoardRect { return { x: finiteNumber(properties?.x) ?? primitive.bounds.x, y: finiteNumber(properties?.y) ?? primitive.bounds.y, width: finiteNumber(properties?.width) ?? primitive.bounds.width, height: finiteNumber(properties?.height) ?? primitive.bounds.height }; }
 function canvasReferences(scene: BoardScene, property: "clip" | "mask") { const primitives = scene.canvases.flatMap(({ primitives }) => primitives); return primitives.flatMap((primitive) => { const targetId = primitive[property]; const target = targetId ? primitives.find(({ id }) => id === targetId) : undefined; return target ? [{ id: primitive.id, target }] : []; }); }
 function referenceShape(primitive: CanvasPrimitive, fill: string) { const { x, y, width, height } = primitive.bounds; return primitive.kind === "circle" ? `<circle cx="${x + width / 2}" cy="${y + height / 2}" r="${Math.min(width, height) / 2}" fill="${fill}"/>` : `<rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${fill}"/>`; }
-function wrapText(value: string, width: number, fontSize = 13) { const limit = Math.max(1, Math.floor(width / (fontSize * 0.56))); const lines: string[] = []; let line = ""; for (const sourceWord of value.split(/\s+/)) { let word = sourceWord; while (word.length > limit) { if (line) { lines.push(line); line = ""; } lines.push(word.slice(0, limit)); word = word.slice(limit); } if (!word) continue; const next = line ? `${line} ${word}` : word; if (line && next.length > limit) { lines.push(line); line = word; } else line = next; } if (line) lines.push(line); return lines.length ? lines : [""]; }
 export function boardRectToViewBox(rect: BoardRect) { return `${rect.x} ${rect.y} ${rect.width} ${rect.height}`; }
