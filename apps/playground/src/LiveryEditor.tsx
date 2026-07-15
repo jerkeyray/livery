@@ -9,7 +9,8 @@ import { applyDiagnosticFix, getLanguageCatalog, type Diagnostic } from "@jerkey
 import { tags } from "@lezer/highlight";
 
 const catalog = getLanguageCatalog();
-const keywords = new Set([...catalog.keywords, ...catalog.timelineOperations.map(({ name }) => name)]);
+const supportedTimelineOperations = catalog.timelineOperations.filter(({ status }) => status === "supported");
+const keywords = new Set([...catalog.keywords, ...supportedTimelineOperations.map(({ name }) => name)]);
 const constructors = new Set([
   ...catalog.primitives,
   ...catalog.layouts.map(({ name }) => name),
@@ -21,7 +22,7 @@ const completions = [
   ...catalog.primitives.map((label) => ({ label, type: "function", apply: `${label}()` })),
   ...catalog.layouts.map(({ name: label, description: info }) => ({ label, type: "function", info, apply: `${label}()` })),
   ...catalog.constraints.map(({ name: label, description: info }) => ({ label, type: "function", info, apply: `${label}()` })),
-  ...catalog.timelineOperations.map(({ name: label, description: info }) => ({ label, type: "function", info, apply: `${label}()` })),
+  ...supportedTimelineOperations.map(({ name: label, description: info }) => ({ label, type: "function", info, apply: `${label}()` })),
   ...catalog.components.map(({ name: label, description: info, status }) => ({ label, type: "class", info: `${info}${status === "experimental" ? " Experimental." : ""}`, apply: `${label}()` })),
   ...catalog.anchors.map((label) => ({ label, type: "property" })),
   ...catalog.tokens.map((token) => ({ label: `$${token}`, type: "constant", detail: "theme token" })),

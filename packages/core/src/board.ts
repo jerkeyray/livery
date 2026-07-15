@@ -19,6 +19,7 @@ export type CollisionEnvelope = BoardRect & {
   owner: string;
   kind: "component" | "label" | "canvas" | "motion";
   overlapGroup?: string;
+  overlapGroups?: string[];
 };
 
 export type RouteChannel = BoardRect & {
@@ -135,6 +136,11 @@ export type LayoutViolationCode =
   | "layout.connector_outside_channel"
   | "layout.channel_capacity"
   | "layout.invalid_pin_approach"
+  | "layout.missing_solved_endpoint"
+  | "layout.unsatisfied_align"
+  | "layout.unsatisfied_distribute"
+  | "layout.unsatisfied_inside"
+  | "layout.unsatisfied_near"
   | "layout.motion_outside_envelope"
   | "layout.canvas_bleed"
   | "layout.duplicate_id"

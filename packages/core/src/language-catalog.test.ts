@@ -12,6 +12,16 @@ describe("language intelligence", () => {
     expect(catalog.primitives).toContain("path");
     expect(catalog.primitives).toContain("connect");
     expect(catalog.layouts.map(({ name }) => name)).toContain("grid");
+    expect(catalog.layouts.find(({ name }) => name === "row")).toMatchObject({
+      status: "supported",
+      contexts: ["figure", "component"],
+      parameters: expect.arrayContaining([expect.objectContaining({ name: "align", values: ["start", "center", "end", "stretch"] })]),
+    });
+    expect(catalog.calls.find(({ name }) => name === "connect")).toMatchObject({
+      category: "connector",
+      named: expect.arrayContaining([expect.objectContaining({ name: "variant", values: ["directional", "bidirectional", "async", "data"] })]),
+    });
+    expect(catalog.calls.find(({ name }) => name === "morph")).toMatchObject({ status: "unsupported" });
     expect(catalog.tokens).toContain("color.accent");
     expect(catalog.components.find(({ name }) => name === "database")).toMatchObject({ category: "storage", status: "supported", sizing: { minWidth: expect.any(Number) }, examples: [expect.any(String)] });
     expect(catalog.components.find(({ name }) => name === "barChart")).toMatchObject({ category: "chart", status: "experimental" });
@@ -21,6 +31,7 @@ describe("language intelligence", () => {
   it("generates compact and reference guides from the same catalog", () => {
     expect(LIVERY_AGENT_GUIDE).toBe(createAgentGuide({ mode: "compact" }));
     expect(LIVERY_AGENT_GUIDE).toContain("database");
+    expect(LIVERY_AGENT_GUIDE).not.toContain("morph");
     expect(createAgentGuide({ mode: "reference" })).toContain("barChart [experimental, chart]");
     expect(LIVERY_AGENT_GUIDE.trim().split(/\s+/).length).toBeLessThan(300);
   });

@@ -4,6 +4,10 @@ import { fileURLToPath } from "node:url";
 import { getLanguageCatalog } from "@jerkeyray/core";
 
 const catalog = getLanguageCatalog();
+const formatParameter = (parameter: (typeof catalog.calls)[number]["named"][number]) => {
+  const values = parameter.values?.length ? ` (${parameter.values.join(" / ")})` : "";
+  return `\`${parameter.name}${parameter.required ? "" : "?"}: ${parameter.type}${values}\``;
+};
 const lines = [
   "# Standard library",
   "",
@@ -12,6 +16,12 @@ const lines = [
   "| Component | Category | Status | Description | Ports |",
   "| --- | --- | --- | --- | --- |",
   ...catalog.components.map((item) => `| \`${item.name}\` | ${item.category} | ${item.status} | ${item.description} | ${item.ports.join(", ")} |`),
+  "",
+  "## Language calls",
+  "",
+  "| Call | Category | Status | Contexts | Parameters |",
+  "| --- | --- | --- | --- | --- |",
+  ...catalog.calls.map((item) => `| \`${item.name}\` | ${item.category} | ${item.status} | ${item.contexts.join(", ")} | ${[...item.positional, ...(item.variadic ? [item.variadic] : []), ...item.named].map(formatParameter).join("<br>")} |`),
   "",
   "## Semantic tokens",
   "",

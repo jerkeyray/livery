@@ -30,7 +30,7 @@ export function validateBoardScene(scene: BoardScene): ValidationReport {
     for (let second = first + 1; second < components.length; second += 1) {
       const a = components[first]!;
       const b = components[second]!;
-      if (a.overlapGroup && a.overlapGroup === b.overlapGroup) continue;
+      if (sharesDeclaredOverlap(a, b)) continue;
       if (intersects(a, b)) diagnostics.push(issue("layout.component_collision", `${a.owner} overlaps ${b.owner}.`, [a.owner, b.owner]));
     }
   }
@@ -65,7 +65,8 @@ export function validateBoardScene(scene: BoardScene): ValidationReport {
     const owningCanvas = scene.canvases.find((canvas) => canvas.primitives.some(({ id }) => id === motion.owner));
     if (owningCanvas && !containsRect(inflate(owningCanvas.bounds, owningCanvas.bleed), motion)) diagnostics.push(issue("layout.canvas_bleed", `Motion for ${motion.owner} exceeds canvas ${owningCanvas.id} bleed.`, [owningCanvas.id, motion.owner]));
     for (const envelope of components) {
-      if (envelope.owner !== motion.owner && envelope.owner !== owningCanvas?.owner && intersects(motion, envelope)) diagnostics.push(issue("layout.component_collision", `Motion for ${motion.owner} overlaps ${envelope.owner}.`, [motion.owner, envelope.owner]));
+      const ownerEnvelope = components.find(({ owner }) => owner === motion.owner || owner === owningCanvas?.owner);
+      if (envelope.owner !== motion.owner && envelope.owner !== owningCanvas?.owner && !(ownerEnvelope && sharesDeclaredOverlap(ownerEnvelope, envelope)) && intersects(motion, envelope)) diagnostics.push(issue("layout.component_collision", `Motion for ${motion.owner} overlaps ${envelope.owner}.`, [motion.owner, envelope.owner]));
     }
   }
 
@@ -93,6 +94,12 @@ export function validateBoardScene(scene: BoardScene): ValidationReport {
       whitespaceImbalance: contentBounds ? Math.abs((contentBounds.x + contentBounds.width / 2) - scene.board.width / 2) / scene.board.width + Math.abs((contentBounds.y + contentBounds.height / 2) - scene.board.height / 2) / scene.board.height : 0,
     },
   };
+}
+
+function sharesDeclaredOverlap(first: CollisionEnvelope, second: CollisionEnvelope) {
+  if (first.overlapGroup && first.overlapGroup === second.overlapGroup) return true;
+  const firstGroups = new Set(first.overlapGroups ?? []);
+  return (second.overlapGroups ?? []).some((group) => firstGroups.has(group));
 }
 
 function validateConnector(

@@ -6,13 +6,14 @@ export type AgentGuideOptions = { mode: "compact" | "reference" };
 export function createAgentGuide({ mode }: AgentGuideOptions): string {
   const catalog = getLanguageCatalog();
   const supported = catalog.components.filter(({ status }) => status === "supported").map(({ name }) => name);
+  const supportedTimelines = catalog.timelineOperations.filter(({ status }) => status === "supported");
   const compact = [
     "Generate only Livery visual source: one figure, without Markdown or prose.",
     `Bind primitives or library components (${supported.join(", ")}).`,
     `Compose with ${catalog.layouts.map(({ name }) => name).join(", ")}; prefer spacing tokens and constraints over macro coordinates.`,
     `Connect stable ${catalog.anchors.join("/")} anchors: read = api.right -> db.left("read").`,
     "Use concise labels, unique IDs, and only declared references.",
-    `Optional timelines use ${catalog.timelineOperations.map(({ name }) => name).join(", ")}.`,
+    `Optional timelines use ${supportedTimelines.map(({ name }) => name).join(", ")}.`,
     "No JavaScript, I/O, recursion, arbitrary SVG, unbounded loops, or unsupported properties.",
   ].join("\n");
   if (mode === "compact") return compact;

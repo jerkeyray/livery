@@ -1,4 +1,5 @@
 import { diagnostic, type Diagnostic, type SourceSpan } from "./diagnostics.js";
+import { TIMELINE_DURATIONS } from "./language-contract.js";
 import type { ComponentParameter, LayoutKind, Timeline, VisualValue } from "./visual.js";
 
 export type ParsedCall = {
@@ -246,6 +247,7 @@ class VisualParser {
     if (!id || !this.expectSymbol("{", "Expected { before the timeline body.")) return undefined;
     const states: Timeline["states"] = [];
     const transitions: Timeline["transitions"] = [];
+    const stateIds = new Set<string>();
     while (!this.at("eof") && !this.atSymbol("}")) {
       if (this.atIdentifier("state")) {
         this.advance();
@@ -261,13 +263,20 @@ class VisualParser {
             this.recoverStatement();
             continue;
           }
-          if (["show", "hide", "focus", "trace"].includes(call.name)) operations.push({ action: call.name as "show", targets: call.positional.map(String) });
-          else if (call.name === "set") operations.push({ action: "set", targets: call.positional.map(String), properties: call.named });
-          else if (call.name === "morph" && call.positional.length === 2) operations.push({ action: "morph", targets: call.positional.map(String) as [string, string] });
-          else this.error("semantic.unknown_timeline_action", `Unknown timeline action ${call.name}.`);
+          if (["show", "hide", "focus", "trace"].includes(call.name)) {
+            if (call.positional.length < 1 || Object.keys(call.named).length) this.error("semantic.invalid_timeline_action_arguments", `${call.name} requires at least one target and no named arguments.`);
+            else operations.push({ action: call.name as "show", targets: call.positional.map(String) });
+          } else if (call.name === "set") {
+            if (call.positional.length !== 1 || Object.keys(call.named).length === 0) this.error("semantic.invalid_timeline_action_arguments", "set requires exactly one target and at least one property.");
+            else operations.push({ action: "set", targets: [String(call.positional[0])], properties: call.named });
+          } else if (call.name === "morph") {
+            if (call.positional.length !== 2 || Object.keys(call.named).length) this.error("semantic.invalid_timeline_action_arguments", "morph requires exactly two targets and no named arguments.");
+            else operations.push({ action: "morph", targets: call.positional.map(String) as [string, string] });
+          } else this.error("semantic.unknown_timeline_action", `Unknown timeline action ${call.name}.`);
         }
         this.expectSymbol("}", `State ${stateId} is missing }.`);
-        states.push({ id: stateId, operations });
+        if (stateIds.has(stateId)) this.error("semantic.duplicate_timeline_state", `Timeline ${id} declares state ${stateId} more than once.`);
+        else { stateIds.add(stateId); states.push({ id: stateId, operations }); }
       } else if (this.atIdentifier("transition")) {
         this.advance();
         const from = this.expectIdentifier("Expected a transition source state.");
@@ -276,7 +285,10 @@ class VisualParser {
         let duration: string | undefined;
         if (this.matchSymbol("(")) {
           const call = this.parseArguments();
+          for (const name of Object.keys(call.named)) if (name !== "duration") this.error("semantic.unknown_transition_option", `Transition has no option named ${name}.`);
+          if (call.positional.length) this.error("semantic.excess_transition_argument", "Transition options must be named.");
           duration = typeof call.named.duration === "string" ? call.named.duration : undefined;
+          if (call.named.duration !== undefined && (typeof call.named.duration !== "string" || !TIMELINE_DURATIONS.includes(call.named.duration as (typeof TIMELINE_DURATIONS)[number]))) this.error("semantic.invalid_transition_duration", `Transition duration must be ${TIMELINE_DURATIONS.join(", ")}.`);
           this.expectSymbol(")", "Expected ) after transition options.");
         }
         if (from && to) transitions.push({ from, to, ...(duration ? { duration } : {}) });
@@ -288,6 +300,12 @@ class VisualParser {
     this.expectSymbol("}", `Timeline ${id} is missing }.`);
     const known = new Set(states.map(({ id: stateId }) => stateId));
     for (const transition of transitions) if (!known.has(transition.from) || !known.has(transition.to)) this.error("semantic.unknown_timeline_state", `Transition ${transition.from} -> ${transition.to} references an unknown state.`);
+    const transitionIds = new Set<string>();
+    for (const transition of transitions) {
+      const key = `${transition.from}->${transition.to}`;
+      if (transitionIds.has(key)) this.error("semantic.duplicate_timeline_transition", `Transition ${transition.from} -> ${transition.to} is declared more than once.`);
+      transitionIds.add(key);
+    }
     return { id, states, transitions };
   }
 

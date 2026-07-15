@@ -6,7 +6,7 @@ test("desktop studio and timeline states remain visually coherent", async ({ pag
   await expect(page.getByText("Ready", { exact: true })).toBeVisible();
   const figure = page.getByRole("img", { name: /Checkout request/ });
   await expect(figure).toBeVisible();
-  await expect(figure).toHaveAttribute("viewBox", "0 0 760 274");
+  await expect(figure).toHaveAttribute("viewBox", "0 0 760 268");
   await expect(figure.locator("title")).toHaveCount(0);
   await expectNoViewportOverflow(page);
   await expect(page).toHaveScreenshot("playground-desktop.png", { animations: "disabled" });
@@ -41,7 +41,7 @@ test("chat output reflows without clipping", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Chat", exact: true }).click();
   const figure = page.getByRole("img", { name: /Checkout request/ });
-  await expect(figure).toHaveAttribute("viewBox", "0 0 360 490");
+  await expect(figure).toHaveAttribute("viewBox", "0 0 360 472");
   await expectNoViewportOverflow(page);
   await expect(page).toHaveScreenshot("checkout-chat.png", { animations: "disabled" });
 });

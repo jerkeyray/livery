@@ -322,7 +322,7 @@ figure mixed_grid {
     const tall = result.scene.elements.find(({ id }) => id === "tall")!;
     const medium = result.scene.elements.find(({ id }) => id === "medium")!;
     const archive = result.scene.elements.find(({ id }) => id === "archive")!;
-    expect(medium.bounds.y - tall.bounds.y).toBe(228);
+    expect(medium.bounds.y - tall.bounds.y).toBe(220);
     expect(archive.bounds.y - medium.bounds.y).toBeLessThan(180);
     expect(result.scene.board.height).toBeLessThan(560);
   });
@@ -339,5 +339,97 @@ figure mixed_grid {
     const note = result.scene.elements.find(({ id }) => id === "note")!;
     expect(note.labelBounds!.y).toBeGreaterThanOrEqual(note.bounds.y);
     expect(note.labelBounds!.y + note.labelBounds!.height).toBeLessThanOrEqual(note.bounds.y + note.bounds.height);
+  });
+
+  it("resolves layout gaps through caller token overrides", () => {
+    const compiled = compileVisual(`figure spacing {
+ a = box("A")
+ b = box("B")
+ row(a, b, gap: lg)
+}`);
+    const result = solvePinboard(compiled.document!, { width: 720, maxCandidates: 1, tokenOverrides: { "space.lg": 60 } });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const a = result.scene.elements.find(({ id }) => id === "a")!;
+    const b = result.scene.elements.find(({ id }) => id === "b")!;
+    expect(b.bounds.x - (a.bounds.x + a.bounds.width)).toBe(60);
+    expect(result.scene.board.gutter).toBe(60);
+  });
+
+  it("applies flex-like alignment and distribution deterministically", () => {
+    const compiled = compileVisual(`component Tall() {
+ return canvas(width: 100, height: 120) {}
+}
+component Short() {
+ return canvas(width: 80, height: 64) {}
+}
+figure flex {
+ tall = Tall()
+ short = Short()
+ row(tall, short, width: 500, align: end, distribute: between)
+}`);
+    expect(compiled.diagnostics).toEqual([]);
+    const result = solvePinboard(compiled.document!, { width: 720, maxCandidates: 1 });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const tall = result.scene.elements.find(({ id }) => id === "tall")!;
+    const short = result.scene.elements.find(({ id }) => id === "short")!;
+    expect(short.bounds.y + short.bounds.height).toBe(tall.bounds.y + tall.bounds.height);
+    expect(short.bounds.x + short.bounds.width).toBe(tall.bounds.x + 500);
+  });
+
+  it("returns localized failures for conflicting or impossible constraints", () => {
+    const conflicting = compileVisual(`figure conflict {
+ a = box("A")
+ b = box("B")
+ c = box("C")
+ row(a, b, c)
+ align(a, b, c, axis: x)
+ distribute(a, b, c, axis: x, gap: 40)
+}`).document!;
+    const conflictResult = solvePinboard(conflicting, { width: 720 });
+    expect(conflictResult.ok).toBe(false);
+    if (!conflictResult.ok) expect(conflictResult.diagnostics.map(({ code }) => code)).toContain("layout.unsatisfied_align");
+
+    const oversized = compileVisual(`component Large() {
+ return canvas(width: 200, height: 160) {}
+}
+component Small() {
+ return canvas(width: 100, height: 80) {}
+}
+figure impossible {
+ large = Large()
+ small = Small()
+ row(large, small)
+ inside(large, small, padding: 8)
+}`).document!;
+    const insideResult = solvePinboard(oversized, { width: 720 });
+    expect(insideResult.ok).toBe(false);
+    if (!insideResult.ok) expect(insideResult.diagnostics.map(({ code }) => code)).toContain("layout.unsatisfied_inside");
+  });
+
+  it("treats a satisfied inside constraint as an explicit overlap", () => {
+    const compiled = compileVisual(`component Container() {
+ return canvas(width: 220, height: 160) {}
+}
+component Child() {
+ return canvas(width: 80, height: 48) {}
+}
+figure nested {
+ container = Container()
+ child = Child()
+ row(container, child)
+ inside(child, container, padding: 12)
+}`);
+    expect(compiled.diagnostics).toEqual([]);
+    const result = solvePinboard(compiled.document!, { width: 720 });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const container = result.scene.elements.find(({ id }) => id === "container")!.bounds;
+    const child = result.scene.elements.find(({ id }) => id === "child")!.bounds;
+    expect(child.x).toBeGreaterThanOrEqual(container.x + 12);
+    expect(child.y).toBeGreaterThanOrEqual(container.y + 12);
+    expect(child.x + child.width).toBeLessThanOrEqual(container.x + container.width - 12);
+    expect(child.y + child.height).toBeLessThanOrEqual(container.y + container.height - 12);
   });
 });

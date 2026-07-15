@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compileVisual, computeTimelineState, solvePinboard, type Timeline } from "./index.js";
+import { boardSceneToSvg, compileVisual, computeTimelineState, solvePinboard, type Timeline } from "./index.js";
 
 const timeline: Timeline = {
   id: "demo",
@@ -101,5 +101,86 @@ figure checkout("Checkout") {
 }`);
 
     expect(compiled.document?.timelines[0]?.states.map(({ id }) => id)).toEqual(["first", "second", "third"]);
+  });
+
+  it("rejects duplicate timeline identities and invalid transitions", () => {
+    const duplicateTimeline = compileVisual(`figure invalid {
+ node = box("Node")
+ timeline steps { state first { show(node) } }
+ timeline steps { state second { show(node) } }
+}`);
+    expect(duplicateTimeline.diagnostics.map(({ code }) => code)).toContain("semantic.duplicate_timeline");
+
+    const invalid = compileVisual(`figure invalid {
+ node = box("Node")
+ timeline steps {
+  state first { show(node) }
+  state first { show(node) }
+  transition first -> missing(duration: warp)
+  transition first -> missing(duration: warp)
+ }
+}`);
+    expect(invalid.diagnostics.map(({ code }) => code)).toEqual(expect.arrayContaining([
+      "semantic.duplicate_timeline_state",
+      "semantic.invalid_transition_duration",
+      "semantic.unknown_timeline_state",
+      "semantic.duplicate_timeline_transition",
+    ]));
+  });
+
+  it("validates set properties against target kinds", () => {
+    const invalid = compileVisual(`component Plot() {
+ label = text("Label", x: 0, y: 0, width: 60, height: 20)
+ return canvas(width: 80, height: 40) { label }
+}
+figure invalid {
+ plot = Plot()
+ box = box("Box")
+ edge = box.right -> plot.left("edge")
+ row(box, plot)
+ timeline steps {
+  state bad {
+   set(box, width: 300)
+   set(edge, fill: "red")
+   set(plot.label, radius: 10)
+  }
+ }
+}`);
+    expect(invalid.diagnostics.filter(({ code }) => code === "semantic.invalid_timeline_property")).toHaveLength(3);
+  });
+
+  it("renders accepted element, primitive, and connector state properties", () => {
+    const compiled = compileVisual(`component Plot() {
+ label = text("Label", x: 4, y: 4, width: 60, height: 20, color: "#111111")
+ return canvas(width: 80, height: 40) { label }
+}
+figure states {
+ box = box("Box", opacity: 0.8, color: "#222222")
+ plot = Plot()
+ edge = box.right -> plot.left("edge")
+ row(box, plot)
+ timeline steps {
+  state changed {
+   set(box, color: "#123456", opacity: 0.5, translateX: 10)
+   set(plot.label, color: "#654321", x: 12, fontSize: 15)
+   set(edge, stroke: "#abcdef", strokeWidth: 3, opacity: 0.4)
+  }
+ }
+}`);
+    expect(compiled.diagnostics).toEqual([]);
+    const solved = solvePinboard(compiled.document!, { width: 480 });
+    expect(solved.ok).toBe(true);
+    if (!solved.ok) return;
+    const state = computeTimelineState(compiled.document!.timelines[0]!, "changed", solved.scene);
+    const svg = boardSceneToSvg(solved.scene, { state });
+    expect(svg).toContain('fill="#123456"');
+    expect(svg).toContain('opacity="0.5"');
+    expect(svg).toContain('transform="translate(10 0)');
+    expect(svg).toContain('fill="#654321"');
+    expect(svg).toContain('font-size="15"');
+    expect(svg).toContain('stroke="#abcdef"');
+    expect(svg).toContain('stroke-width="3"');
+    expect(svg).toContain('opacity="0.4"');
+    expect(solved.scene.timelineEnvelopes.find(({ owner }) => owner === "plot.label")?.width).toBeGreaterThanOrEqual(60);
   });
 });

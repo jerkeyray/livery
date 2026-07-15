@@ -115,4 +115,79 @@ figure arithmetic {
       children: [{ props: { x: 54, y: 30 } }],
     });
   });
+
+  it("rejects unknown, mistyped, missing, and invalid-enum call arguments", () => {
+    const cases = [
+      ['figure bad { a = box("A", nonsense: 1) }', "semantic.unknown_argument"],
+      ['figure bad { a = box("A", opacity: "high") }', "semantic.invalid_argument_value"],
+      ['figure bad { a = path(width: 20, height: 20) }', "semantic.missing_argument"],
+      ['figure bad { a = icon(name: unknown) }', "semantic.invalid_argument_value"],
+      ['figure bad { a = service("A", variant: impossible) }', "semantic.invalid_argument_value"],
+      ['figure bad { a = repeat(count: 2, kind: box) }', "semantic.unsupported_context"],
+    ] as const;
+    for (const [input, code] of cases) expect(compileVisual(input).diagnostics.map((item) => item.code), input).toContain(code);
+  });
+
+  it("rejects duplicate layouts, omitted bindings, and duplicate layout children", () => {
+    const duplicateLayout = compileVisual(`figure bad {
+ a = box("A")
+ row(a)
+ column(a)
+}`);
+    expect(duplicateLayout.diagnostics.map(({ code }) => code)).toContain("semantic.duplicate_root_layout");
+
+    const omitted = compileVisual(`figure bad {
+ a = box("A")
+ b = box("B")
+ edge = a.right -> b.left("send")
+ row(a)
+}`);
+    expect(omitted.diagnostics.map(({ code }) => code)).toEqual(expect.arrayContaining(["semantic.unplaced_binding", "semantic.unplaced_connector_target"]));
+
+    const duplicateChild = compileVisual(`figure bad {
+ a = box("A")
+ row(a, a)
+}`);
+    expect(duplicateChild.diagnostics.map(({ code }) => code)).toContain("semantic.duplicate_layout_child");
+  });
+
+  it("keeps unused component internals and their connectors out of expanded output", () => {
+    const result = compileVisual(`component Pair() {
+ shown = box("Shown")
+ unused = box("Unused")
+ hidden_edge = unused.right -> unused.left("internal")
+ return row {
+  shown
+ }
+}
+figure scoped {
+ pair = Pair()
+}`);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.document?.root.children?.[0]?.children?.map(({ id }) => id)).toEqual(["pair.shown"]);
+    expect(result.document?.connectors).toEqual([]);
+  });
+
+  it("rejects arbitrary unsupported named arguments instead of dropping them", () => {
+    for (let index = 0; index < 50; index += 1) {
+      const property = `unsupported_${index}`;
+      const result = compileVisual(`figure generated { node = box("Node", ${property}: ${index}) }`);
+      expect(result.document, property).toBeUndefined();
+      expect(result.diagnostics, property).toContainEqual(expect.objectContaining({ code: "semantic.unknown_argument" }));
+    }
+  });
+
+  it("rejects canvas references and repeat properties that cannot render", () => {
+    const missingMask = compileVisual(`figure invalid {
+ shape = box(x: 10, y: 10, width: 40, height: 40, mask: missing)
+ canvas(shape, width: 120, height: 80)
+}`);
+    expect(missingMask.diagnostics).toContainEqual(expect.objectContaining({ code: "semantic.unknown_canvas_reference" }));
+
+    const invalidRepeat = compileVisual(`figure invalid {
+ marks = repeat(count: 3, kind: line, width: 20, height: 1, fill: "red")
+ canvas(marks, width: 120, height: 80)
+}`);
+    expect(invalidRepeat.diagnostics).toContainEqual(expect.objectContaining({ code: "semantic.invalid_repeat_property" }));
+  });
 });

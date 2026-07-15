@@ -10,6 +10,7 @@ export * from "./language/parser.js";
 export * from "./language/syntax.js";
 export * from "./language/tokenizer.js";
 export * from "./language-catalog.js";
+export * from "./language-contract.js";
 export * from "./layout.js";
 export * from "./layout-adapter.js";
 export * from "./lint.js";
