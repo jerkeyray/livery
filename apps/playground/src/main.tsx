@@ -53,7 +53,7 @@ function Playground() {
   return (
     <div className="studio">
       <header className="app-bar">
-        <div className="brand"><span className="brand-mark">L</span><strong>Livery</strong><span>Playground</span></div>
+        <div className="brand"><img alt="" aria-hidden className="brand-mark" src="/livery-mark.svg" /><strong>Livery</strong><span>Playground</span></div>
         <div className={errors.length ? "compile-status compile-status-error" : "compile-status"}>
           {errors.length ? <TriangleAlert aria-hidden size={14} /> : <Check aria-hidden size={14} />}
           <span>{errors.length ? `${errors.length} ${errors.length === 1 ? "error" : "errors"}` : "Ready"}</span>

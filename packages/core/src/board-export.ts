@@ -203,7 +203,7 @@ function renderDebug(scene: BoardScene) {
   const lines = [`    <g data-livery-debug="true" pointer-events="none" font-family="ui-monospace,monospace" font-size="8">`];
   for (const channel of scene.board.channels) lines.push(`      <rect x="${channel.x}" y="${channel.y}" width="${channel.width}" height="${channel.height}" fill="#22c55e" fill-opacity="0.08" stroke="#16a34a" stroke-opacity="0.35"/>`);
   for (const envelope of scene.envelopes) lines.push(`      <rect x="${envelope.x}" y="${envelope.y}" width="${envelope.width}" height="${envelope.height}" fill="none" stroke="#ef4444" stroke-dasharray="3 2"/>`);
-  for (const element of scene.elements) for (const pin of element.pins) lines.push(`      <circle cx="${pin.point.x}" cy="${pin.point.y}" r="3" fill="#2563eb"><title>${escapeXml(pin.id)}</title></circle>`);
+  for (const element of scene.elements) for (const pin of element.pins) lines.push(`      <circle cx="${pin.point.x}" cy="${pin.point.y}" r="3" fill="#c0264f"><title>${escapeXml(pin.id)}</title></circle>`);
   for (const primitive of scene.canvases.flatMap(({ primitives }) => primitives)) for (const pin of primitive.pins) lines.push(`      <circle cx="${pin.point.x}" cy="${pin.point.y}" r="2" fill="#7c3aed"><title>${escapeXml(pin.id)}</title></circle>`);
   lines.push("    </g>");
   return lines;

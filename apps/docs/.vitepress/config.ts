@@ -5,7 +5,9 @@ export default defineConfig({
   description: "Programmable visual language for agents",
   base: "/livery/",
   cleanUrls: true,
+  head: [["link", { rel: "icon", type: "image/svg+xml", href: "/livery/livery-mark.svg" }]],
   themeConfig: {
+    logo: "/livery/livery-mark.svg",
     nav: [{ text: "Alpha docs", link: "/alpha/quickstart" }, { text: "Language", link: "/alpha/language" }, { text: "GitHub", link: "https://github.com/jerkeyray/livery" }],
     search: { provider: "local" },
     sidebar: [{

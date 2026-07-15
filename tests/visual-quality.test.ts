@@ -75,7 +75,7 @@ describe("visual quality regressions", () => {
       if (!layout.ok) continue;
       const svg = boardSceneToSvg(layout.scene);
       for (const glyph of glyphs) expect(svg).toContain(`data-livery-glyph="${glyph}"`);
-      expect(svg).not.toMatch(/data-livery-glyph="[^"]+"[^>]*(?:#2563eb|#7c3aed|#db2777)/);
+      expect(svg).not.toMatch(/data-livery-glyph="[^"]+"[^>]*(?:#2563eb|#7c3aed|#db2777|#c0264f)/);
     }
   });
 

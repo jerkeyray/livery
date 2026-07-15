@@ -63,7 +63,7 @@ figure export_test {
     expect(svg).toContain('<marker id="states-arrow-edge"');
     expect(svg).toContain('fill="#15803d"');
     expect(svg).toContain('marker-end="url(#states-arrow-edge)"');
-    expect(svg.match(/stroke="#2563eb"/g)).toHaveLength(1);
+    expect(svg.match(/stroke="#c0264f"/g)).toHaveLength(1);
   });
 
   it("applies timeline transforms to stable canvas primitives", () => {

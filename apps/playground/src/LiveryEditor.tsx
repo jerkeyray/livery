@@ -63,12 +63,12 @@ const liveryLanguage = StreamLanguage.define({
 
 const editorTheme = EditorView.theme({
   "&": { height: "100%", background: "#fcfcfb", color: "#202124", fontSize: "13px" },
-  ".cm-content": { padding: "18px 0", caretColor: "#1d4ed8", fontFamily: '"SFMono-Regular", Consolas, "Liberation Mono", monospace', lineHeight: "1.62" },
+  ".cm-content": { padding: "18px 0", caretColor: "#c0264f", fontFamily: '"SFMono-Regular", Consolas, "Liberation Mono", monospace', lineHeight: "1.62" },
   ".cm-line": { padding: "0 18px" },
   ".cm-gutters": { background: "#f7f7f5", color: "#9a9a96", border: "0", borderRight: "1px solid #e5e5e1" },
   ".cm-lineNumbers .cm-gutterElement": { minWidth: "42px", padding: "0 12px 0 8px" },
-  ".cm-activeLine, .cm-activeLineGutter": { background: "#f1f5fb" },
-  ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": { background: "#dbeafe" },
+  ".cm-activeLine, .cm-activeLineGutter": { background: "#fff5f7" },
+  ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": { background: "#ffe4eb" },
   "&.cm-focused": { outline: "none" },
   ".cm-tooltip": { border: "1px solid #d8d8d3", borderRadius: "4px", boxShadow: "0 8px 24px rgb(0 0 0 / 10%)" },
 });

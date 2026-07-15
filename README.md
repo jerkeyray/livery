@@ -2,9 +2,9 @@
 
 <p>
   <picture>
-    <source srcset="docs/brand/wordmark-dark.svg" media="(prefers-color-scheme: dark)">
-    <source srcset="docs/brand/wordmark-light.svg" media="(prefers-color-scheme: light)">
-    <img src="docs/brand/wordmark-dark.svg" alt="Livery" width="112">
+    <source srcset="docs/brand/lockup-dark.svg" media="(prefers-color-scheme: dark)">
+    <source srcset="docs/brand/lockup-light.svg" media="(prefers-color-scheme: light)">
+    <img src="docs/brand/lockup-dark.svg" alt="Livery" width="168">
   </picture>
 </p>
 

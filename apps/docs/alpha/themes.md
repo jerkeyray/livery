@@ -4,7 +4,7 @@ All renderers consume the same serializable `LiveryTheme`. Override semantic tok
 
 ```ts
 render(source, {
-  tokenOverrides: { "color.accent": "#2563eb" }
+  tokenOverrides: { "color.accent": "#c0264f" }
 });
 ```
 

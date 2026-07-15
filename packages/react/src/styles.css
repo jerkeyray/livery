@@ -6,7 +6,7 @@
 .livery-chat-timeline { display: flex; max-width: 100%; overflow-x: auto; border: 1px solid #d8d8d3; border-radius: 6px; width: max-content; }
 .livery-chat-timeline button { display: inline-flex; min-height: 32px; align-items: center; gap: 6px; border: 0; border-right: 1px solid #d8d8d3; background: #fff; color: #5f6368; padding: 5px 10px; font: inherit; font-size: 12px; font-weight: 600; }
 .livery-chat-timeline button:last-child { border-right: 0; }
-.livery-chat-timeline button[aria-pressed="true"] { background: #eff6ff; color: #1d4ed8; outline: 1px solid #2563eb; outline-offset: -1px; }
-.livery-chat-timeline button:focus-visible { outline: 2px solid #2563eb; outline-offset: -2px; }
+.livery-chat-timeline button[aria-pressed="true"] { background: #fff1f4; color: #a3153b; outline: 1px solid #c0264f; outline-offset: -1px; }
+.livery-chat-timeline button:focus-visible { outline: 2px solid #c0264f; outline-offset: -2px; }
 .livery-chat-timeline button span { display: inline-grid; width: 17px; height: 17px; place-items: center; border: 1px solid currentColor; border-radius: 50%; font-size: 10px; }
 .livery-chat-announcement { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
