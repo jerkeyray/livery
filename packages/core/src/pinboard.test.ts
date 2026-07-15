@@ -198,6 +198,21 @@ figure motion {
     expect(result.scene.connectors.every(({ channelIds }) => channelIds.length > 0)).toBe(true);
   });
 
+  it("preserves explicitly authored connector pins when their axis remains meaningful", () => {
+    const compiled = compileVisual(`figure pinned {
+ first = service("First")
+ source = service("Ground station")
+ target = service("Telemetry buffer")
+ last = service("Last")
+ edge = source.bottom -> target.top("decode")
+ grid(first, source, target, last, columns: 2, gap: xl)
+}`);
+    const result = solvePinboard(compiled.document!, { width: 720 });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.scene.connectors[0]).toMatchObject({ fromPin: "source.bottom", toPin: "target.top" });
+  });
+
   it("connects to stable pins on objects inside a canvas", () => {
     const compiled = compileVisual(`component Plot() {
  dot = circle(x: 140, y: 50, width: 16, height: 16)
@@ -282,6 +297,34 @@ figure annotated {
     expect(new Set(leaves.map(({ bounds }) => bounds.x + bounds.width / 2)).size).toBe(3);
     expect(new Set(leaves.map(({ bounds }) => bounds.y)).size).toBe(2);
     expect(leaves[3]!.bounds.x + leaves[3]!.bounds.width / 2).toBe(leaves[1]!.bounds.x + leaves[1]!.bounds.width / 2);
+  });
+
+  it("sizes each grid row from its own tallest component", () => {
+    const compiled = compileVisual(`component TallPanel() {
+ return canvas(width: 220, height: 196) {}
+}
+component MediumPanel() {
+ return canvas(width: 220, height: 132) {}
+}
+figure mixed_grid {
+ tall = TallPanel()
+ first = service("Ground station")
+ note = callout("Escalate")
+ medium = MediumPanel()
+ archive = database("Archive")
+ model = model("Anomaly model")
+ grid(tall, first, note, medium, archive, model, columns: 2, gap: lg)
+}`);
+    expect(compiled.diagnostics).toEqual([]);
+    const result = solvePinboard(compiled.document!, { width: 760, maxCandidates: 1 });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const tall = result.scene.elements.find(({ id }) => id === "tall")!;
+    const medium = result.scene.elements.find(({ id }) => id === "medium")!;
+    const archive = result.scene.elements.find(({ id }) => id === "archive")!;
+    expect(medium.bounds.y - tall.bounds.y).toBe(228);
+    expect(archive.bounds.y - medium.bounds.y).toBeLessThan(180);
+    expect(result.scene.board.height).toBeLessThan(560);
   });
 
   it("measures long callout labels inside their rendered text area", () => {

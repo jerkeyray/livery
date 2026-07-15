@@ -45,6 +45,7 @@ const COMPACT_PADDING = 16;
 const DEFAULT_GAP = 32;
 const MIN_GAP = 24;
 const CLEARANCE = 6;
+const MIN_ANCHOR_AXIS_RATIO = 0.35;
 const NODE_HEIGHT = 72;
 const MAX_ELEMENTS = 512;
 const MAX_CANVAS_REPEAT = 128;
@@ -295,9 +296,9 @@ function measure(
   if (kind === "column") return { width: Math.min(maxWidth, Math.max(...children.map(({ width }) => width), 0)), height: sum(children.map(({ height }) => height)) + rowGap * Math.max(0, children.length - 1) };
   if (kind === "grid") {
     const cellWidth = Math.max(...children.map(({ width }) => width), 0);
-    const cellHeight = Math.max(...children.map(({ height }) => height), 0);
     const columns = gridColumns(node, strategy, maxWidth, children.length, cellWidth, columnGap);
-    return { width: Math.min(maxWidth, Math.min(columns, children.length) * cellWidth + columnGap * Math.max(0, Math.min(columns, children.length) - 1)), height: Math.ceil(children.length / columns) * cellHeight + rowGap * Math.max(0, Math.ceil(children.length / columns) - 1) };
+    const rowHeights = gridRowHeights(children, columns);
+    return { width: Math.min(maxWidth, Math.min(columns, children.length) * cellWidth + columnGap * Math.max(0, Math.min(columns, children.length) - 1)), height: sum(rowHeights) + rowGap * Math.max(0, rowHeights.length - 1) };
   }
   if (kind === "stack" || kind === "overlay") return { width: Math.min(maxWidth, Math.max(...children.map(({ width }) => width), 0)), height: Math.max(...children.map(({ height }) => height), 0) };
   return { width: sum(children.map(({ width }) => width)) + columnGap * Math.max(0, children.length - 1), height: Math.max(...children.map(({ height }) => height), 0) };
@@ -346,8 +347,8 @@ function place(node: VisualNode, x: number, y: number, width: number, height: nu
   const sizes = node.children.map((child) => measure(child, width, strategy, context.minimumGap, false, context.rootColumnGap, context.rootRowGap, context.theme, context.tokens));
   const kind = effectiveLayout(node.layout?.kind ?? "row", strategy, root, sizes, width, columnGap);
   const cellWidth = kind === "grid" ? Math.max(...sizes.map(({ width }) => width), 0) : 0;
-  const cellHeight = kind === "grid" ? Math.max(...sizes.map(({ height }) => height), 0) : 0;
   const columns = kind === "grid" ? gridColumns(node, strategy, width, sizes.length, cellWidth, columnGap) : 1;
+  const rowHeights = kind === "grid" ? gridRowHeights(sizes, columns) : [];
   let cursorX = x;
   let cursorY = y;
   node.children.forEach((child, index) => {
@@ -363,7 +364,7 @@ function place(node: VisualNode, x: number, y: number, width: number, height: nu
       const itemsInRow = Math.min(columns, node.children!.length - row * columns);
       const rowOffset = (columns - itemsInRow) * (cellWidth + columnGap) / 2;
       childX = x + rowOffset + (index % columns) * (cellWidth + columnGap) + (cellWidth - size.width) / 2;
-      childY = y + row * (cellHeight + rowGap) + (cellHeight - size.height) / 2;
+      childY = y + sum(rowHeights.slice(0, row)) + row * rowGap + (rowHeights[row]! - size.height) / 2;
     } else if (kind === "stack" || kind === "overlay") {
       childX = x + (width - size.width) / 2;
       childY = y + (height - size.height) / 2;
@@ -382,11 +383,13 @@ function routeConnectors(connectors: Connector[], context: PlacementContext, wid
     const from = context.bounds.get(connector.from.node);
     const to = context.bounds.get(connector.to.node);
     if (!from || !to) return;
-    const vertical = Math.abs((to.y + to.height / 2) - (from.y + from.height / 2)) > Math.abs((to.x + to.width / 2) - (from.x + from.width / 2));
+    const deltaX = Math.abs((to.x + to.width / 2) - (from.x + from.width / 2));
+    const deltaY = Math.abs((to.y + to.height / 2) - (from.y + from.height / 2));
+    const vertical = deltaY > deltaX;
     const automaticFrom = vertical ? (to.y >= from.y ? "bottom" : "top") : (to.x >= from.x ? "right" : "left");
     const automaticTo = vertical ? (to.y >= from.y ? "top" : "bottom") : (to.x >= from.x ? "left" : "right");
-    const fromSide = anchorMatchesAxis(connector.from.anchor, vertical) ? connector.from.anchor! : automaticFrom;
-    const toSide = anchorMatchesAxis(connector.to.anchor, vertical) ? connector.to.anchor! : automaticTo;
+    const fromSide = responsiveAnchor(connector.from.anchor, automaticFrom, deltaX, deltaY);
+    const toSide = responsiveAnchor(connector.to.anchor, automaticTo, deltaX, deltaY);
     const start = pointFor(from, fromSide);
     const end = pointFor(to, toSide);
     const candidates = routeCandidates(start, end, fromSide, toSide, width, height, padding, index, context.channels);
@@ -549,9 +552,11 @@ function directionFor(side: AnchorName): BoardPoint {
   return { x: 1, y: 0 };
 }
 
-function anchorMatchesAxis(anchor: AnchorName | undefined, vertical: boolean) {
-  if (!anchor || anchor === "center") return false;
-  return vertical ? anchor === "top" || anchor === "bottom" : anchor === "left" || anchor === "right";
+function responsiveAnchor(anchor: AnchorName | undefined, fallback: AnchorName, deltaX: number, deltaY: number) {
+  if (!anchor || anchor === "center") return fallback;
+  const separation = anchor === "left" || anchor === "right" ? deltaX : deltaY;
+  const perpendicular = anchor === "left" || anchor === "right" ? deltaY : deltaX;
+  return separation >= perpendicular * MIN_ANCHOR_AXIS_RATIO ? anchor : fallback;
 }
 
 function labelBounds(node: VisualNode, bounds: BoardRect, theme: LiveryTheme, tokens: TokenOverrides): BoardRect {
@@ -621,6 +626,9 @@ function tracksFor(envelopes: CollisionEnvelope[], axis: "x" | "y"): BoardTrack[
 function gridColumns(node: VisualNode, strategy: Strategy, maxWidth: number, count: number, cellWidth = 0, gap = 0) {
   if (strategy !== "alternate_spans") return Math.max(1, node.layout?.columns ?? Math.ceil(Math.sqrt(count)));
   return Math.max(1, Math.min(count, Math.floor((maxWidth + gap + 0.01) / Math.max(1, cellWidth + gap))));
+}
+function gridRowHeights(sizes: Size[], columns: number) {
+  return Array.from({ length: Math.ceil(sizes.length / columns) }, (_, row) => Math.max(...sizes.slice(row * columns, (row + 1) * columns).map(({ height }) => height), 0));
 }
 function lead(point: BoardPoint, side: AnchorName, amount: number): BoardPoint { const direction = directionFor(side); return { x: point.x + direction.x * amount, y: point.y + direction.y * amount }; }
 function compactPoints(points: BoardPoint[]) { return points.filter((point, index) => index === 0 || point.x !== points[index - 1]!.x || point.y !== points[index - 1]!.y); }
