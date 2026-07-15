@@ -179,6 +179,25 @@ figure motion {
     expect(result.ok, result.ok ? undefined : result.diagnostics.map(({ message }) => message).join(" ")).toBe(true);
   });
 
+  it("routes through internal channels when compact reflow blocks midpoint doglegs", () => {
+    const compiled = compileVisual(`figure channels {
+ a = service("A")
+ b = service("B")
+ c = service("C")
+ d = service("D")
+ e = service("E")
+ f = service("F")
+ first = b.right -> c.left("first")
+ second = c.right -> e.left("second")
+ grid(a, b, c, d, e, f, columns: 3, gap: xl)
+}`);
+    const result = solvePinboard(compiled.document!, { width: 480, maxCandidates: 3 });
+    expect(result.ok, result.ok ? undefined : result.diagnostics.map(({ message }) => message).join(" ")).toBe(true);
+    if (!result.ok) return;
+    expect(result.attempts.at(-1)?.strategy).toBe("alternate_spans");
+    expect(result.scene.connectors.every(({ channelIds }) => channelIds.length > 0)).toBe(true);
+  });
+
   it("connects to stable pins on objects inside a canvas", () => {
     const compiled = compileVisual(`component Plot() {
  dot = circle(x: 140, y: 50, width: 16, height: 16)

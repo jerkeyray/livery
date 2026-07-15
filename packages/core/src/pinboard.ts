@@ -389,7 +389,7 @@ function routeConnectors(connectors: Connector[], context: PlacementContext, wid
     const toSide = anchorMatchesAxis(connector.to.anchor, vertical) ? connector.to.anchor! : automaticTo;
     const start = pointFor(from, fromSide);
     const end = pointFor(to, toSide);
-    const candidates = routeCandidates(start, end, fromSide, toSide, width, height, padding, index);
+    const candidates = routeCandidates(start, end, fromSide, toSide, width, height, padding, index, context.channels);
     const board = { x: 0, y: 0, width, height };
     const ranked = candidates.flatMap((points) => {
       if (!routeClear(points, context, connector.from.node, connector.to.node)) return [];
@@ -423,13 +423,15 @@ function routeConnectors(connectors: Connector[], context: PlacementContext, wid
   return solved;
 }
 
-function routeCandidates(start: BoardPoint, end: BoardPoint, from: AnchorName, to: AnchorName, width: number, height: number, padding: number, index: number): BoardPoint[][] {
+function routeCandidates(start: BoardPoint, end: BoardPoint, from: AnchorName, to: AnchorName, width: number, height: number, padding: number, index: number, channels: RouteChannel[]): BoardPoint[][] {
   const middleX = (start.x + end.x) / 2;
   const middleY = (start.y + end.y) / 2;
   const outerY = height - padding / 2 - 10 - index * 3;
   const outerX = width - padding / 2 - 10 - index * 3;
   const startLead = lead(start, from, 12);
   const endLead = lead(end, to, 12);
+  const horizontalCorridors = corridorCenters(channels, "horizontal", middleY);
+  const verticalCorridors = corridorCenters(channels, "vertical", middleX);
   return [
     ...(start.x === end.x || start.y === end.y ? [[start, end]] : []),
     [start, { x: start.x, y: end.y }, end],
@@ -440,7 +442,16 @@ function routeCandidates(start: BoardPoint, end: BoardPoint, from: AnchorName, t
     [start, startLead, { x: middleX, y: startLead.y }, { x: middleX, y: endLead.y }, endLead, end],
     [start, startLead, { x: startLead.x, y: outerY }, { x: endLead.x, y: outerY }, endLead, end],
     [start, startLead, { x: outerX, y: startLead.y }, { x: outerX, y: endLead.y }, endLead, end],
+    ...horizontalCorridors.map((y) => [start, startLead, { x: startLead.x, y }, { x: endLead.x, y }, endLead, end]),
+    ...verticalCorridors.map((x) => [start, startLead, { x, y: startLead.y }, { x, y: endLead.y }, endLead, end]),
   ].map(compactPoints).filter((points) => validEndpointDirections(points, from, to));
+}
+
+function corridorCenters(channels: RouteChannel[], axis: RouteChannel["axis"], target: number) {
+  const centers = channels
+    .filter((channel) => channel.axis === axis)
+    .map((channel) => axis === "horizontal" ? channel.y + channel.height / 2 : channel.x + channel.width / 2);
+  return [...new Set(centers)].sort((a, b) => Math.abs(a - target) - Math.abs(b - target) || a - b).slice(0, 24);
 }
 
 function validEndpointDirections(points: BoardPoint[], from: AnchorName, to: AnchorName) {
