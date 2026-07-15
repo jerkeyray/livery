@@ -57,25 +57,51 @@ test("mobile studio exposes source and preview as dedicated tabs", async ({ page
   await expect(page).toHaveScreenshot("playground-mobile-source.png", { animations: "disabled" });
 });
 
-test("example figures replace source and render their own timelines", async ({ page }) => {
+test("narrow desktop keeps both panes without viewport overflow", async ({ page }) => {
+  await page.setViewportSize({ width: 820, height: 800 });
+  await page.goto("/");
+  await expect(page.getByLabel("Livery source editor")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Preview" })).toBeVisible();
+  await expectNoViewportOverflow(page);
+});
+
+test("the studio exposes three focused examples", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/");
-  const selector = page.getByLabel("Example figure");
-  for (const [value, title] of [
-    ["mechanism", "Valve mechanism"],
-    ["data-transform", "Packet transformation"],
-    ["scientific", "Orbital phase"],
-    ["agent-trace", "Agent tool trace"],
-    ["protocol", "Request protocol"],
-    ["checkout", "Checkout request"],
-  ] as const) {
-    await selector.selectOption(value);
-    await expect(selector).toHaveValue(value);
-    await expect(page.getByRole("img", { name: title })).toBeVisible();
-    await expect(page.getByText("Ready", { exact: true })).toBeVisible();
-  }
-  await selector.selectOption("scientific");
-  await expect(page.getByRole("button", { name: "quarter", exact: true })).toBeVisible();
+  await page.getByText("Examples", { exact: true }).click();
+  await expect(page.getByRole("button", { name: /Two components and one connection/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Responsive architecture with states/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Custom illustration with annotations/ })).toBeVisible();
+  await expect(page.locator(".examples-popover > button")).toHaveCount(3);
+
+  await page.getByRole("button", { name: /Custom illustration with annotations/ }).click();
+  await expect(page.getByRole("img", { name: "Valve mechanism" })).toBeVisible();
+  await expect(page.getByText("Timeline", { exact: true })).not.toBeVisible();
+
+  await page.getByText("Examples", { exact: true }).click();
+  await page.getByRole("button", { name: /Two components and one connection/ }).click();
+  await expect(page.getByRole("img", { name: "Request path" })).toBeVisible();
+
+  await page.getByText("Examples", { exact: true }).click();
+  await page.getByRole("button", { name: /Responsive architecture with states/ }).click();
+  await expect(page.getByRole("img", { name: "Checkout request" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "authorization", exact: true })).toBeVisible();
+});
+
+test("source collapse and preview zoom preserve the rendered figure", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/");
+  const figure = page.getByRole("img", { name: "Checkout request" });
+  await page.getByRole("button", { name: "Collapse source panel" }).click();
+  await expect(page.getByLabel("Livery source editor")).not.toBeVisible();
+  await expect(page.getByRole("button", { name: "Open source panel" })).toBeVisible();
+  await page.getByRole("button", { name: "Zoom in" }).click();
+  await expect(page.locator(".preview-frame")).toHaveCSS("transform", /matrix\(1\.1/);
+  await expect(figure).toBeVisible();
+  await page.getByRole("button", { name: "Fit preview" }).click();
+  await expect(page.locator(".preview-frame")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 0)");
+  await page.getByRole("button", { name: "Open source panel" }).click();
+  await expect(page.getByLabel("Livery source editor")).toBeVisible();
 });
 
 for (const width of [320, 480, 720, 1024]) {
