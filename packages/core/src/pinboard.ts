@@ -24,6 +24,7 @@ export type PinboardOptions = { width?: number; maxCandidates?: number; maxEleme
 
 type Strategy = LayoutAttempt["strategy"];
 type Size = { width: number; height: number };
+type BuiltCandidate = { scene: BoardScene; routingDiagnostics: LayoutDiagnostic[]; columns: number; topologyDeviation: number };
 type PlacementContext = {
   elements: SolvedElement[];
   envelopes: CollisionEnvelope[];
@@ -37,7 +38,7 @@ type PlacementContext = {
   tokens: TokenOverrides;
 };
 
-const STRATEGIES: Strategy[] = ["requested", "expanded_tracks", "alternate_spans", "vertical_reflow", "increased_height"];
+const STRATEGIES: Strategy[] = ["requested", "expanded_tracks", "alternate_spans", "balanced_grid", "vertical_reflow", "increased_height"];
 const DEFAULT_WIDTH = 720;
 const MIN_WIDTH = 280;
 const PADDING = 24;
@@ -45,7 +46,6 @@ const COMPACT_PADDING = 16;
 const DEFAULT_GAP = 32;
 const MIN_GAP = 24;
 const CLEARANCE = 6;
-const MIN_ANCHOR_AXIS_RATIO = 0.35;
 const NODE_HEIGHT = 72;
 const MAX_ELEMENTS = 512;
 const MAX_CANVAS_REPEAT = 128;
@@ -53,11 +53,15 @@ const MAX_CANVAS_PRIMITIVES = 512;
 const MAX_CANVAS_DEPTH = 16;
 const MAX_PATH_SOURCE = 8192;
 const MAX_IMAGE_DIMENSION = 4096;
+const ROUTE_BEAM_WIDTH = 64;
+const MAX_ROUTE_OPTIONS = 96;
+const MAX_LABEL_OPTIONS = 3;
+const ENDPOINT_LEAD = 12;
 
 export function solvePinboard(document: VisualDocument, options: PinboardOptions = {}): LayoutResult {
   const width = Math.max(MIN_WIDTH, Math.floor(options.width ?? DEFAULT_WIDTH));
   const attempts: LayoutAttempt[] = [];
-  const successes: Array<{ scene: BoardScene; report: ReturnType<typeof validateBoardScene>; cost: number }> = [];
+  const successes: Array<{ scene: BoardScene; report: ReturnType<typeof validateBoardScene>; attempt: LayoutAttempt }> = [];
   const strategies = STRATEGIES.slice(0, Math.max(1, options.maxCandidates ?? STRATEGIES.length));
   const nodeCount = countNodes(document.root);
   if (nodeCount > (options.maxElements ?? MAX_ELEMENTS)) {
@@ -74,19 +78,27 @@ export function solvePinboard(document: VisualDocument, options: PinboardOptions
   const theme = options.theme ?? canonicalTheme;
   const tokens = resolveTheme(theme, options.tokenOverrides);
   for (const strategy of strategies) {
-    const scene = buildCandidate(document, width, strategy, theme, tokens);
+    if (!strategyFits(document, width, strategy, theme, tokens)) continue;
+    const built = buildCandidate(document, width, strategy, theme, tokens);
+    const scene = built.scene;
     const baseReport = validateBoardScene(scene);
     const constraintDiagnostics = validateSolvedConstraints(document.constraints, scene, tokens);
     const report = {
       ...baseReport,
-      valid: baseReport.valid && constraintDiagnostics.length === 0,
-      diagnostics: [...baseReport.diagnostics, ...constraintDiagnostics],
+      valid: baseReport.valid && built.routingDiagnostics.length === 0 && constraintDiagnostics.length === 0,
+      diagnostics: [...built.routingDiagnostics, ...baseReport.diagnostics, ...constraintDiagnostics],
+      metrics: { ...baseReport.metrics, topologyDeviation: built.topologyDeviation },
     };
-    attempts.push({ strategy, width: scene.board.width, height: scene.board.height, diagnostics: report.diagnostics });
-    if (report.valid) successes.push({ scene, report, cost: candidateCost(strategy, scene, report.metrics) });
+    const attempt: LayoutAttempt = { strategy, width: scene.board.width, height: scene.board.height, diagnostics: report.diagnostics, columns: built.columns, topologyDeviation: built.topologyDeviation, metrics: report.metrics };
+    attempts.push(attempt);
+    if (report.valid) successes.push({ scene, report, attempt });
+    if (report.valid) break;
   }
-  const selected = successes.sort((a, b) => a.cost - b.cost)[0];
-  if (selected) return { ok: true, scene: selected.scene, report: selected.report, attempts };
+  const selected = successes.sort(compareCandidates)[0];
+  if (selected) {
+    selected.attempt.selected = true;
+    return { ok: true, scene: selected.scene, report: selected.report, attempts };
+  }
   return {
     ok: false,
     diagnostics: [issue("layout.no_valid_candidate", `No valid board layout was found at ${width}px.`), ...dedupeDiagnostics(attempts.flatMap(({ diagnostics }) => diagnostics))],
@@ -94,7 +106,7 @@ export function solvePinboard(document: VisualDocument, options: PinboardOptions
   };
 }
 
-function buildCandidate(document: VisualDocument, width: number, strategy: Strategy, theme: LiveryTheme, tokens: TokenOverrides): BoardScene {
+function buildCandidate(document: VisualDocument, width: number, strategy: Strategy, theme: LiveryTheme, tokens: TokenOverrides): BuiltCandidate {
   const padding = width <= 480 ? COMPACT_PADDING : PADDING;
   const availableWidth = width - padding * 2;
   const minimumGap = MIN_GAP;
@@ -107,19 +119,20 @@ function buildCandidate(document: VisualDocument, width: number, strategy: Strat
     if (!connector.label) return MIN_GAP;
     const endpointPadding = Math.max(endpointClearance(document.root, connector.from.node), endpointClearance(document.root, connector.to.node));
     return 18 + 12 + endpointPadding * 2;
-  }));
+  })) + routingGutterExpansion(strategy, document.connectors.length);
   const context: PlacementContext = { elements: [], envelopes: [], channels: [], bounds: new Map(), minimumGap, rootColumnGap, rootRowGap, canvases: [], theme, tokens };
   const rootSize = measure(document.root, availableWidth, strategy, minimumGap, true, rootColumnGap, rootRowGap, theme, tokens);
   const rootWidth = Math.min(rootSize.width, availableWidth);
   const rootX = padding + (availableWidth - rootWidth) / 2;
-  const routeReserve = document.connectors.length ? Math.max(40, document.connectors.length * 10) : 0;
+  const routeReserve = routingReserve(document.connectors, tokens);
   const constraintReserve = document.constraints.reduce((total, constraint) => total + constraintSpacing(constraint), 0);
   const height = Math.ceil(Math.max(120, rootSize.height) + padding * 2 + routeReserve + constraintReserve);
   place(document.root, rootX, padding, rootWidth, rootSize.height, undefined, context, strategy, true);
   for (let pass = 0; pass < 8; pass += 1) applyConstraints(document.constraints, context);
   declareConstraintOverlaps(document.constraints, context);
   context.channels.push(...buildChannels(context.envelopes, width, height, padding));
-  const connectors = routeConnectors(document.connectors, context, width, height, padding);
+  const routing = routeConnectors(document.connectors, context, width, height, padding);
+  const connectors = routing.ok ? routing.connectors : [];
   const timelineEnvelopes = solveMotionEnvelopes(document.timelines, [...context.elements, ...context.canvases.flatMap(({ primitives }) => primitives)]);
   const contentBottom = Math.max(
     ...context.elements.map(({ visualBounds }) => visualBounds.y + visualBounds.height),
@@ -130,7 +143,7 @@ function buildCandidate(document: VisualDocument, width: number, strategy: Strat
   );
   const croppedHeight = Math.min(height, Math.ceil(contentBottom + padding));
   const channels = context.channels.map((routeChannel) => clipChannel(routeChannel, width, croppedHeight)).filter((routeChannel) => routeChannel.width > 0 && routeChannel.height > 0);
-  return {
+  const scene: BoardScene = {
     type: "livery.board-scene",
     version: "0.1",
     id: document.id,
@@ -151,6 +164,9 @@ function buildCandidate(document: VisualDocument, width: number, strategy: Strat
     timelineEnvelopes,
     readingOrder: context.elements.map(({ id }) => id),
   };
+  const columns = rootColumnCount(scene);
+  const topologyDeviation = Math.abs(requestedRootColumns(document.root) - columns);
+  return { scene, routingDiagnostics: routing.ok ? [] : routing.diagnostics, columns, topologyDeviation };
 }
 
 function constraintSpacing(constraint: VisualConstraint) {
@@ -379,7 +395,7 @@ function measure(
 function effectiveLayout(kind: LayoutKind, strategy: Strategy, root: boolean, sizes: Size[], maxWidth: number, gap: number): LayoutKind {
   const rowWidth = sum(sizes.map(({ width }) => width)) + gap * Math.max(0, sizes.length - 1);
   if ((strategy === "vertical_reflow" || strategy === "increased_height") && (root || rowWidth > maxWidth)) return "column";
-  if (strategy === "alternate_spans" && root && kind === "row" && rowWidth > maxWidth) return "grid";
+  if ((strategy === "alternate_spans" || strategy === "balanced_grid") && root && (kind === "row" || kind === "grid")) return "grid";
   if (kind === "canvas") return "overlay";
   return kind;
 }
@@ -467,66 +483,157 @@ function place(node: VisualNode, x: number, y: number, width: number, height: nu
   });
 }
 
-function routeConnectors(connectors: Connector[], context: PlacementContext, width: number, height: number, padding: number): BoardConnector[] {
-  const solved: BoardConnector[] = [];
-  const reservedLabels: BoardRect[] = [];
-  connectors.forEach((connector, index) => {
-    const from = context.bounds.get(connector.from.node);
-    const to = context.bounds.get(connector.to.node);
-    if (!from || !to) return;
-    const deltaX = Math.abs((to.x + to.width / 2) - (from.x + from.width / 2));
-    const deltaY = Math.abs((to.y + to.height / 2) - (from.y + from.height / 2));
-    const vertical = deltaY > deltaX;
-    const automaticFrom = vertical ? (to.y >= from.y ? "bottom" : "top") : (to.x >= from.x ? "right" : "left");
-    const automaticTo = vertical ? (to.y >= from.y ? "top" : "bottom") : (to.x >= from.x ? "left" : "right");
-    const fromSide = responsiveAnchor(connector.from.anchor, automaticFrom, deltaX, deltaY);
-    const toSide = responsiveAnchor(connector.to.anchor, automaticTo, deltaX, deltaY);
-    const start = pointFor(from, fromSide);
-    const end = pointFor(to, toSide);
-    const candidates = routeCandidates(start, end, fromSide, toSide, width, height, padding, index, context.channels);
-    const board = { x: 0, y: 0, width, height };
-    const ranked = candidates.flatMap((points) => {
-      if (!routeClear(points, context, connector.from.node, connector.to.node)) return [];
-      const channels = channelsForRoute(points, context.channels);
-      if (!routeCovered(points, channels, context, connector.from.node, connector.to.node)) return [];
-      const label = connector.label ? placeConnectorLabel(connector.label, points, context.envelopes, reservedLabels, board, context.tokens) : undefined;
-      if (connector.label && !label) return [];
-      return [{ points, channels, label, cost: routeCost(points, channels, solved) }];
-    }).sort((a, b) => a.cost - b.cost);
-    const choice = ranked[0];
-    const points = choice?.points ?? candidates.at(-1)!;
-    const channels = choice?.channels ?? channelsForRoute(points, context.channels);
-    const channelIds = channels.map(({ id }) => id);
-    const label = choice?.label ?? (connector.label ? fallbackConnectorLabel(connector.label, points, board, context.tokens) : undefined);
-    if (label) reservedLabels.push(label);
-    for (const channel of channels) channel.used += 1;
-    solved.push({
-      id: connector.id,
-      from: connector.from.node,
-      to: connector.to.node,
-      fromPin: `${connector.from.node}.${fromSide}`,
-      toPin: `${connector.to.node}.${toSide}`,
-      points,
-      ...(label ? { label } : {}),
-      ...(connector.variant ? { variant: connector.variant } : {}),
-      ...(connector.tone ? { tone: connector.tone } : {}),
-      ...(connector.style ? { style: connector.style } : {}),
-      channelIds,
-    });
-  });
-  return solved;
+type RouteOption = { connector: BoardConnector; channels: RouteChannel[]; cost: number; pathSignature: string; signature: string };
+type RouteTask = { id: string; options: RouteOption[]; alternativeCount: number; directLength: number; endpointDemand: number; sourceDemand: number; pinDemand: number };
+type RoutingState = { routes: Map<string, RouteOption>; labels: BoardRect[]; channelUse: Map<string, number>; cost: number; signature: string };
+type RoutingResult = { ok: true; connectors: BoardConnector[] } | { ok: false; diagnostics: LayoutDiagnostic[] };
+
+function routeConnectors(connectors: Connector[], context: PlacementContext, width: number, height: number, padding: number): RoutingResult {
+  if (!connectors.length) return { ok: true, connectors: [] };
+  const board = { x: 0, y: 0, width, height };
+  const endpointDemand = new Map<string, number>();
+  for (const connector of connectors) for (const endpoint of [connector.from.node, connector.to.node]) endpointDemand.set(endpoint, (endpointDemand.get(endpoint) ?? 0) + 1);
+  const maximumEndpointDemand = Math.max(...endpointDemand.values());
+  const beamWidth = maximumEndpointDemand >= 3 ? ROUTE_BEAM_WIDTH : connectors.length > 6 ? 16 : 24;
+  const optionLimit = maximumEndpointDemand >= 3 ? MAX_ROUTE_OPTIONS : connectors.length > 6 ? 40 : 56;
+  const tasks = connectors.map((connector) => routeTask(
+    connector,
+    context,
+    board,
+    padding,
+    Math.max(endpointDemand.get(connector.from.node) ?? 0, endpointDemand.get(connector.to.node) ?? 0),
+    endpointDemand.get(connector.from.node) ?? 0,
+    optionLimit,
+  ));
+  const unroutable = tasks.filter(({ options }) => options.length === 0);
+  if (unroutable.length) return { ok: false, diagnostics: unroutable.map(({ id }) => issue("layout.routing_exhausted", `No valid route and label placement is available for connector ${id}.`, [id])) };
+  const pinDemand = new Map<string, number>();
+  for (const task of tasks) for (const pin of [task.options[0]!.connector.fromPin, task.options[0]!.connector.toPin]) pinDemand.set(pin, (pinDemand.get(pin) ?? 0) + 1);
+  for (const task of tasks) task.pinDemand = Math.max(pinDemand.get(task.options[0]!.connector.fromPin) ?? 0, pinDemand.get(task.options[0]!.connector.toPin) ?? 0);
+  const ordered = [...tasks].sort((a, b) => b.endpointDemand - a.endpointDemand || b.sourceDemand - a.sourceDemand || b.pinDemand - a.pinDemand || a.directLength - b.directLength || a.alternativeCount - b.alternativeCount || a.id.localeCompare(b.id));
+  let beam: RoutingState[] = [{ routes: new Map(), labels: [], channelUse: new Map(), cost: 0, signature: "" }];
+  for (let taskIndex = 0; taskIndex < ordered.length; taskIndex += 1) {
+    const task = ordered[taskIndex]!;
+    const remaining = ordered.slice(taskIndex + 1);
+    const next: RoutingState[] = [];
+    for (const state of beam) for (const option of task.options) {
+      if (option.connector.label && state.labels.some((label) => intersects(label, option.connector.label!))) continue;
+      if ([...state.routes.values()].some((selected) => routesConflict(selected.connector, option.connector))) continue;
+      const channelUse = new Map(state.channelUse);
+      let congestion = 0;
+      let exceedsCapacity = false;
+      for (const channel of option.channels) {
+        const used = (channelUse.get(channel.id) ?? 0) + 1;
+        if (used > channel.capacity) { exceedsCapacity = true; break; }
+        channelUse.set(channel.id, used);
+        congestion += used / Math.max(1, channel.capacity);
+      }
+      if (exceedsCapacity) continue;
+      const routes = new Map(state.routes).set(task.id, option);
+      const lookahead = remaining.length ? routeLookahead(routes, option.connector.label ? [...state.labels, option.connector.label] : state.labels, remaining) : { ok: true as const, cost: 0 };
+      if (!lookahead.ok) continue;
+      const signature = `${state.signature}|${task.id}:${option.signature}`;
+      next.push({ routes, labels: option.connector.label ? [...state.labels, option.connector.label] : state.labels, channelUse, cost: state.cost + option.cost + congestion * 80 + lookahead.cost, signature });
+    }
+    beam = retainRoutingStateDiversity(next, beamWidth);
+    if (!beam.length) return { ok: false, diagnostics: [issue("layout.routing_exhausted", `No crossing-free route set exists after allocating connector ${task.id}.`, connectors.map(({ id }) => id))] };
+  }
+  const selected = beam[0]!;
+  for (const channel of context.channels) channel.used = selected.channelUse.get(channel.id) ?? 0;
+  return { ok: true, connectors: connectors.map(({ id }) => selected.routes.get(id)!.connector) };
 }
 
-function routeCandidates(start: BoardPoint, end: BoardPoint, from: AnchorName, to: AnchorName, width: number, height: number, padding: number, index: number, channels: RouteChannel[]): BoardPoint[][] {
+function retainRoutingStateDiversity(states: RoutingState[], limit: number) {
+  const ordered = states.sort((a, b) => a.cost - b.cost || a.signature.localeCompare(b.signature));
+  if (ordered.length <= limit) return ordered;
+  const cheapestCount = Math.ceil(limit / 2);
+  const retained = [...ordered.slice(0, cheapestCount)];
+  const tail = ordered.slice(cheapestCount);
+  const sampleCount = limit - retained.length;
+  for (let index = 0; index < sampleCount; index += 1) {
+    const tailIndex = sampleCount === 1 ? tail.length - 1 : Math.round(index * (tail.length - 1) / (sampleCount - 1));
+    retained.push(tail[tailIndex]!);
+  }
+  return retained.sort((a, b) => a.cost - b.cost || a.signature.localeCompare(b.signature));
+}
+
+function routeLookahead(routes: Map<string, RouteOption>, labels: BoardRect[], remaining: RouteTask[]) {
+  for (const task of remaining) {
+    let compatible = false;
+    for (const option of task.options) {
+      if (option.connector.label && labels.some((label) => intersects(label, option.connector.label!))) continue;
+      if ([...routes.values()].some((selected) => routesConflict(selected.connector, option.connector))) continue;
+      compatible = true;
+      break;
+    }
+    if (!compatible) return { ok: false as const, cost: 0 };
+  }
+  return { ok: true as const, cost: 0 };
+}
+
+function routeTask(connector: Connector, context: PlacementContext, board: BoardRect, padding: number, endpointDemand: number, sourceDemand: number, optionLimit: number): RouteTask {
+  const from = context.bounds.get(connector.from.node)!;
+  const to = context.bounds.get(connector.to.node)!;
+  const deltaX = Math.abs(center(to).x - center(from).x);
+  const deltaY = Math.abs(center(to).y - center(from).y);
+  const vertical = deltaY > deltaX;
+  const automaticFrom = vertical ? (to.y >= from.y ? "bottom" : "top") : (to.x >= from.x ? "right" : "left");
+  const automaticTo = vertical ? (to.y >= from.y ? "top" : "bottom") : (to.x >= from.x ? "left" : "right");
+  const fromSide = responsiveAnchor(connector.from.anchor, automaticFrom);
+  const toSide = responsiveAnchor(connector.to.anchor, automaticTo);
+  const start = pointFor(from, fromSide);
+  const end = pointFor(to, toSide);
+  const directLength = distance(start, end);
+  const candidates = routeCandidates(start, end, fromSide, toSide, board.width, board.height, padding, stableRouteSeed(connector.id), context.channels);
+  const options = candidates.flatMap((points): RouteOption[] => {
+    if (!routeClear(points, context, connector.from.node, connector.to.node)) return [];
+    const channels = channelsForRoute(points, context.channels);
+    if (!routeCovered(points, channels)) return [];
+    const labels = connector.label ? connectorLabelCandidates(connector.label, points, context.envelopes, board, context.tokens).slice(0, MAX_LABEL_OPTIONS) : [undefined];
+    if (!labels.length) return [];
+    const length = routeLength(points);
+    const bends = Math.max(0, points.length - 2);
+    return labels.map((label, labelIndex) => {
+      const solved: BoardConnector = {
+        id: connector.id, from: connector.from.node, to: connector.to.node,
+        fromPin: `${connector.from.node}.${fromSide}`, toPin: `${connector.to.node}.${toSide}`, points,
+        ...(label ? { label } : {}), ...(connector.variant ? { variant: connector.variant } : {}),
+        ...(connector.tone ? { tone: connector.tone } : {}), ...(connector.style ? { style: connector.style } : {}),
+        channelIds: [...new Set(channels.map(({ id }) => id))],
+      };
+      const pathSignature = pointsKey(points);
+      return { connector: solved, channels, cost: length + bends * 18 + Math.max(0, length / Math.max(1, directLength) - 1) * 90 + labelIndex * 2, pathSignature, signature: `${pathSignature}:${label ? `${label.x},${label.y}` : "none"}` };
+    });
+  });
+  const deduped = dedupeRouteOptions(options);
+  return {
+    id: connector.id,
+    directLength,
+    endpointDemand,
+    sourceDemand,
+    pinDemand: 0,
+    alternativeCount: new Set(deduped.map(({ pathSignature }) => pathSignature)).size,
+    options: diverseRouteOptions(deduped, optionLimit),
+  };
+}
+
+function routeCandidates(start: BoardPoint, end: BoardPoint, from: AnchorName, to: AnchorName, width: number, height: number, padding: number, seed: number, channels: RouteChannel[]): BoardPoint[][] {
   const middleX = (start.x + end.x) / 2;
   const middleY = (start.y + end.y) / 2;
-  const outerY = height - padding / 2 - 10 - index * 3;
-  const outerX = width - padding / 2 - 10 - index * 3;
-  const startLead = lead(start, from, 12);
-  const endLead = lead(end, to, 12);
-  const horizontalCorridors = corridorCenters(channels, "horizontal", middleY);
-  const verticalCorridors = corridorCenters(channels, "vertical", middleX);
-  return [
+  const outerY = height - padding / 2 - 10 - seed * 3;
+  const outerX = width - padding / 2 - 10 - seed * 3;
+  const startLead = lead(start, from, ENDPOINT_LEAD);
+  const endLead = lead(end, to, ENDPOINT_LEAD);
+  const horizontalCorridors = routeCoordinates(channels, "horizontal", middleY, [startLead.y, endLead.y]);
+  const verticalCorridors = routeCoordinates(channels, "vertical", middleX, [startLead.x, endLead.x]);
+  const outerInset = Math.min(padding - 4, 4 + seed * 2);
+  const outerLeft = outerInset;
+  const outerRight = width - outerInset;
+  const outerTop = outerInset;
+  const outerBottom = height - outerInset;
+  const sourceOuterX = from === "right" ? outerRight : from === "left" ? outerLeft : (start.x >= width / 2 ? outerRight : outerLeft);
+  const targetOuterX = to === "right" ? outerRight : to === "left" ? outerLeft : (end.x >= width / 2 ? outerRight : outerLeft);
+  const candidates = [
     ...(start.x === end.x || start.y === end.y ? [[start, end]] : []),
     [start, { x: start.x, y: end.y }, end],
     [start, { x: end.x, y: start.y }, end],
@@ -538,14 +645,49 @@ function routeCandidates(start: BoardPoint, end: BoardPoint, from: AnchorName, t
     [start, startLead, { x: outerX, y: startLead.y }, { x: outerX, y: endLead.y }, endLead, end],
     ...horizontalCorridors.map((y) => [start, startLead, { x: startLead.x, y }, { x: endLead.x, y }, endLead, end]),
     ...verticalCorridors.map((x) => [start, startLead, { x, y: startLead.y }, { x, y: endLead.y }, endLead, end]),
+    ...horizontalCorridors.flatMap((y) => [outerTop, outerBottom].map((outerY) => [
+      start,
+      startLead,
+      { x: sourceOuterX, y: startLead.y },
+      { x: sourceOuterX, y: outerY },
+      { x: targetOuterX, y: outerY },
+      { x: targetOuterX, y },
+      { x: endLead.x, y },
+      endLead,
+      end,
+    ])),
   ].map(compactPoints).filter((points) => validEndpointDirections(points, from, to));
+  const seen = new Set<string>();
+  return candidates.filter((points) => { const key = pointsKey(points); return !seen.has(key) && !!seen.add(key); });
 }
 
-function corridorCenters(channels: RouteChannel[], axis: RouteChannel["axis"], target: number) {
-  const centers = channels
+function corridorLanes(channels: RouteChannel[], axis: RouteChannel["axis"], target: number) {
+  const lanes = [...new Set(channels
     .filter((channel) => channel.axis === axis)
-    .map((channel) => axis === "horizontal" ? channel.y + channel.height / 2 : channel.x + channel.width / 2);
-  return [...new Set(centers)].sort((a, b) => Math.abs(a - target) - Math.abs(b - target) || a - b).slice(0, 24);
+    .flatMap((channel) => channelLaneCoordinates(channel)))];
+  const byDistance = [...lanes].sort((a, b) => Math.abs(a - target) - Math.abs(b - target) || a - b);
+  if (byDistance.length <= 36) return byDistance;
+  const retained = new Set(byDistance.slice(0, 18));
+  const byCoordinate = [...lanes].sort((a, b) => a - b);
+  for (let index = 0; index < 18; index += 1) retained.add(byCoordinate[Math.round(index * (byCoordinate.length - 1) / 17)]!);
+  return [...retained].sort((a, b) => Math.abs(a - target) - Math.abs(b - target) || a - b).slice(0, 36);
+}
+
+function routeCoordinates(channels: RouteChannel[], axis: RouteChannel["axis"], target: number, preferred: number[]) {
+  const inChannel = (coordinate: number) => channels.some((channel) => {
+    if (channel.axis !== axis) return false;
+    const start = axis === "horizontal" ? channel.y : channel.x;
+    const size = axis === "horizontal" ? channel.height : channel.width;
+    return coordinate >= start + 3 && coordinate <= start + size - 3;
+  });
+  return [...new Set([...preferred.filter(inChannel), ...corridorLanes(channels, axis, target)])];
+}
+
+function channelLaneCoordinates(channel: RouteChannel) {
+  const start = channel.axis === "horizontal" ? channel.y : channel.x;
+  const size = channel.axis === "horizontal" ? channel.height : channel.width;
+  const centerCoordinate = start + size / 2;
+  return [0, -8, 8, -16, 16, -24, 24].map((offset) => centerCoordinate + offset).filter((coordinate) => coordinate >= start + 3 && coordinate <= start + size - 3);
 }
 
 function validEndpointDirections(points: BoardPoint[], from: AnchorName, to: AnchorName) {
@@ -562,33 +704,58 @@ function routeClear(points: BoardPoint[], context: PlacementContext, from: strin
 }
 
 function channelsForRoute(points: BoardPoint[], channels: RouteChannel[]) {
-  return channels.filter((channel) => points.some((point, pointIndex) => pointIndex > 0 && containsPoint(channel, midpoint(points[pointIndex - 1]!, point))));
+  return channels.filter((channel) => points.some((point, pointIndex) => pointIndex > 0 && segmentChannelInterval(points[pointIndex - 1]!, point, channel) !== undefined));
 }
 
-function routeCovered(points: BoardPoint[], channels: RouteChannel[], context: PlacementContext, from: string, to: string) {
-  const endpointBounds = [
-    ...context.elements.filter(({ id }) => id === from || id === to).map(({ bounds }) => bounds),
-    ...context.canvases.flatMap(({ primitives }) => primitives.filter(({ id }) => id === from || id === to).map(({ bounds }) => bounds)),
-    ...context.canvases.filter((canvas) => canvas.primitives.some(({ id }) => id === from || id === to)).map(({ bounds }) => bounds),
-  ];
+function routeCovered(points: BoardPoint[], channels: RouteChannel[]) {
   return points.slice(1).every((point, index) => {
-    const center = midpoint(points[index]!, point);
-    return channels.some((channel) => containsPoint(channel, center)) || endpointBounds.some((bounds) => containsPoint(bounds, center));
+    const previous = points[index]!;
+    const segmentLength = distance(previous, point);
+    const trimStart = index === 0 ? Math.min(ENDPOINT_LEAD, segmentLength) : 0;
+    const trimEnd = index === points.length - 2 ? Math.min(ENDPOINT_LEAD, Math.max(0, segmentLength - trimStart)) : 0;
+    if (trimStart + trimEnd >= segmentLength - 0.01) return true;
+    const start = pointAlong(previous, point, trimStart);
+    const end = pointAlong(point, previous, trimEnd);
+    return segmentCoveredByChannels(start, end, channels);
   });
 }
 
-function routeCost(points: BoardPoint[], channels: RouteChannel[], solved: BoardConnector[]) {
-  const length = points.slice(1).reduce((total, point, index) => total + distance(points[index]!, point), 0);
-  const bends = Math.max(0, points.length - 2);
-  const congestion = channels.reduce((total, channel) => total + channel.used / Math.max(1, channel.capacity), 0);
-  const crossings = solved.reduce((total, connector) => total + routeCrossings(points, connector.points), 0);
-  return length + bends * 18 + congestion * 120 + crossings * 1000;
+function segmentCoveredByChannels(start: BoardPoint, end: BoardPoint, channels: RouteChannel[]) {
+  const horizontal = start.y === end.y;
+  const minimum = horizontal ? Math.min(start.x, end.x) : Math.min(start.y, end.y);
+  const maximum = horizontal ? Math.max(start.x, end.x) : Math.max(start.y, end.y);
+  const intervals = channels.flatMap((channel) => {
+    const interval = segmentChannelInterval(start, end, channel);
+    return interval ? [interval] : [];
+  }).sort((a, b) => a[0] - b[0] || b[1] - a[1]);
+  let covered = minimum;
+  for (const [from, to] of intervals) {
+    if (to < covered - 0.01) continue;
+    if (from > covered + 0.01) return false;
+    covered = Math.max(covered, to);
+    if (covered >= maximum - 0.01) return true;
+  }
+  return covered >= maximum - 0.01;
 }
 
-function routeCrossings(first: BoardPoint[], second: BoardPoint[]) {
-  let total = 0;
-  for (let a = 1; a < first.length; a += 1) for (let b = 1; b < second.length; b += 1) if (orthogonalSegmentsCross(first[a - 1]!, first[a]!, second[b - 1]!, second[b]!)) total += 1;
-  return total;
+function segmentChannelInterval(start: BoardPoint, end: BoardPoint, channel: RouteChannel): [number, number] | undefined {
+  if (start.y === end.y) {
+    if (start.y < channel.y || start.y > channel.y + channel.height) return undefined;
+    const from = Math.max(Math.min(start.x, end.x), channel.x);
+    const to = Math.min(Math.max(start.x, end.x), channel.x + channel.width);
+    return to >= from ? [from, to] : undefined;
+  }
+  if (start.x !== end.x || start.x < channel.x || start.x > channel.x + channel.width) return undefined;
+  const from = Math.max(Math.min(start.y, end.y), channel.y);
+  const to = Math.min(Math.max(start.y, end.y), channel.y + channel.height);
+  return to >= from ? [from, to] : undefined;
+}
+
+function pointAlong(start: BoardPoint, end: BoardPoint, amount: number): BoardPoint {
+  const length = distance(start, end);
+  if (!length || !amount) return start;
+  const ratio = Math.min(1, amount / length);
+  return { x: start.x + (end.x - start.x) * ratio, y: start.y + (end.y - start.y) * ratio };
 }
 
 function orthogonalSegmentsCross(a: BoardPoint, b: BoardPoint, c: BoardPoint, d: BoardPoint) {
@@ -598,6 +765,92 @@ function orthogonalSegmentsCross(a: BoardPoint, b: BoardPoint, c: BoardPoint, d:
   const horizontal = firstHorizontal ? [a, b] : [c, d];
   const vertical = firstHorizontal ? [c, d] : [a, b];
   return vertical[0]!.x > Math.min(horizontal[0]!.x, horizontal[1]!.x) && vertical[0]!.x < Math.max(horizontal[0]!.x, horizontal[1]!.x) && horizontal[0]!.y > Math.min(vertical[0]!.y, vertical[1]!.y) && horizontal[0]!.y < Math.max(vertical[0]!.y, vertical[1]!.y);
+}
+
+function routesConflict(first: BoardConnector, second: BoardConnector) {
+  for (let a = 1; a < first.points.length; a += 1) for (let b = 1; b < second.points.length; b += 1) {
+    const firstStart = first.points[a - 1]!;
+    const firstEnd = first.points[a]!;
+    const secondStart = second.points[b - 1]!;
+    const secondEnd = second.points[b]!;
+    if (orthogonalSegmentsCross(firstStart, firstEnd, secondStart, secondEnd)) return true;
+    if (segmentsOverlap(firstStart, firstEnd, secondStart, secondEnd) && !sharedEndpointLeadOverlap(first, second, firstStart, firstEnd, secondStart, secondEnd)) return true;
+    if (tJunctionPoints(firstStart, firstEnd, secondStart, secondEnd).some((point) => !nearSharedEndpoint(first, second, point))) return true;
+  }
+  return false;
+}
+
+function tJunctionPoints(a: BoardPoint, b: BoardPoint, c: BoardPoint, d: BoardPoint) { return [a, b].filter((point) => pointInsideSegment(point, c, d)).concat([c, d].filter((point) => pointInsideSegment(point, a, b))); }
+function pointInsideSegment(point: BoardPoint, start: BoardPoint, end: BoardPoint) { return start.x === end.x ? point.x === start.x && point.y > Math.min(start.y, end.y) && point.y < Math.max(start.y, end.y) : point.y === start.y && point.x > Math.min(start.x, end.x) && point.x < Math.max(start.x, end.x); }
+function segmentsOverlap(a: BoardPoint, b: BoardPoint, c: BoardPoint, d: BoardPoint) {
+  const firstHorizontal = a.y === b.y;
+  if (firstHorizontal !== (c.y === d.y)) return false;
+  return firstHorizontal
+    ? a.y === c.y && Math.min(Math.max(a.x, b.x), Math.max(c.x, d.x)) > Math.max(Math.min(a.x, b.x), Math.min(c.x, d.x))
+    : a.x === c.x && Math.min(Math.max(a.y, b.y), Math.max(c.y, d.y)) > Math.max(Math.min(a.y, b.y), Math.min(c.y, d.y));
+}
+
+function sharedEndpointLeadOverlap(first: BoardConnector, second: BoardConnector, a: BoardPoint, b: BoardPoint, c: BoardPoint, d: BoardPoint) {
+  const shared = sharedEndpoint(first, second);
+  if (!shared) return false;
+  const overlapStart = a.x === b.x ? { x: a.x, y: Math.max(Math.min(a.y, b.y), Math.min(c.y, d.y)) } : { x: Math.max(Math.min(a.x, b.x), Math.min(c.x, d.x)), y: a.y };
+  const overlapEnd = a.x === b.x ? { x: a.x, y: Math.min(Math.max(a.y, b.y), Math.max(c.y, d.y)) } : { x: Math.min(Math.max(a.x, b.x), Math.max(c.x, d.x)), y: a.y };
+  return distance(shared, overlapStart) <= 12.01 && distance(shared, overlapEnd) <= 12.01;
+}
+
+function nearSharedEndpoint(first: BoardConnector, second: BoardConnector, point: BoardPoint) { const shared = sharedEndpoint(first, second); return Boolean(shared && distance(shared, point) <= 12.01); }
+function sharedEndpoint(first: BoardConnector, second: BoardConnector) {
+  for (const node of [first.from, first.to]) {
+    if (node !== second.from && node !== second.to) continue;
+    const firstPoint = node === first.from ? first.points[0]! : first.points.at(-1)!;
+    const secondPoint = node === second.from ? second.points[0]! : second.points.at(-1)!;
+    if (firstPoint.x === secondPoint.x && firstPoint.y === secondPoint.y) return firstPoint;
+  }
+  return undefined;
+}
+
+function routeLength(points: BoardPoint[]) { return points.slice(1).reduce((total, point, index) => total + distance(points[index]!, point), 0); }
+function pointsKey(points: BoardPoint[]) { return points.map(({ x, y }) => `${x},${y}`).join(";"); }
+function stableRouteSeed(id: string) { return [...id].reduce((total, character) => (total * 31 + character.charCodeAt(0)) >>> 0, 0) % 8; }
+function dedupeRouteOptions(options: RouteOption[]) { const seen = new Set<string>(); return options.sort((a, b) => a.cost - b.cost || a.signature.localeCompare(b.signature)).filter(({ signature }) => !seen.has(signature) && !!seen.add(signature)); }
+
+function diverseRouteOptions(options: RouteOption[], limit: number) {
+  const paths = new Map<string, RouteOption[]>();
+  for (const option of options) {
+    const entries = paths.get(option.pathSignature) ?? [];
+    entries.push(option);
+    paths.set(option.pathSignature, entries);
+  }
+  const orderedPaths = [...paths.values()].sort((a, b) => a[0]!.cost - b[0]!.cost || a[0]!.pathSignature.localeCompare(b[0]!.pathSignature));
+  const retainedPaths = retainRoutePathDiversity(orderedPaths, limit);
+  const selected: RouteOption[] = [];
+  for (let labelIndex = 0; selected.length < limit; labelIndex += 1) {
+    let added = false;
+    for (const path of retainedPaths) {
+      const option = path[labelIndex];
+      if (!option) continue;
+      selected.push(option);
+      added = true;
+      if (selected.length === limit) break;
+    }
+    if (!added) break;
+  }
+  return selected;
+}
+
+function retainRoutePathDiversity(paths: RouteOption[][], limit: number) {
+  if (paths.length <= limit) return paths;
+  const cheapestCount = Math.ceil(limit / 2);
+  const retained = new Map<string, RouteOption[]>();
+  for (const path of paths.slice(0, cheapestCount)) retained.set(path[0]!.pathSignature, path);
+  const tail = paths.slice(cheapestCount);
+  const sampleCount = limit - retained.size;
+  for (let index = 0; index < sampleCount; index += 1) {
+    const tailIndex = sampleCount === 1 ? tail.length - 1 : Math.round(index * (tail.length - 1) / (sampleCount - 1));
+    const path = tail[tailIndex]!;
+    retained.set(path[0]!.pathSignature, path);
+  }
+  return [...retained.values()];
 }
 
 function buildChannels(envelopes: CollisionEnvelope[], width: number, height: number, padding: number): RouteChannel[] {
@@ -611,6 +864,14 @@ function buildChannels(envelopes: CollisionEnvelope[], width: number, height: nu
     channel("channel.free.bottom", "horizontal", 0, occupiedBottom, width, Math.max(0, height - padding - occupiedBottom)),
     channel("channel.free.right", "vertical", occupiedRight, 0, Math.max(0, width - padding - occupiedRight), height),
   ];
+  for (const envelope of envelopes) {
+    channels.push(
+      channel(`channel.access.left.${envelope.owner}`, "vertical", padding, envelope.y, Math.max(0, envelope.x - padding), envelope.height),
+      channel(`channel.access.right.${envelope.owner}`, "vertical", envelope.x + envelope.width, envelope.y, Math.max(0, width - padding - envelope.x - envelope.width), envelope.height),
+      channel(`channel.access.top.${envelope.owner}`, "horizontal", envelope.x, padding, envelope.width, Math.max(0, envelope.y - padding)),
+      channel(`channel.access.bottom.${envelope.owner}`, "horizontal", envelope.x, envelope.y + envelope.height, envelope.width, Math.max(0, height - padding - envelope.y - envelope.height)),
+    );
+  }
   for (let first = 0; first < envelopes.length; first += 1) for (let second = first + 1; second < envelopes.length; second += 1) {
     const a = envelopes[first]!;
     const b = envelopes[second]!;
@@ -643,11 +904,8 @@ function directionFor(side: AnchorName): BoardPoint {
   return { x: 1, y: 0 };
 }
 
-function responsiveAnchor(anchor: AnchorName | undefined, fallback: AnchorName, deltaX: number, deltaY: number) {
-  if (!anchor || anchor === "center") return fallback;
-  const separation = anchor === "left" || anchor === "right" ? deltaX : deltaY;
-  const perpendicular = anchor === "left" || anchor === "right" ? deltaY : deltaX;
-  return separation >= perpendicular * MIN_ANCHOR_AXIS_RATIO ? anchor : fallback;
+function responsiveAnchor(anchor: AnchorName | undefined, fallback: AnchorName) {
+  return !anchor || anchor === "center" ? fallback : anchor;
 }
 
 function validateSolvedConstraints(
@@ -721,11 +979,12 @@ function labelBounds(node: VisualNode, bounds: BoardRect, theme: LiveryTheme, to
   return { x, y: bounds.y + (bounds.height - height) / 2, width, height };
 }
 
-function placeConnectorLabel(text: string, points: BoardPoint[], envelopes: CollisionEnvelope[], reserved: BoardRect[], board: BoardRect, tokens: TokenOverrides) {
+function connectorLabelCandidates(text: string, points: BoardPoint[], envelopes: CollisionEnvelope[], board: BoardRect, tokens: TokenOverrides) {
   const fontSize = tokenNumber(tokens, "type.caption", 10);
   const width = measureVisualText(text, { fontSize, fontWeight: 600 }) + 8;
   const height = Math.max(16, Math.ceil(fontSize * 1.2) + 4);
   const segments = points.slice(1).map((point, index) => ({ a: points[index]!, b: point })).sort((a, b) => distance(b.a, b.b) - distance(a.a, a.b));
+  const available: Array<BoardRect & { text: string }> = [];
   for (const segment of segments) {
     const horizontal = Math.abs(segment.a.x - segment.b.x) >= Math.abs(segment.a.y - segment.b.y);
     const offsets = horizontal ? [-10, 10, -22, 22, 0] : [width / 2 + 4, -width / 2 - 4, width / 2 + 16, -width / 2 - 16, 0];
@@ -758,13 +1017,11 @@ function placeConnectorLabel(text: string, points: BoardPoint[], envelopes: Coll
     const attached = candidates.filter((rect) => horizontal
       ? rect.x + rect.width / 2 >= Math.min(segment.a.x, segment.b.x) && rect.x + rect.width / 2 <= Math.max(segment.a.x, segment.b.x)
       : rect.y + rect.height / 2 >= Math.min(segment.a.y, segment.b.y) && rect.y + rect.height / 2 <= Math.max(segment.a.y, segment.b.y));
-    const available = attached.find((rect) => containsRect(board, rect) && envelopes.every((envelope) => !intersects(rect, envelope)) && reserved.every((label) => !intersects(rect, label)));
-    if (available) return available;
+    for (const candidate of attached) if (containsRect(board, candidate) && envelopes.every((envelope) => !intersects(candidate, envelope))) available.push(candidate);
   }
-  return undefined;
+  const seen = new Set<string>();
+  return available.filter(({ x, y }) => { const key = `${x},${y}`; return !seen.has(key) && !!seen.add(key); });
 }
-
-function fallbackConnectorLabel(text: string, points: BoardPoint[], board: BoardRect, tokens: TokenOverrides) { const fontSize = tokenNumber(tokens, "type.caption", 10); const width = measureVisualText(text, { fontSize, fontWeight: 600 }) + 8; const height = Math.max(16, Math.ceil(fontSize * 1.2) + 4); const center = midpoint(points[0]!, points.at(-1)!); return { text, x: Math.max(0, Math.min(board.width - width, center.x - width / 2)), y: Math.max(0, Math.min(board.height - height, center.y - height / 2)), width, height }; }
 
 function tracksFor(envelopes: CollisionEnvelope[], axis: "x" | "y"): BoardTrack[] {
   const values = [...new Set(envelopes.map((envelope) => envelope[axis]))].sort((a, b) => a - b);
@@ -772,15 +1029,17 @@ function tracksFor(envelopes: CollisionEnvelope[], axis: "x" | "y"): BoardTrack[
 }
 
 function gridColumns(node: VisualNode, strategy: Strategy, maxWidth: number, count: number, cellWidth = 0, gap = 0) {
-  if (strategy !== "alternate_spans") return Math.max(1, node.layout?.columns ?? Math.ceil(Math.sqrt(count)));
-  return Math.max(1, Math.min(count, Math.floor((maxWidth + gap + 0.01) / Math.max(1, cellWidth + gap))));
+  const requested = Math.max(1, Math.min(count, node.layout?.columns ?? count));
+  const fitting = Math.max(1, Math.min(requested, Math.floor((maxWidth + gap + 0.01) / Math.max(1, cellWidth + gap))));
+  if (strategy === "alternate_spans") return fitting;
+  if (strategy === "balanced_grid") return Math.min(fitting, Math.max(1, Math.ceil(Math.sqrt(count))));
+  return Math.max(1, node.layout?.columns ?? Math.ceil(Math.sqrt(count)));
 }
 function gridRowHeights(sizes: Size[], columns: number) {
   return Array.from({ length: Math.ceil(sizes.length / columns) }, (_, row) => Math.max(...sizes.slice(row * columns, (row + 1) * columns).map(({ height }) => height), 0));
 }
 function lead(point: BoardPoint, side: AnchorName, amount: number): BoardPoint { const direction = directionFor(side); return { x: point.x + direction.x * amount, y: point.y + direction.y * amount }; }
 function compactPoints(points: BoardPoint[]) { return points.filter((point, index) => index === 0 || point.x !== points[index - 1]!.x || point.y !== points[index - 1]!.y); }
-function midpoint(a: BoardPoint, b: BoardPoint) { return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }
 function distance(a: BoardPoint, b: BoardPoint) { return Math.abs(a.x - b.x) + Math.abs(a.y - b.y); }
 function tokenNumber(tokens: TokenOverrides, name: string, fallback: number) { const value = tokens[name]; return typeof value === "number" && Number.isFinite(value) ? value : fallback; }
 function visualNumber(value: VisualValue | undefined, tokens: TokenOverrides, fallback: number) { const resolved = resolveVisualValue(value, tokens); return typeof resolved === "number" && Number.isFinite(resolved) ? resolved : fallback; }
@@ -788,7 +1047,6 @@ function sum(values: number[]) { return values.reduce((total, value) => total + 
 function gapFor(value: VisualValue | undefined, tokens: TokenOverrides) { return visualNumber(value, tokens, DEFAULT_GAP); }
 function countNodes(node: VisualNode): number { return 1 + (node.children?.reduce((total, child) => total + countNodes(child), 0) ?? 0); }
 function inflate(rect: BoardRect, amount: number): BoardRect { return { x: rect.x - amount, y: rect.y - amount, width: rect.width + amount * 2, height: rect.height + amount * 2 }; }
-function containsPoint(rect: BoardRect, point: BoardPoint) { return point.x >= rect.x && point.x <= rect.x + rect.width && point.y >= rect.y && point.y <= rect.y + rect.height; }
 function containsRect(outer: BoardRect, inner: BoardRect) { return inner.x >= outer.x && inner.y >= outer.y && inner.x + inner.width <= outer.x + outer.width && inner.y + inner.height <= outer.y + outer.height; }
 function intersects(a: BoardRect, b: BoardRect) { return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y; }
 function segmentIntersects(a: BoardPoint, b: BoardPoint, rect: BoardRect) { return intersects({ x: Math.min(a.x, b.x) - 0.5, y: Math.min(a.y, b.y) - 0.5, width: Math.abs(a.x - b.x) + 1, height: Math.abs(a.y - b.y) + 1 }, rect); }
@@ -801,10 +1059,72 @@ function clipChannel(routeChannel: RouteChannel, width: number, height: number):
   const y = Math.max(0, routeChannel.y);
   return { ...routeChannel, x, y, width: Math.max(0, right - x), height: Math.max(0, bottom - y) };
 }
-function candidateCost(strategy: Strategy, scene: BoardScene, metrics: ReturnType<typeof validateBoardScene>["metrics"]) {
-  const strategyPenalty = [0, 80, 160, 360, 520][STRATEGIES.indexOf(strategy)] ?? 700;
-  const sparsePenalty = Math.max(0, 0.24 - metrics.occupancyRatio) * 1800;
-  return strategyPenalty + scene.board.height * 1.5 + metrics.crossingCount * 5000 + metrics.bendCount * 16 + Math.max(0, metrics.normalizedRouteLength - 1) * 120 + metrics.aspectImbalance * 180 + metrics.whitespaceImbalance * 900 + sparsePenalty;
+function compareCandidates(
+  first: { scene: BoardScene; report: ReturnType<typeof validateBoardScene>; attempt: LayoutAttempt },
+  second: { scene: BoardScene; report: ReturnType<typeof validateBoardScene>; attempt: LayoutAttempt },
+) {
+  const a = first.report.metrics;
+  const b = second.report.metrics;
+  return compareNumbers(first.attempt.topologyDeviation ?? 0, second.attempt.topologyDeviation ?? 0)
+    || compareNumbers(-(first.attempt.columns ?? 1), -(second.attempt.columns ?? 1))
+    || compareNumbers(a.maximumNormalizedRouteLength, b.maximumNormalizedRouteLength)
+    || compareNumbers(a.normalizedRouteLength, b.normalizedRouteLength)
+    || compareNumbers(a.bendCount, b.bendCount)
+    || compareNumbers(a.aspectImbalance, b.aspectImbalance)
+    || compareNumbers(first.scene.board.height, second.scene.board.height)
+    || compareNumbers(a.whitespaceImbalance, b.whitespaceImbalance)
+    || compareNumbers(STRATEGIES.indexOf(first.attempt.strategy), STRATEGIES.indexOf(second.attempt.strategy));
+}
+
+function compareNumbers(first: number, second: number) { return first < second ? -1 : first > second ? 1 : 0; }
+
+function requestedRootColumns(root: VisualNode) {
+  const count = root.children?.length ?? 0;
+  if (root.layout?.kind === "column") return 1;
+  if (root.layout?.kind === "grid") return Math.min(count, Math.max(1, root.layout.columns ?? Math.ceil(Math.sqrt(count))));
+  return Math.max(1, count);
+}
+
+function rootColumnCount(scene: BoardScene) {
+  const children = scene.elements.filter(({ parent }) => parent === "root");
+  return Math.max(
+    1,
+    new Set(
+      children.map(({ bounds }) =>
+        Math.round((bounds.x + bounds.width / 2) * 100) / 100,
+      ),
+    ).size,
+  );
+}
+
+function strategyFits(document: VisualDocument, width: number, strategy: Strategy, theme: LiveryTheme, tokens: TokenOverrides) {
+  if (strategy !== "requested" && strategy !== "expanded_tracks") return true;
+  const root = document.root;
+  if (!root.children?.length || root.layout?.kind === "column" || root.layout?.kind === "stack" || root.layout?.kind === "overlay" || root.layout?.kind === "canvas") return true;
+  const padding = width <= 480 ? COMPACT_PADDING : PADDING;
+  const available = width - padding * 2;
+  const gap = gapFor(root.layout?.gap, tokens);
+  const sizes = root.children.map((child) => measure(child, available, strategy, MIN_GAP, false, gap, gap, theme, tokens));
+  const columns = root.layout?.kind === "grid" ? requestedRootColumns(root) : sizes.length;
+  const cellWidth = root.layout?.kind === "grid" ? Math.max(...sizes.map(({ width: childWidth }) => childWidth), 0) : 0;
+  const required = root.layout?.kind === "grid"
+    ? columns * cellWidth + gap * Math.max(0, columns - 1)
+    : sum(sizes.map(({ width: childWidth }) => childWidth)) + gap * Math.max(0, columns - 1);
+  return required <= available + 0.01;
+}
+
+function routingReserve(connectors: Connector[], tokens: TokenOverrides) {
+  if (!connectors.length) return 0;
+  const labelWidth = connectors.reduce((total, connector) => total + (connector.label ? measureVisualText(connector.label, { fontSize: tokenNumber(tokens, "type.caption", 10), fontWeight: 600 }) + 16 : 0), 0);
+  const labelRows = Math.max(1, Math.ceil(labelWidth / 560));
+  return 28 + labelRows * 18 + Math.ceil(connectors.length / 4) * 8;
+}
+
+function routingGutterExpansion(strategy: Strategy, connectorCount: number) {
+  const demand = Math.min(32, Math.max(8, Math.ceil(connectorCount / 2) * 8));
+  if (strategy === "expanded_tracks") return demand;
+  if (strategy === "alternate_spans" || strategy === "balanced_grid") return Math.ceil(demand * 0.75);
+  return 0;
 }
 function hasComponentDetail(recipe: ReturnType<typeof resolveComponentRecipe>) { return Boolean(recipe.detail && recipe.detail.glyph !== "none" && recipe.shape !== "storage"); }
 function endpointClearance(node: VisualNode, targetId: string, inherited = CLEARANCE): number {
@@ -817,7 +1137,7 @@ function endpointClearance(node: VisualNode, targetId: string, inherited = CLEAR
   }
   return -1;
 }
-function issue(code: LayoutViolationCode | "layout.no_valid_candidate" | "layout.resource_limit", message: string, elementIds?: string[]): LayoutDiagnostic { return { code, message, severity: "error", ...(elementIds ? { elementIds } : {}) }; }
+function issue(code: LayoutDiagnostic["code"], message: string, elementIds?: string[]): LayoutDiagnostic { return { code, message, severity: "error", ...(elementIds ? { elementIds } : {}) }; }
 function dedupeDiagnostics(diagnostics: LayoutDiagnostic[]) { const seen = new Set<string>(); return diagnostics.filter(({ code, elementIds }) => { const key = `${code}:${elementIds?.join(",") ?? ""}`; return !seen.has(key) && !!seen.add(key); }); }
 function belongsTo(elementId: string, ownerId: string, elements: SolvedElement[]) { let current = elements.find(({ id }) => id === elementId); while (current) { if (current.id === ownerId) return true; current = current.parent ? elements.find(({ id }) => id === current!.parent) : undefined; } return false; }
 function belongsToContext(elementId: string, ownerId: string, context: PlacementContext) { return belongsTo(elementId, ownerId, context.elements) || context.canvases.some((canvas) => canvas.owner === elementId && canvas.primitives.some(({ id }) => id === ownerId)); }

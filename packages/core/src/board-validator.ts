@@ -43,6 +43,10 @@ export function validateBoardScene(scene: BoardScene): ValidationReport {
 
   const componentByOwner = new Map(components.map((envelope) => [envelope.owner, envelope]));
   for (const connector of scene.connectors) validateConnector(connector, scene, componentByOwner, diagnostics);
+  const routeInteractions = connectorInteractions(scene.connectors);
+  for (const interaction of routeInteractions.conflicts) {
+    diagnostics.push(issue(interaction.kind === "crossing" ? "layout.connector_crossing" : "layout.connector_overlap", `Connectors ${interaction.first} and ${interaction.second} ${interaction.kind === "crossing" ? "cross" : "share an overlapping segment"}.`, [interaction.first, interaction.second]));
+  }
   for (const channel of scene.board.channels) if (channel.used > channel.capacity) diagnostics.push(issue("layout.channel_capacity", `${channel.id} exceeds routing capacity ${channel.capacity}.`, [channel.id]));
 
   const labels = scene.connectors.flatMap((connector) => connector.label ? [{ connector, rect: connector.label }] : []);
@@ -77,6 +81,10 @@ export function validateBoardScene(scene: BoardScene): ValidationReport {
   const occupiedArea = components.reduce((sum, envelope) => sum + envelope.width * envelope.height, 0);
   const routeLength = scene.connectors.reduce((total, connector) => total + connector.points.slice(1).reduce((length, point, index) => length + manhattan(connector.points[index]!, point), 0), 0);
   const directRouteLength = scene.connectors.reduce((total, connector) => total + manhattan(connector.points[0]!, connector.points.at(-1)!), 0);
+  const routeRatios = scene.connectors.map((connector) => {
+    const length = connector.points.slice(1).reduce((total, point, index) => total + manhattan(connector.points[index]!, point), 0);
+    return length / Math.max(1, manhattan(connector.points[0]!, connector.points.at(-1)!));
+  });
   const contentBounds = unionRects([...components, ...labels.map(({ rect }) => rect)]);
   return {
     valid: diagnostics.length === 0,
@@ -84,14 +92,17 @@ export function validateBoardScene(scene: BoardScene): ValidationReport {
     metrics: {
       elementCount: scene.elements.length,
       connectorCount: scene.connectors.length,
-      crossingCount: countCrossings(scene.connectors),
+      crossingCount: routeInteractions.crossingCount,
+      overlappingSegmentCount: routeInteractions.overlappingSegmentCount,
       occupiedArea,
       occupancyRatio: occupiedArea / Math.max(1, scene.board.width * scene.board.height),
       routeLength,
       normalizedRouteLength: routeLength / Math.max(1, directRouteLength),
+      maximumNormalizedRouteLength: Math.max(1, ...routeRatios),
       bendCount: scene.connectors.reduce((total, connector) => total + Math.max(0, connector.points.length - 2), 0),
       aspectImbalance: contentBounds ? Math.abs(Math.log(Math.max(0.01, contentBounds.width / Math.max(1, contentBounds.height)) / Math.max(0.01, scene.board.width / Math.max(1, scene.board.height)))) : 0,
       whitespaceImbalance: contentBounds ? Math.abs((contentBounds.x + contentBounds.width / 2) - scene.board.width / 2) / scene.board.width + Math.abs((contentBounds.y + contentBounds.height / 2) - scene.board.height / 2) / scene.board.height : 0,
+      topologyDeviation: 0,
     },
   };
 }
@@ -208,13 +219,27 @@ function unionRects(rects: BoardRect[]) {
 }
 function belongsTo(elementId: string, ownerId: string, scene: BoardScene) { let current = scene.elements.find(({ id }) => id === elementId); while (current) { if (current.id === ownerId) return true; current = current.parent ? scene.elements.find(({ id }) => id === current!.parent) : undefined; } return scene.canvases.some((canvas) => canvas.owner === elementId && canvas.primitives.some(({ id }) => id === ownerId)); }
 
-function countCrossings(connectors: BoardConnector[]) {
-  const segments = connectors.flatMap((connector) => connector.points.slice(1).map((point, index) => ({ id: connector.id, a: connector.points[index]!, b: point })));
-  let crossings = 0;
-  for (let first = 0; first < segments.length; first += 1) for (let second = first + 1; second < segments.length; second += 1) {
-    if (segments[first]!.id !== segments[second]!.id && segmentsCross(segments[first]!.a, segments[first]!.b, segments[second]!.a, segments[second]!.b)) crossings += 1;
+function connectorInteractions(connectors: BoardConnector[]) {
+  const conflicts: Array<{ first: string; second: string; kind: "crossing" | "overlap" }> = [];
+  let crossingCount = 0;
+  let overlappingSegmentCount = 0;
+  for (let first = 0; first < connectors.length; first += 1) for (let second = first + 1; second < connectors.length; second += 1) {
+    const a = connectors[first]!;
+    const b = connectors[second]!;
+    let crossing = false;
+    let overlap = false;
+    for (let ai = 1; ai < a.points.length; ai += 1) for (let bi = 1; bi < b.points.length; bi += 1) {
+      const aStart = a.points[ai - 1]!;
+      const aEnd = a.points[ai]!;
+      const bStart = b.points[bi - 1]!;
+      const bEnd = b.points[bi]!;
+      if (segmentsOverlap(aStart, aEnd, bStart, bEnd) && !sharedEndpointLeadOverlap(a, b, aStart, aEnd, bStart, bEnd)) { overlap = true; overlappingSegmentCount += 1; }
+      else if (segmentsCross(aStart, aEnd, bStart, bEnd) || tJunctionPoints(aStart, aEnd, bStart, bEnd).some((point) => !nearSharedEndpoint(a, b, point))) { crossing = true; crossingCount += 1; }
+    }
+    if (crossing) conflicts.push({ first: a.id, second: b.id, kind: "crossing" });
+    if (overlap) conflicts.push({ first: a.id, second: b.id, kind: "overlap" });
   }
-  return crossings;
+  return { conflicts, crossingCount, overlappingSegmentCount };
 }
 
 function segmentsCross(a: BoardPoint, b: BoardPoint, c: BoardPoint, d: BoardPoint) {
@@ -230,4 +255,38 @@ function segmentsCross(a: BoardPoint, b: BoardPoint, c: BoardPoint, d: BoardPoin
     && crossingX < Math.max(horizontal[0]!.x, horizontal[1]!.x) - EPSILON
     && crossingY > Math.min(vertical[0]!.y, vertical[1]!.y) + EPSILON
     && crossingY < Math.max(vertical[0]!.y, vertical[1]!.y) - EPSILON;
+}
+
+function tJunctionPoints(a: BoardPoint, b: BoardPoint, c: BoardPoint, d: BoardPoint) { return [a, b].filter((point) => pointInsideSegment(point, c, d)).concat([c, d].filter((point) => pointInsideSegment(point, a, b))); }
+
+function pointInsideSegment(point: BoardPoint, start: BoardPoint, end: BoardPoint) {
+  if (Math.abs(start.x - end.x) <= EPSILON) return Math.abs(point.x - start.x) <= EPSILON && point.y > Math.min(start.y, end.y) + EPSILON && point.y < Math.max(start.y, end.y) - EPSILON;
+  return Math.abs(point.y - start.y) <= EPSILON && point.x > Math.min(start.x, end.x) + EPSILON && point.x < Math.max(start.x, end.x) - EPSILON;
+}
+
+function segmentsOverlap(a: BoardPoint, b: BoardPoint, c: BoardPoint, d: BoardPoint) {
+  const firstHorizontal = Math.abs(a.y - b.y) <= EPSILON;
+  const secondHorizontal = Math.abs(c.y - d.y) <= EPSILON;
+  if (firstHorizontal !== secondHorizontal) return false;
+  if (firstHorizontal) return Math.abs(a.y - c.y) <= EPSILON && Math.min(Math.max(a.x, b.x), Math.max(c.x, d.x)) - Math.max(Math.min(a.x, b.x), Math.min(c.x, d.x)) > EPSILON;
+  return Math.abs(a.x - c.x) <= EPSILON && Math.min(Math.max(a.y, b.y), Math.max(c.y, d.y)) - Math.max(Math.min(a.y, b.y), Math.min(c.y, d.y)) > EPSILON;
+}
+
+function sharedEndpointLeadOverlap(first: BoardConnector, second: BoardConnector, a: BoardPoint, b: BoardPoint, c: BoardPoint, d: BoardPoint) {
+  const shared = sharedEndpoint(first, second);
+  if (!shared) return false;
+  const overlapStart = Math.abs(a.x - b.x) <= EPSILON ? { x: a.x, y: Math.max(Math.min(a.y, b.y), Math.min(c.y, d.y)) } : { x: Math.max(Math.min(a.x, b.x), Math.min(c.x, d.x)), y: a.y };
+  const overlapEnd = Math.abs(a.x - b.x) <= EPSILON ? { x: a.x, y: Math.min(Math.max(a.y, b.y), Math.max(c.y, d.y)) } : { x: Math.min(Math.max(a.x, b.x), Math.max(c.x, d.x)), y: a.y };
+  return manhattan(shared, overlapStart) <= 12.01 && manhattan(shared, overlapEnd) <= 12.01;
+}
+
+function nearSharedEndpoint(first: BoardConnector, second: BoardConnector, point: BoardPoint) { const shared = sharedEndpoint(first, second); return Boolean(shared && manhattan(shared, point) <= 12.01); }
+function sharedEndpoint(first: BoardConnector, second: BoardConnector) {
+  for (const node of [first.from, first.to]) {
+    if (node !== second.from && node !== second.to) continue;
+    const firstPoint = node === first.from ? first.points[0]! : first.points.at(-1)!;
+    const secondPoint = node === second.from ? second.points[0]! : second.points.at(-1)!;
+    if (distanceSquared(firstPoint, secondPoint) <= EPSILON) return firstPoint;
+  }
+  return undefined;
 }

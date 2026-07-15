@@ -186,6 +186,96 @@
           "used": 0
         },
         {
+          "id": "channel.access.left.customer",
+          "axis": "vertical",
+          "x": 24,
+          "y": 18,
+          "width": 7.190909500000032,
+          "height": 80,
+          "capacity": 16,
+          "used": 0
+        },
+        {
+          "id": "channel.access.right.customer",
+          "axis": "vertical",
+          "x": 175.19090950000003,
+          "y": 18,
+          "width": 440.80909049999997,
+          "height": 80,
+          "capacity": 16,
+          "used": 2
+        },
+        {
+          "id": "channel.access.bottom.customer",
+          "axis": "horizontal",
+          "x": 31.190909500000032,
+          "y": 98,
+          "width": 144,
+          "height": 22,
+          "capacity": 16,
+          "used": 0
+        },
+        {
+          "id": "channel.access.left.api",
+          "axis": "vertical",
+          "x": 24,
+          "y": 18,
+          "width": 221.82607950000002,
+          "height": 80,
+          "capacity": 16,
+          "used": 1
+        },
+        {
+          "id": "channel.access.right.api",
+          "axis": "vertical",
+          "x": 402.1739205,
+          "y": 18,
+          "width": 213.8260795,
+          "height": 80,
+          "capacity": 16,
+          "used": 1
+        },
+        {
+          "id": "channel.access.bottom.api",
+          "axis": "horizontal",
+          "x": 245.82607950000002,
+          "y": 98,
+          "width": 156.347841,
+          "height": 22,
+          "capacity": 16,
+          "used": 0
+        },
+        {
+          "id": "channel.access.left.orders",
+          "axis": "vertical",
+          "x": 24,
+          "y": 18,
+          "width": 448.80909049999997,
+          "height": 80,
+          "capacity": 16,
+          "used": 2
+        },
+        {
+          "id": "channel.access.right.orders",
+          "axis": "vertical",
+          "x": 608.8090904999999,
+          "y": 18,
+          "width": 7.190909500000089,
+          "height": 80,
+          "capacity": 16,
+          "used": 0
+        },
+        {
+          "id": "channel.access.bottom.orders",
+          "axis": "horizontal",
+          "x": 472.80909049999997,
+          "y": 98,
+          "width": 135.99999999999994,
+          "height": 22,
+          "capacity": 16,
+          "used": 0
+        },
+        {
           "id": "channel.v.customer.api",
           "axis": "vertical",
           "x": 175.19090950000003,
@@ -561,6 +651,9 @@
           "height": 16
         },
         "channelIds": [
+          "channel.access.right.customer",
+          "channel.access.left.api",
+          "channel.access.left.orders",
           "channel.v.customer.api",
           "channel.v.customer.orders"
         ]
@@ -590,6 +683,9 @@
         },
         "tone": "success",
         "channelIds": [
+          "channel.access.right.customer",
+          "channel.access.right.api",
+          "channel.access.left.orders",
           "channel.v.customer.orders",
           "channel.v.api.orders"
         ]
@@ -640,13 +736,16 @@
       "elementCount": 4,
       "connectorCount": 2,
       "crossingCount": 0,
+      "overlappingSegmentCount": 0,
       "occupiedArea": 34907.82728,
       "occupancyRatio": 0.45452900104166666,
       "routeLength": 165.27033999999995,
       "normalizedRouteLength": 1,
+      "maximumNormalizedRouteLength": 1,
       "bendCount": 0,
       "aspectImbalance": 0.30290999563823306,
-      "whitespaceImbalance": 0.016666666666666757
+      "whitespaceImbalance": 0.016666666666666757,
+      "topologyDeviation": 0
     }
   },
   "attempts": [
@@ -654,31 +753,25 @@
       "strategy": "requested",
       "width": 640,
       "height": 120,
-      "diagnostics": []
-    },
-    {
-      "strategy": "expanded_tracks",
-      "width": 640,
-      "height": 120,
-      "diagnostics": []
-    },
-    {
-      "strategy": "alternate_spans",
-      "width": 640,
-      "height": 120,
-      "diagnostics": []
-    },
-    {
-      "strategy": "vertical_reflow",
-      "width": 640,
-      "height": 336,
-      "diagnostics": []
-    },
-    {
-      "strategy": "increased_height",
-      "width": 640,
-      "height": 336,
-      "diagnostics": []
+      "diagnostics": [],
+      "columns": 3,
+      "topologyDeviation": 0,
+      "metrics": {
+        "elementCount": 4,
+        "connectorCount": 2,
+        "crossingCount": 0,
+        "overlappingSegmentCount": 0,
+        "occupiedArea": 34907.82728,
+        "occupancyRatio": 0.45452900104166666,
+        "routeLength": 165.27033999999995,
+        "normalizedRouteLength": 1,
+        "maximumNormalizedRouteLength": 1,
+        "bendCount": 0,
+        "aspectImbalance": 0.30290999563823306,
+        "whitespaceImbalance": 0.016666666666666757,
+        "topologyDeviation": 0
+      },
+      "selected": true
     }
   ]
 }

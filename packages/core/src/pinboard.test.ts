@@ -29,6 +29,29 @@ const document: VisualDocument = {
   timelines: [],
 };
 
+const complexRoutingSource = `component DescentMap() {
+  return canvas(width: 260, height: 220) {}
+}
+component TelemetryPanel() {
+  return canvas(width: 260, height: 138) {}
+}
+figure lunar_autonomy("Autonomous lunar landing") {
+  descent = DescentMap()
+  flight = agent("Flight director")
+  guidance = model("Guidance model")
+  telemetry = TelemetryPanel()
+  thrusters = tool("Thruster controller")
+  archive = database("Mission archive")
+  alert = callout("Touchdown confirmed inside the certified landing ellipse")
+  acquire = descent.right -> flight.left("optical navigation", variant: data)
+  infer = flight.right -> guidance.left("state vector", variant: async)
+  stream = telemetry.right -> guidance.bottom("sensor fusion", variant: data)
+  command = guidance.right -> thrusters.left("burn profile")
+  persist = guidance.bottom -> archive.top("persist telemetry", variant: data)
+  confirm = thrusters.bottom -> alert.top("touchdown", variant: async)
+  grid(descent, flight, guidance, telemetry, thrusters, archive, alert, columns: 3, gap: xl, align: center, distribute: between)
+}`;
+
 describe("solvePinboard", () => {
   it.each([320, 480, 720, 1024])("returns only validated scenes at %ipx", (width) => {
     const result = solvePinboard(document, { width });
@@ -53,6 +76,45 @@ describe("solvePinboard", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.diagnostics[0]?.code).toBe("layout.resource_limit");
+  });
+
+  it.each([
+    [320, 1, 1120],
+    [480, 1, 1120],
+    [720, 2, 900],
+    [1024, 3, 700],
+  ] as const)("preserves the largest fitting ordered grid at %ipx", (width, expectedColumns, maximumHeight) => {
+    const compiled = compileVisual(complexRoutingSource);
+    expect(compiled.diagnostics).toEqual([]);
+    const result = solvePinboard(compiled.document!, { width });
+    expect(result.ok, result.ok ? undefined : result.diagnostics.map(({ code }) => code).join(", ")).toBe(true);
+    if (!result.ok) return;
+    const children = result.scene.elements.filter(({ parent }) => parent === "root");
+    expect(
+      new Set(
+        children.map(({ bounds }) =>
+          Math.round((bounds.x + bounds.width / 2) * 100) / 100,
+        ),
+      ).size,
+    ).toBe(expectedColumns);
+    expect(children.map(({ id }) => id)).toEqual(["descent", "flight", "guidance", "telemetry", "thrusters", "archive", "alert"]);
+    expect(result.scene.board.height).toBeLessThan(maximumHeight);
+    expect(result.report.metrics.crossingCount).toBe(0);
+    expect(result.report.metrics.overlappingSegmentCount).toBe(0);
+    expect(result.report.metrics.maximumNormalizedRouteLength).toBeLessThan(4);
+    expect(result.attempts.filter(({ selected }) => selected)).toHaveLength(1);
+  });
+
+  it("routes independently of connector declaration order", () => {
+    const compiled = compileVisual(complexRoutingSource);
+    expect(compiled.diagnostics).toEqual([]);
+    const forward = solvePinboard(compiled.document!, { width: 1024 });
+    const reversed = solvePinboard({ ...compiled.document!, connectors: [...compiled.document!.connectors].reverse() }, { width: 1024 });
+    expect(forward.ok).toBe(true);
+    expect(reversed.ok).toBe(true);
+    if (!forward.ok || !reversed.ok) return;
+    const routeGeometry = (scene: typeof forward.scene) => Object.fromEntries(scene.connectors.map(({ id, points, label }) => [id, { points, label }]));
+    expect(routeGeometry(reversed.scene)).toEqual(routeGeometry(forward.scene));
   });
 
   it("fails instead of truncating an oversized canvas repeat", () => {

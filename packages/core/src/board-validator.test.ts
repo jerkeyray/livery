@@ -69,6 +69,34 @@ describe("board scene validation", () => {
     invalid.connectors[0]!.points = [{ x: 136, y: 76 }, { x: 184, y: 80 }];
     expect(validateBoardScene(invalid).diagnostics.map(({ code }) => code)).toContain("layout.non_orthogonal_route");
   });
+
+  it("rejects connector crossings and overlapping segments", () => {
+    const crossing = scene();
+    crossing.connectors.push({
+      id: "c-d",
+      from: "c",
+      to: "d",
+      fromPin: "c.bottom",
+      toPin: "d.top",
+      points: [{ x: 160, y: 20 }, { x: 160, y: 150 }],
+      channelIds: [],
+    });
+    expect(validateBoardScene(crossing).diagnostics.map(({ code }) => code)).toContain("layout.connector_crossing");
+
+    const overlapping = scene();
+    overlapping.connectors.push({
+      id: "c-d",
+      from: "c",
+      to: "d",
+      fromPin: "c.right",
+      toPin: "d.left",
+      points: [{ x: 146, y: 76 }, { x: 176, y: 76 }],
+      channelIds: [],
+    });
+    const report = validateBoardScene(overlapping);
+    expect(report.diagnostics.map(({ code }) => code)).toContain("layout.connector_overlap");
+    expect(report.metrics.overlappingSegmentCount).toBeGreaterThan(0);
+  });
 });
 
 function element(id: string, x: number) {

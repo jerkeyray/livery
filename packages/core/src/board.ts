@@ -133,6 +133,8 @@ export type LayoutViolationCode =
   | "layout.connector_hits_component"
   | "layout.non_orthogonal_route"
   | "layout.connector_label_collision"
+  | "layout.connector_crossing"
+  | "layout.connector_overlap"
   | "layout.connector_outside_channel"
   | "layout.channel_capacity"
   | "layout.invalid_pin_approach"
@@ -147,32 +149,43 @@ export type LayoutViolationCode =
   | "layout.invalid_reading_order";
 
 export type LayoutDiagnostic = Diagnostic & {
-  code: LayoutViolationCode | "layout.no_valid_candidate" | "layout.resource_limit";
+  code: LayoutViolationCode | "layout.no_valid_candidate" | "layout.resource_limit" | "layout.routing_exhausted";
   elementIds?: string[];
+};
+
+export type ValidationMetrics = {
+  elementCount: number;
+  connectorCount: number;
+  crossingCount: number;
+  overlappingSegmentCount: number;
+  occupiedArea: number;
+  occupancyRatio: number;
+  routeLength: number;
+  normalizedRouteLength: number;
+  maximumNormalizedRouteLength: number;
+  bendCount: number;
+  aspectImbalance: number;
+  whitespaceImbalance: number;
+  topologyDeviation: number;
 };
 
 export type ValidationReport = {
   valid: boolean;
   diagnostics: LayoutDiagnostic[];
-  metrics: {
-    elementCount: number;
-    connectorCount: number;
-    crossingCount: number;
-    occupiedArea: number;
-    occupancyRatio: number;
-    routeLength: number;
-    normalizedRouteLength: number;
-    bendCount: number;
-    aspectImbalance: number;
-    whitespaceImbalance: number;
-  };
+  metrics: ValidationMetrics;
 };
 
+export type LayoutStrategy = "requested" | "expanded_tracks" | "alternate_spans" | "balanced_grid" | "vertical_reflow" | "increased_height";
+
 export type LayoutAttempt = {
-  strategy: "requested" | "expanded_tracks" | "alternate_spans" | "vertical_reflow" | "increased_height";
+  strategy: LayoutStrategy;
   width: number;
   height: number;
   diagnostics: LayoutDiagnostic[];
+  columns?: number;
+  topologyDeviation?: number;
+  metrics?: ValidationMetrics;
+  selected?: boolean;
 };
 
 export type LayoutResult =
