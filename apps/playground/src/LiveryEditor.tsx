@@ -1,11 +1,12 @@
 import { autocompletion, type CompletionContext } from "@codemirror/autocomplete";
-import { StreamLanguage } from "@codemirror/language";
+import { HighlightStyle, StreamLanguage, syntaxHighlighting } from "@codemirror/language";
 import { setDiagnostics, type Diagnostic as EditorDiagnostic } from "@codemirror/lint";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { basicSetup } from "codemirror";
 import { useLayoutEffect, useRef } from "react";
 import { applyDiagnosticFix, getLanguageCatalog, type Diagnostic } from "@jerkeyray/core";
+import { tags } from "@lezer/highlight";
 
 const catalog = getLanguageCatalog();
 const keywords = new Set([...catalog.keywords, ...catalog.timelineOperations.map(({ name }) => name)]);
@@ -61,16 +62,25 @@ const liveryLanguage = StreamLanguage.define({
   },
 });
 
+const liveryHighlightStyle = HighlightStyle.define([
+  { tag: tags.keyword, color: "var(--syntax-keyword)" },
+  { tag: tags.typeName, color: "var(--syntax-type)" },
+  { tag: tags.string, color: "var(--syntax-string)" },
+  { tag: [tags.number, tags.bool, tags.atom], color: "var(--syntax-number)" },
+  { tag: tags.variableName, color: "var(--editor-text)" },
+  { tag: tags.comment, color: "var(--editor-muted)" },
+]);
+
 const editorTheme = EditorView.theme({
-  "&": { height: "100%", background: "#fcfcfb", color: "#202124", fontSize: "13px" },
+  "&": { height: "100%", background: "var(--editor-bg)", color: "var(--editor-text)", fontSize: "13px" },
   ".cm-content": { padding: "18px 0", caretColor: "#c0264f", fontFamily: '"SFMono-Regular", Consolas, "Liberation Mono", monospace', lineHeight: "1.62" },
   ".cm-line": { padding: "0 18px" },
-  ".cm-gutters": { background: "#f7f7f5", color: "#9a9a96", border: "0", borderRight: "1px solid #e5e5e1" },
+  ".cm-gutters": { background: "var(--editor-gutter)", color: "var(--editor-muted)", border: "0", borderRight: "1px solid var(--editor-border)" },
   ".cm-lineNumbers .cm-gutterElement": { minWidth: "42px", padding: "0 12px 0 8px" },
-  ".cm-activeLine, .cm-activeLineGutter": { background: "#fff5f7" },
-  ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": { background: "#ffe4eb" },
+  ".cm-activeLine, .cm-activeLineGutter": { background: "var(--editor-active)" },
+  ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": { background: "var(--editor-selection)" },
   "&.cm-focused": { outline: "none" },
-  ".cm-tooltip": { border: "1px solid #d8d8d3", borderRadius: "4px", boxShadow: "0 8px 24px rgb(0 0 0 / 10%)" },
+  ".cm-tooltip": { border: "1px solid var(--editor-border)", borderRadius: "4px", background: "var(--editor-bg)", color: "var(--editor-text)", boxShadow: "0 8px 24px rgb(0 0 0 / 18%)" },
 });
 
 export function LiveryEditor({ diagnostics, onChange, source }: { diagnostics: Diagnostic[]; onChange(source: string): void; source: string }) {
@@ -90,6 +100,7 @@ export function LiveryEditor({ diagnostics, onChange, source }: { diagnostics: D
           basicSetup,
           autocompletion({ override: [completeLivery] }),
           liveryLanguage,
+          syntaxHighlighting(liveryHighlightStyle),
           editorTheme,
           EditorView.updateListener.of((update) => {
             if (update.docChanged && !applyingSourceRef.current) onChangeRef.current(update.state.doc.toString());

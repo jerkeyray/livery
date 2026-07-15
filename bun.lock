@@ -46,6 +46,7 @@
         "@jerkeyray/layout-elk": "workspace:*",
         "@jerkeyray/react": "workspace:*",
         "@jerkeyray/web": "workspace:*",
+        "@lezer/highlight": "^1.2.3",
         "codemirror": "^6.0.2",
         "lucide-react": "^1.24.0",
         "react": "^19.0.0",
@@ -58,7 +59,7 @@
     },
     "packages/cli": {
       "name": "@jerkeyray/cli",
-      "version": "0.1.0",
+      "version": "0.1.0-alpha.0",
       "bin": {
         "livery": "./dist/cli.mjs",
       },
@@ -69,14 +70,14 @@
     },
     "packages/core": {
       "name": "@jerkeyray/core",
-      "version": "0.1.0",
+      "version": "0.1.0-alpha.0",
       "dependencies": {
         "zod": "^4.4.3",
       },
     },
     "packages/export-node": {
       "name": "@jerkeyray/export-node",
-      "version": "0.1.0",
+      "version": "0.1.0-alpha.0",
       "dependencies": {
         "@jerkeyray/core": "workspace:*",
         "@resvg/resvg-js": "2.6.2",
@@ -84,18 +85,18 @@
     },
     "packages/layout-elk": {
       "name": "@jerkeyray/layout-elk",
-      "version": "0.1.0",
+      "version": "0.1.0-alpha.0",
       "dependencies": {
-        "@jerkeyray/core": "workspace:*",
+        "@jerkeyray/core": "0.1.0-alpha.0",
         "elkjs": "0.11.1",
       },
     },
     "packages/react": {
       "name": "@jerkeyray/react",
-      "version": "0.1.0",
+      "version": "0.1.0-alpha.0",
       "dependencies": {
-        "@jerkeyray/core": "workspace:*",
-        "@jerkeyray/web": "workspace:*",
+        "@jerkeyray/core": "0.1.0-alpha.0",
+        "@jerkeyray/web": "0.1.0-alpha.0",
       },
       "devDependencies": {
         "react": "^19.0.0",
@@ -108,9 +109,9 @@
     },
     "packages/web": {
       "name": "@jerkeyray/web",
-      "version": "0.1.0",
+      "version": "0.1.0-alpha.0",
       "dependencies": {
-        "@jerkeyray/core": "workspace:*",
+        "@jerkeyray/core": "0.1.0-alpha.0",
       },
     },
   },

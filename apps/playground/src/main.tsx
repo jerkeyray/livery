@@ -3,7 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { compileVisual, formatVisualDocument, render } from "@jerkeyray/core";
 import { LiveryVisual } from "@jerkeyray/react";
 import { mountLiveryVisual, type LiveryVisualInstance } from "@jerkeyray/web";
-import { AlignLeft, Bug, Check, ChevronLeft, ChevronRight, Code2, Copy, Download, Eye, Library, Maximize2, Minus, PanelLeftClose, PanelLeftOpen, Pause, Play, Plus, Settings2, TriangleAlert } from "lucide-react";
+import { AlignLeft, Bug, Check, ChevronLeft, ChevronRight, Code2, Copy, Download, Eye, Library, Maximize2, Minus, Moon, PanelLeftClose, PanelLeftOpen, Pause, Play, Plus, Settings2, Sun, TriangleAlert } from "lucide-react";
 
 import "@fontsource/inter/latin-400.css";
 import "@fontsource/inter/latin-600.css";
@@ -22,6 +22,7 @@ import scientificSource from "../../../fixtures/visual/scientific-motion.livery?
 
 const initialSource = checkoutSource;
 const STORAGE_KEY = "livery.playground.source";
+const THEME_KEY = "livery.playground.theme";
 const starterSource = `figure request_path("Request path") {
  client = person("Client")
  api = api("Application API")
@@ -60,6 +61,7 @@ function Playground() {
   const [zoom, setZoom] = useState(1);
   const [playing, setPlaying] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark">(readStoredTheme);
   const examplesRef = useRef<HTMLDetailsElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const width = viewport === "chat" ? 360 : 760;
@@ -99,6 +101,7 @@ function Playground() {
   };
 
   useEffect(() => { localStorage.setItem(STORAGE_KEY, source); }, [source]);
+  useEffect(() => { localStorage.setItem(THEME_KEY, theme); }, [theme]);
   useEffect(() => {
     if (!playing || !timelineIds.length) return;
     const index = activeState ? timelineIds.indexOf(activeState) : -1;
@@ -108,9 +111,10 @@ function Playground() {
   }, [activeState, playing, timeline?.id, timelineIds.join(":")]);
 
   return (
-    <div className="studio">
+    <div className="studio" data-theme={theme}>
       <header className="app-bar">
         <div className="brand"><img alt="" aria-hidden className="brand-mark" src="/livery-mark.svg" /><strong>Livery</strong><span>Playground</span></div>
+        <button aria-label={theme === "dark" ? "Use light mode" : "Use dark mode"} className="theme-toggle" onClick={() => setTheme((value) => value === "dark" ? "light" : "dark")} title={theme === "dark" ? "Use light mode" : "Use dark mode"} type="button">{theme === "dark" ? <Sun aria-hidden size={15} /> : <Moon aria-hidden size={15} />}</button>
       </header>
       <nav aria-label="Workspace view" className="mobile-tabs">
         <button aria-selected={mobilePane === "source"} onClick={() => setMobilePane("source")} role="tab" type="button"><Code2 aria-hidden size={15} />Source</button>
@@ -211,6 +215,11 @@ function CompileStatus({ errors }: { errors: number }) {
 function readStoredSource() {
   try { return localStorage.getItem(STORAGE_KEY) ?? initialSource; }
   catch { return initialSource; }
+}
+
+function readStoredTheme(): "light" | "dark" {
+  try { return localStorage.getItem(THEME_KEY) === "dark" ? "dark" : "light"; }
+  catch { return "light"; }
 }
 
 function startPanelResize(event: ReactPointerEvent, setEditorPercent: (updater: (value: number) => number) => void) {

@@ -65,6 +65,17 @@ test("narrow desktop keeps both panes without viewport overflow", async ({ page 
   await expectNoViewportOverflow(page);
 });
 
+test("dark mode persists while preserving the exported canvas", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Use dark mode" }).click();
+  await expect(page.locator(".studio")).toHaveAttribute("data-theme", "dark");
+  await expect(page.getByRole("img", { name: "Checkout request" }).locator(":scope > rect")).toHaveAttribute("fill", "#f8fafc");
+  await expect(page).toHaveScreenshot("playground-dark.png", { animations: "disabled" });
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Use light mode" })).toBeVisible();
+});
+
 test("the studio exposes three focused examples", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/");
