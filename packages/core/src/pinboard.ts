@@ -343,30 +343,44 @@ function measure(
     const lineHeight = Math.max(visualNumber(recipe.typography?.lineHeight, tokens, Math.ceil(fontSize * 1.38)), Math.ceil(fontSize * 1.1));
     const fontWeight = Number(resolveVisualValue(node.style?.fontWeight ?? recipe.typography?.fontWeight, tokens) ?? 650);
     const measuredLabelWidth = measureVisualText(label, { fontSize, fontWeight });
+    const subtitleFontSize = tokenNumber(tokens, "type.caption", 10);
+    const subtitleWeight = 500;
+    const subtitleWidth = node.subtitle ? measureVisualText(node.subtitle, { fontSize: subtitleFontSize, fontWeight: subtitleWeight }) : 0;
     const recipeMaximumWidth = Math.max(minimumWidth, geometry?.maxWidth ?? 184);
     const authoredWidth = numericOptional(node.props?.width);
     const authoredHeight = numericOptional(node.props?.height);
-    const preferredWidth = node.layout?.width ?? authoredWidth ?? Math.max(minimumWidth, Math.min(measuredLabelWidth + horizontalSpace, recipeMaximumWidth));
+    const preferredWidth = node.layout?.width ?? authoredWidth ?? Math.max(minimumWidth, Math.min(Math.max(measuredLabelWidth, subtitleWidth) + horizontalSpace, recipeMaximumWidth));
     const width = Math.min(preferredWidth, maxWidth);
     const textWidth = Math.max(24, width - horizontalSpace);
-    const contentHeight = measureVisualTextBlock(label, textWidth, { fontSize, fontWeight, lineHeight }).height + (geometry?.paddingY ?? 14) * 2;
+    const labelHeight = measureVisualTextBlock(label, textWidth, { fontSize, fontWeight, lineHeight }).height;
+    const subtitleLineHeight = Math.max(Math.ceil(subtitleFontSize * 1.35), 14);
+    const subtitleHeight = node.subtitle ? measureVisualTextBlock(node.subtitle, textWidth, { fontSize: subtitleFontSize, fontWeight: subtitleWeight, lineHeight: subtitleLineHeight }).height + 4 : 0;
+    const contentHeight = labelHeight + subtitleHeight + (geometry?.paddingY ?? 14) * 2;
     return { width, height: node.layout?.height ?? authoredHeight ?? Math.max(geometry?.minHeight ?? NODE_HEIGHT, contentHeight) };
   }
   if (node.kind === "canvas" || node.layout?.kind === "canvas") {
     return { width: Math.min(maxWidth, node.layout?.width ?? numericProp(node, "width", 240)), height: node.layout?.height ?? numericProp(node, "height", 160) };
   }
+  const frame = node.kind === "frame";
+  const framePadding = frame ? visualNumber(node.props?.padding, tokens, tokenNumber(tokens, "space.lg", 24)) : 0;
+  const frameHeader = frame && node.label ? (node.subtitle ? 44 : 30) : 0;
+  const innerMaxWidth = Math.max(1, maxWidth - framePadding * 2);
   const declaredGap = gapFor(node.layout?.gap, tokens);
   const columnGap = Math.max(root ? rootColumnGap : minimumGap, declaredGap);
   const rowGap = Math.max(root ? rootRowGap : minimumGap, declaredGap);
-  const children = node.children.map((child) => measure(child, maxWidth, strategy, minimumGap, false, rootColumnGap, rootRowGap, theme, tokens));
-  const kind = effectiveLayout(node.layout?.kind ?? "row", strategy, root, children, maxWidth, columnGap);
+  const children = node.children.map((child) => measure(child, innerMaxWidth, strategy, minimumGap, false, rootColumnGap, rootRowGap, theme, tokens));
+  const kind = effectiveLayout(node.layout?.kind ?? "row", strategy, root, children, innerMaxWidth, columnGap);
+  const withFrame = (size: Size): Size => frame ? {
+    width: Math.min(maxWidth, visualNumber(node.props?.width, tokens, size.width + framePadding * 2)),
+    height: visualNumber(node.props?.height, tokens, size.height + framePadding * 2 + frameHeader),
+  } : size;
   if (kind === "column") {
     const intrinsicWidth = Math.min(maxWidth, Math.max(...children.map(({ width }) => width), 0));
     const intrinsicHeight = sum(children.map(({ height }) => height)) + rowGap * Math.max(0, children.length - 1);
-    return {
+    return withFrame({
       width: Math.min(maxWidth, visualNumber(node.layout?.width ?? node.props?.width, tokens, intrinsicWidth)),
       height: visualNumber(node.layout?.height ?? node.props?.height, tokens, intrinsicHeight),
-    };
+    });
   }
   if (kind === "grid") {
     const cellWidth = Math.max(...children.map(({ width }) => width), 0);
@@ -374,22 +388,22 @@ function measure(
     const rowHeights = gridRowHeights(children, columns);
     const intrinsicWidth = Math.min(columns, children.length) * cellWidth + columnGap * Math.max(0, Math.min(columns, children.length) - 1);
     const distributedWidth = root && node.layout?.distribute && node.layout.distribute !== "start" ? maxWidth : intrinsicWidth;
-    return {
+    return withFrame({
       width: Math.min(maxWidth, visualNumber(node.layout?.width ?? node.props?.width, tokens, distributedWidth)),
       height: visualNumber(node.layout?.height ?? node.props?.height, tokens, sum(rowHeights) + rowGap * Math.max(0, rowHeights.length - 1)),
-    };
+    });
   }
   if (kind === "stack" || kind === "overlay") {
     const intrinsicWidth = Math.min(maxWidth, Math.max(...children.map(({ width }) => width), 0));
     const intrinsicHeight = Math.max(...children.map(({ height }) => height), 0);
-    return { width: Math.min(maxWidth, visualNumber(node.layout?.width ?? node.props?.width, tokens, intrinsicWidth)), height: visualNumber(node.layout?.height ?? node.props?.height, tokens, intrinsicHeight) };
+    return withFrame({ width: Math.min(maxWidth, visualNumber(node.layout?.width ?? node.props?.width, tokens, intrinsicWidth)), height: visualNumber(node.layout?.height ?? node.props?.height, tokens, intrinsicHeight) });
   }
   const intrinsicWidth = sum(children.map(({ width }) => width)) + columnGap * Math.max(0, children.length - 1);
   const distributedWidth = root && node.layout?.distribute && node.layout.distribute !== "start" ? maxWidth : intrinsicWidth;
-  return {
+  return withFrame({
     width: Math.min(maxWidth, visualNumber(node.layout?.width ?? node.props?.width, tokens, distributedWidth)),
     height: visualNumber(node.layout?.height ?? node.props?.height, tokens, Math.max(...children.map(({ height }) => height), 0)),
-  };
+  });
 }
 
 function effectiveLayout(kind: LayoutKind, strategy: Strategy, root: boolean, sizes: Size[], maxWidth: number, gap: number): LayoutKind {
@@ -409,6 +423,7 @@ function place(node: VisualNode, x: number, y: number, width: number, height: nu
     bounds: own,
     visualBounds: own,
     ...(node.label ? { label: node.label, labelBounds: labelBounds(node, own, context.theme, context.tokens) } : {}),
+    ...(node.subtitle ? { subtitle: node.subtitle } : {}),
     ...(parent ? { parent } : {}),
     layer: parent ? 1 : 0,
     ...(node.tone ? { tone: node.tone } : {}),
@@ -429,28 +444,34 @@ function place(node: VisualNode, x: number, y: number, width: number, height: nu
     context.envelopes.push({ id: `${node.id}.collision`, owner: node.id, kind: "canvas", ...inflate(own, bleed + CLEARANCE) });
     return;
   }
+  const framePadding = node.kind === "frame" ? visualNumber(node.props?.padding, context.tokens, tokenNumber(context.tokens, "space.lg", 24)) : 0;
+  const frameHeader = node.kind === "frame" && node.label ? (node.subtitle ? 44 : 30) : 0;
+  const contentX = x + framePadding;
+  const contentY = y + framePadding + frameHeader;
+  const contentWidth = Math.max(1, width - framePadding * 2);
+  const contentHeight = Math.max(1, height - framePadding * 2 - frameHeader);
   const declaredGap = gapFor(node.layout?.gap, context.tokens);
   const columnGap = Math.max(root ? context.rootColumnGap : context.minimumGap, declaredGap);
   const rowGap = Math.max(root ? context.rootRowGap : context.minimumGap, declaredGap);
-  const sizes = node.children.map((child) => measure(child, width, strategy, context.minimumGap, false, context.rootColumnGap, context.rootRowGap, context.theme, context.tokens));
-  const kind = effectiveLayout(node.layout?.kind ?? "row", strategy, root, sizes, width, columnGap);
+  const sizes = node.children.map((child) => measure(child, contentWidth, strategy, context.minimumGap, false, context.rootColumnGap, context.rootRowGap, context.theme, context.tokens));
+  const kind = effectiveLayout(node.layout?.kind ?? "row", strategy, root, sizes, contentWidth, columnGap);
   const cellWidth = kind === "grid" ? Math.max(...sizes.map(({ width }) => width), 0) : 0;
-  const columns = kind === "grid" ? gridColumns(node, strategy, width, sizes.length, cellWidth, columnGap) : 1;
+  const columns = kind === "grid" ? gridColumns(node, strategy, contentWidth, sizes.length, cellWidth, columnGap) : 1;
   const rowHeights = kind === "grid" ? gridRowHeights(sizes, columns) : [];
   const layoutAlign = node.layout?.align ?? "center";
   const layoutDistribute = node.layout?.distribute ?? "start";
-  const rowDistribution = distribution(width, sizes.map(({ width: childWidth }) => childWidth), columnGap, layoutDistribute);
-  const columnDistribution = distribution(height, sizes.map(({ height: childHeight }) => childHeight), rowGap, layoutDistribute);
+  const rowDistribution = distribution(contentWidth, sizes.map(({ width: childWidth }) => childWidth), columnGap, layoutDistribute);
+  const columnDistribution = distribution(contentHeight, sizes.map(({ height: childHeight }) => childHeight), rowGap, layoutDistribute);
   const gridColumnCount = Math.min(columns, sizes.length);
-  const gridDistribution = distribution(width, Array.from({ length: gridColumnCount }, () => cellWidth), columnGap, layoutDistribute);
-  let cursorX = x + rowDistribution.offset;
-  let cursorY = y + columnDistribution.offset;
+  const gridDistribution = distribution(contentWidth, Array.from({ length: gridColumnCount }, () => cellWidth), columnGap, layoutDistribute);
+  let cursorX = contentX + rowDistribution.offset;
+  let cursorY = contentY + columnDistribution.offset;
   node.children.forEach((child, index) => {
     const size = sizes[index]!;
     let childX = cursorX;
     let childY = cursorY;
     if (kind === "column") {
-      const cross = alignedPlacement(x, width, size.width, layoutAlign);
+      const cross = alignedPlacement(contentX, contentWidth, size.width, layoutAlign);
       childX = cross.position;
       cursorY += size.height + columnDistribution.gap;
       if (layoutAlign === "stretch") size.width = cross.size;
@@ -460,21 +481,21 @@ function place(node: VisualNode, x: number, y: number, width: number, height: nu
       const itemsInRow = Math.min(columns, node.children!.length - row * columns);
       const unusedColumns = columns - itemsInRow;
       const rowOffset = layoutDistribute === "start" ? unusedColumns * (cellWidth + gridDistribution.gap) / 2 : 0;
-      const cellX = x + gridDistribution.offset + rowOffset + (index % columns) * (cellWidth + gridDistribution.gap);
-      const cellY = y + sum(rowHeights.slice(0, row)) + row * rowGap;
+      const cellX = contentX + gridDistribution.offset + rowOffset + (index % columns) * (cellWidth + gridDistribution.gap);
+      const cellY = contentY + sum(rowHeights.slice(0, row)) + row * rowGap;
       const horizontal = alignedPlacement(cellX, cellWidth, size.width, layoutAlign);
       const vertical = alignedPlacement(cellY, rowHeights[row]!, size.height, layoutAlign);
       childX = horizontal.position;
       childY = vertical.position;
       if (layoutAlign === "stretch") { size.width = horizontal.size; size.height = vertical.size; }
     } else if (kind === "stack" || kind === "overlay") {
-      const horizontal = alignedPlacement(x, width, size.width, layoutAlign);
-      const vertical = alignedPlacement(y, height, size.height, layoutAlign);
+      const horizontal = alignedPlacement(contentX, contentWidth, size.width, layoutAlign);
+      const vertical = alignedPlacement(contentY, contentHeight, size.height, layoutAlign);
       childX = horizontal.position;
       childY = vertical.position;
       if (layoutAlign === "stretch") { size.width = horizontal.size; size.height = vertical.size; }
     } else {
-      const cross = alignedPlacement(y, height, size.height, layoutAlign);
+      const cross = alignedPlacement(contentY, contentHeight, size.height, layoutAlign);
       childY = cross.position;
       cursorX += size.width + rowDistribution.gap;
       if (layoutAlign === "stretch") size.height = cross.size;
@@ -969,6 +990,12 @@ function labelBounds(node: VisualNode, bounds: BoardRect, theme: LiveryTheme, to
   const recipe = resolveComponentRecipe(node.kind, node.variant, theme);
   const geometry = recipe.geometry;
   const paddingX = geometry?.paddingX ?? 16;
+  if (node.kind === "frame") {
+    const fontSize = visualNumber(node.style?.fontSize ?? recipe.typography?.fontSize, tokens, tokenNumber(tokens, "type.label", 14));
+    const lineHeight = Math.max(visualNumber(recipe.typography?.lineHeight, tokens, 20), Math.ceil(fontSize * 1.1));
+    const subtitleHeight = node.subtitle ? Math.max(tokenNumber(tokens, "type.caption", 10) * 1.35, 14) + 4 : 0;
+    return { x: bounds.x + paddingX, y: bounds.y + (geometry?.paddingY ?? 14), width: Math.max(1, bounds.width - paddingX * 2), height: lineHeight + subtitleHeight };
+  }
   const detailOffset = hasComponentDetail(recipe) ? (geometry?.detailWidth ?? 24) + (geometry?.labelGap ?? 10) : 0;
   const x = bounds.x + paddingX + detailOffset;
   const width = Math.max(1, bounds.x + bounds.width - paddingX - x);
@@ -976,7 +1003,11 @@ function labelBounds(node: VisualNode, bounds: BoardRect, theme: LiveryTheme, to
   const lineHeight = Math.max(visualNumber(recipe.typography?.lineHeight, tokens, Math.ceil(fontSize * 1.38)), Math.ceil(fontSize * 1.1));
   const fontWeight = Number(resolveVisualValue(node.style?.fontWeight ?? recipe.typography?.fontWeight, tokens) ?? 650);
   const height = measureVisualTextBlock(node.label ?? node.id, width, { fontSize, fontWeight, lineHeight }).height;
-  return { x, y: bounds.y + (bounds.height - height) / 2, width, height };
+  const subtitleFontSize = tokenNumber(tokens, "type.caption", 10);
+  const subtitleLineHeight = Math.max(Math.ceil(subtitleFontSize * 1.35), 14);
+  const subtitleHeight = node.subtitle ? measureVisualTextBlock(node.subtitle, width, { fontSize: subtitleFontSize, fontWeight: 500, lineHeight: subtitleLineHeight }).height + 4 : 0;
+  const totalHeight = height + subtitleHeight;
+  return { x, y: bounds.y + (bounds.height - totalHeight) / 2, width, height: totalHeight };
 }
 
 function connectorLabelCandidates(text: string, points: BoardPoint[], envelopes: CollisionEnvelope[], board: BoardRect, tokens: TokenOverrides) {

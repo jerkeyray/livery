@@ -1,8 +1,9 @@
 import type { BoardRect, BoardScene, CanvasPrimitive, SolvedElement } from "./board.js";
-import { canonicalGlyph } from "./glyphs.js";
-import { canonicalTheme, resolveComponentRecipe, resolveTheme, resolveVisualValue, toneColor, type ComponentRecipe, type LiveryTheme, type TokenOverrides } from "./theme.js";
+import { canonicalGlyph, type IconRegistry } from "./glyphs.js";
+import { canonicalTheme, componentToneStyle, resolveComponentRecipe, resolveTheme, resolveVisualValue, toneColor, type ComponentRecipe, type LiveryTheme, type TokenOverrides } from "./theme.js";
 import { wrapVisualText } from "./text-metrics.js";
 import type { VisualTimelineState } from "./timeline.js";
+import type { VisualStyle } from "./visual.js";
 import { isImageSourceAllowed, type ResourcePolicy } from "./resources.js";
 
 export type BoardSvgOptions = {
@@ -11,6 +12,7 @@ export type BoardSvgOptions = {
   theme?: LiveryTheme;
   tokenOverrides?: TokenOverrides;
   resourcePolicy?: ResourcePolicy;
+  icons?: IconRegistry;
 };
 
 export function boardSceneToSvg(scene: BoardScene, options: BoardSvgOptions = {}) {
@@ -20,7 +22,8 @@ export function boardSceneToSvg(scene: BoardScene, options: BoardSvgOptions = {}
   const childParents = new Set(scene.elements.flatMap(({ parent }) => parent ? [parent] : []));
   const canvasOwners = new Set(scene.canvases.map(({ owner }) => owner));
   const lines = [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${scene.board.width}" height="${scene.board.height + titleHeight}" viewBox="0 0 ${scene.board.width} ${scene.board.height + titleHeight}" role="img" aria-label="${escapeXml(scene.title ?? scene.id)}" aria-describedby="${safeId(scene.id)}-desc">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${scene.board.width}" height="${scene.board.height + titleHeight}" viewBox="0 0 ${scene.board.width} ${scene.board.height + titleHeight}" role="img" aria-labelledby="${safeId(scene.id)}-title ${safeId(scene.id)}-desc">`,
+    `  <title id="${safeId(scene.id)}-title">${escapeXml(scene.title ?? scene.id)}</title>`,
     `  <desc id="${safeId(scene.id)}-desc">${escapeXml(`${scene.title ?? scene.id}: ${scene.elements.length} elements and ${scene.connectors.length} connections.`)}</desc>`,
     `  <rect width="${scene.board.width}" height="${scene.board.height + titleHeight}" fill="${tokens["color.canvas"]}"/>`,
     "  <defs>",
@@ -34,7 +37,7 @@ export function boardSceneToSvg(scene: BoardScene, options: BoardSvgOptions = {}
     ...canvasReferences(scene, "mask").map(({ id, target }) => `    <mask id="${safeId(id)}-mask">${referenceShape(target, "#fff")}</mask>`),
     "  </defs>",
   ];
-  if (scene.title) lines.push(`  <text x="20" y="27" font-family="Inter,system-ui,sans-serif" font-size="${tokens["type.label"]}" font-weight="700" fill="${tokens["color.text"]}">${escapeXml(scene.title)}</text>`);
+  if (scene.title) lines.push(`  <text x="20" y="27" font-family="${escapeXml(String(tokens["type.fontFamily"]))}" font-size="${tokens["type.label"]}" font-weight="${tokens["type.titleWeight"]}" fill="${tokens["color.text"]}">${escapeXml(scene.title)}</text>`);
   lines.push(`  <g transform="translate(0 ${titleHeight})">`);
   for (const connector of scene.connectors) {
     const { stroke, strokeWidth, opacity } = connectorStyle(connector, options.state, tokens, options.theme ?? canonicalTheme);
@@ -46,7 +49,7 @@ export function boardSceneToSvg(scene: BoardScene, options: BoardSvgOptions = {}
     lines.push(`      <path data-livery-id="${escapeXml(connector.id)}" d="${pathData(connector.points)}" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"${dash}${markerStart}${markerEnd}/>`);
     if (connector.label) {
       lines.push(`      <rect x="${connector.label.x}" y="${connector.label.y}" width="${connector.label.width}" height="${connector.label.height}" rx="2" fill="${tokens["color.canvas"]}" fill-opacity="0.98"/>`);
-      lines.push(`      <text x="${connector.label.x + connector.label.width / 2}" y="${connector.label.y + connector.label.height / 2}" dominant-baseline="middle" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="${tokens["type.caption"]}" font-weight="600" fill="${tokens["color.muted"]}">${escapeXml(connector.label.text)}</text>`);
+      lines.push(`      <text x="${connector.label.x + connector.label.width / 2}" y="${connector.label.y + connector.label.height / 2}" dominant-baseline="middle" text-anchor="middle" font-family="${escapeXml(String(tokens["type.fontFamily"]))}" font-size="${tokens["type.caption"]}" font-weight="600" fill="${tokens["color.muted"]}">${escapeXml(connector.label.text)}</text>`);
     }
     lines.push("    </g>");
   }
@@ -56,32 +59,39 @@ export function boardSceneToSvg(scene: BoardScene, options: BoardSvgOptions = {}
     const canvasElement = scene.elements.find(({ id }) => id === canvas.owner);
     const canvasOpacity = finiteNumber(resolveVisualValue(canvasElement?.style?.opacity, tokens));
     lines.push(`    <g data-livery-canvas="${escapeXml(canvas.id)}"${canvasTransform ? ` transform="${canvasTransform}"` : ""}${stateAttributes(canvas.owner, options.state, canvasOpacity)}${canvas.clip ? ` clip-path="url(#${safeId(canvas.id)}-clip)"` : ""}>`);
-    lines.push(...renderCanvasPrimitives(canvas.primitives, tokens, options.state, options.resourcePolicy));
+    lines.push(...renderCanvasPrimitives(canvas.primitives, tokens, options.state, options.resourcePolicy, options.icons));
     lines.push("    </g>");
   }
   for (const element of scene.elements) {
-    if (childParents.has(element.id) || canvasOwners.has(element.id) || element.kind === "canvas") continue;
-    lines.push(...renderElement(element, tokens, `${safeId(scene.id)}-card-shadow`, options.state, options.theme ?? canonicalTheme, options.resourcePolicy));
+    if ((childParents.has(element.id) && element.kind !== "frame") || canvasOwners.has(element.id) || element.kind === "canvas") continue;
+    lines.push(...renderElement(element, tokens, `${safeId(scene.id)}-card-shadow`, options.state, options.theme ?? canonicalTheme, options.resourcePolicy, options.icons));
   }
   if (options.debug) lines.push(...renderDebug(scene));
   lines.push("  </g>", "</svg>");
   return lines.join("\n");
 }
 
-function renderElement(element: SolvedElement, tokens: TokenOverrides, shadowId: string, state: VisualTimelineState | undefined, theme: LiveryTheme, resourcePolicy?: ResourcePolicy) {
+function renderElement(element: SolvedElement, tokens: TokenOverrides, shadowId: string, state: VisualTimelineState | undefined, theme: LiveryTheme, resourcePolicy?: ResourcePolicy, icons?: IconRegistry) {
   const { x, y, width, height } = element.visualBounds;
   const recipe = resolveComponentRecipe(element.kind, element.variant, theme);
-  const surfaceStyle = { ...recipe.surface, ...element.style, ...(state?.focused.has(element.id) ? recipe.states?.focused : undefined) };
   const properties = state?.properties.get(element.id);
   const propertyTone = typeof properties?.tone === "string" ? properties.tone : undefined;
+  const surfaceStyle = {
+    ...recipe.surface,
+    ...componentToneStyle(element.tone, element.variant),
+    ...element.style,
+    ...(propertyTone ? componentToneStyle(propertyTone as typeof element.tone, element.variant) : undefined),
+    ...(state?.focused.has(element.id) ? recipe.states?.focused : undefined),
+  };
   const stroke = String(resolveVisualValue(properties?.stroke ?? surfaceStyle.stroke, tokens) ?? toneColor(propertyTone as typeof element.tone ?? element.tone, { ...tokens, "color.connector": tokens["color.border"]! }));
   const fill = String(resolveVisualValue(properties?.fill ?? surfaceStyle.fill, tokens) ?? tokens["color.surface"]);
   const strokeWidth = resolveVisualValue(properties?.strokeWidth ?? surfaceStyle.strokeWidth, tokens) ?? tokens["stroke.hairline"];
-  const radius = resolveVisualValue(surfaceStyle.radius, tokens) ?? tokens["radius.md"];
+  const radius = resolveVisualValue(properties?.radius ?? surfaceStyle.radius, tokens) ?? tokens["radius.md"];
   const surface = element.kind === "text" || element.kind === "line" || element.kind === "path" || recipe.elevation === "none" ? "" : ` filter="url(#${shadowId})"`;
   const transform = elementTransformValue(properties, element.visualBounds);
   const baseOpacity = finiteNumber(resolveVisualValue(surfaceStyle.opacity, tokens));
   const lines = [`    <g data-livery-id="${escapeXml(element.id)}"${transform ? ` transform="${transform}"` : ""}${stateAttributes(element.id, state, baseOpacity)}${surface}>`];
+  if (element.subtitle) lines.push(`      <title>${escapeXml(`${element.label ?? element.id}: ${element.subtitle}`)}</title>`);
   if (element.kind === "text") {
     // Text is emitted below without an implicit surface.
   } else if (element.kind === "image" && typeof element.props?.src === "string") {
@@ -91,7 +101,7 @@ function renderElement(element: SolvedElement, tokens: TokenOverrides, shadowId:
   } else if (element.kind === "path" && typeof element.props?.d === "string") {
     lines.push(`      <path d="${escapeXml(element.props.d)}" transform="translate(${x} ${y})" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"/>`);
   } else if (element.kind === "icon" && typeof element.props?.name === "string") {
-    lines.push(...renderIconGlyph(element.id, element.props.name, element.visualBounds, stroke, strokeWidth, "").map((line) => `      ${line.trimStart()}`));
+    lines.push(...renderIconGlyph(element.id, element.props.name, element.visualBounds, stroke, strokeWidth, "", icons).map((line) => `      ${line.trimStart()}`));
   } else if (recipe.shape === "circle" || element.kind === "circle") lines.push(`      <circle cx="${x + width / 2}" cy="${y + height / 2}" r="${Math.min(width, height) / 2}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"/>`);
   else if (recipe.shape === "storage") {
     lines.push(`      <rect x="${x}" y="${y + 7}" width="${width}" height="${height - 14}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"/>`);
@@ -103,29 +113,40 @@ function renderElement(element: SolvedElement, tokens: TokenOverrides, shadowId:
     const callout = recipe.shape === "callout" ? ` d="M ${x} ${y} H ${x + width} V ${y + height - 8} H ${x + 28} L ${x + 20} ${y + height} L ${x + 20} ${y + height - 8} H ${x} Z"` : undefined;
     if (callout) lines.push(`      <path${callout} fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linejoin="round"/>`);
     else lines.push(`      <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${radius}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"/>`);
-    lines.push(...componentDetails(element, tokens, recipe));
+    lines.push(...componentDetails(element, tokens, recipe, { ...surfaceStyle, ...(properties?.iconColor !== undefined ? { iconColor: properties.iconColor as string | number } : {}) }, icons));
   }
   if (element.label) {
     const labelBounds = element.labelBounds ?? { x: x + 16, y: y + height / 2 - 9, width: width - 32, height: 18 };
     const typography = recipe.typography;
     const fontSize = Number(resolveVisualValue(properties?.fontSize ?? element.style?.fontSize ?? typography?.fontSize, tokens) ?? tokens["type.body"] ?? 13);
-    const fontWeight = resolveVisualValue(properties?.fontWeight ?? element.style?.fontWeight ?? typography?.fontWeight, tokens) ?? 650;
+    const fontWeight = resolveVisualValue(properties?.fontWeight ?? element.style?.fontWeight ?? typography?.fontWeight, tokens) ?? tokens["type.bodyWeight"] ?? 650;
     const lineHeight = Math.max(Number(resolveVisualValue(typography?.lineHeight, tokens) ?? 18), Math.ceil(fontSize * 1.1));
-    const color = resolveVisualValue(properties?.color ?? (element.kind === "text" ? properties?.fill : undefined) ?? element.style?.color ?? (element.kind === "text" ? element.style?.fill : undefined) ?? typography?.color, tokens) ?? tokens["color.text"];
+    const color = resolveVisualValue(properties?.color ?? (element.kind === "text" ? properties?.fill : undefined) ?? surfaceStyle.color ?? (element.kind === "text" ? element.style?.fill : undefined) ?? typography?.color, tokens) ?? tokens["color.text"];
     const textLines = wrapVisualText(element.label, labelBounds.width, { fontSize, fontWeight: Number(fontWeight) });
     const align = typography?.align ?? "start";
     const labelX = align === "center" ? labelBounds.x + labelBounds.width / 2 : align === "end" ? labelBounds.x + labelBounds.width : labelBounds.x;
     const textAnchor = align === "center" ? "middle" : align === "end" ? "end" : "start";
-    lines.push(`      <text x="${labelX}" y="${labelBounds.y + fontSize}" text-anchor="${textAnchor}" font-family="Inter,system-ui,sans-serif" font-size="${fontSize}" font-weight="${fontWeight}" fill="${color}">`);
+    lines.push(`      <text x="${labelX}" y="${labelBounds.y + fontSize}" text-anchor="${textAnchor}" font-family="${escapeXml(String(tokens["type.fontFamily"]))}" font-size="${fontSize}" font-weight="${fontWeight}" fill="${color}">`);
     textLines.forEach((line, index) => lines.push(`        <tspan x="${labelX}" dy="${index === 0 ? 0 : lineHeight}">${escapeXml(line)}</tspan>`));
     lines.push("      </text>");
+    if (element.subtitle) {
+      const subtitleFontSize = Number(tokens["type.caption"] ?? 10);
+      const subtitleLineHeight = Math.max(Math.ceil(subtitleFontSize * 1.35), 14);
+      const subtitleLines = wrapVisualText(element.subtitle, labelBounds.width, { fontSize: subtitleFontSize, fontWeight: 500 });
+      const subtitleY = labelBounds.y + textLines.length * lineHeight + 4;
+      const subtitleColor = resolveVisualValue(surfaceStyle.color, tokens) ?? tokens["color.muted"];
+      lines.push(`      <text x="${labelX}" y="${subtitleY + subtitleFontSize}" text-anchor="${textAnchor}" font-family="${escapeXml(String(tokens["type.fontFamily"]))}" font-size="${subtitleFontSize}" font-weight="500" fill="${subtitleColor}">`);
+      subtitleLines.forEach((line, index) => lines.push(`        <tspan x="${labelX}" dy="${index === 0 ? 0 : subtitleLineHeight}">${escapeXml(line)}</tspan>`));
+      lines.push("      </text>");
+    }
   }
   lines.push("    </g>");
   return lines;
 }
 
-function componentDetails(element: SolvedElement, tokens: TokenOverrides, recipe: ComponentRecipe) {
-  const paths = canonicalGlyph(recipe.detail?.glyph);
+function componentDetails(element: SolvedElement, tokens: TokenOverrides, recipe: ComponentRecipe, style: VisualStyle, icons?: IconRegistry) {
+  const glyph = typeof element.props?.icon === "string" ? element.props.icon : recipe.detail?.glyph;
+  const paths = canonicalGlyph(glyph, icons);
   if (!paths?.length) return [];
   const { x, y, height } = element.visualBounds;
   const size = recipe.detail?.size ?? 18;
@@ -133,16 +154,16 @@ function componentDetails(element: SolvedElement, tokens: TokenOverrides, recipe
   const iconX = x + 14 + (detailWidth - size) / 2;
   const iconY = y + (height - size) / 2;
   const scale = size / 24;
-  const stroke = tokens["color.muted"];
+  const stroke = resolveVisualValue(style.iconColor as string | number | undefined, tokens) ?? tokens["color.muted"];
   const strokeWidth = recipe.detail?.strokeWidth ?? 1.5;
   return [
-    `      <g data-livery-glyph="${escapeXml(recipe.detail?.glyph ?? "")}" transform="translate(${iconX} ${iconY}) scale(${scale})" fill="none" stroke="${stroke}" stroke-width="${strokeWidth / scale}" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">`,
+    `      <g data-livery-glyph="${escapeXml(glyph ?? "")}" transform="translate(${iconX} ${iconY}) scale(${scale})" fill="none" stroke="${stroke}" stroke-width="${strokeWidth / scale}" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">`,
     ...paths.map((path) => `        <path d="${path}"/>`),
     "      </g>",
   ];
 }
 
-function renderPrimitive(primitive: CanvasPrimitive, tokens: TokenOverrides, state?: VisualTimelineState, resourcePolicy?: ResourcePolicy) {
+function renderPrimitive(primitive: CanvasPrimitive, tokens: TokenOverrides, state?: VisualTimelineState, resourcePolicy?: ResourcePolicy, icons?: IconRegistry) {
   const properties = state?.properties.get(primitive.id);
   const bounds = primitiveBounds(primitive, properties);
   const { x, y, width, height } = bounds;
@@ -161,12 +182,12 @@ function renderPrimitive(primitive: CanvasPrimitive, tokens: TokenOverrides, sta
   if (primitive.kind === "text") {
     const fontSize = resolveVisualValue(properties?.fontSize ?? primitive.style?.fontSize ?? primitive.props?.fontSize ?? "$type.body", tokens);
     const fontWeight = resolveVisualValue(properties?.fontWeight ?? primitive.style?.fontWeight ?? primitive.props?.fontWeight, tokens);
-    return [`      <text data-livery-id="${escapeXml(primitive.id)}" x="${x}" y="${y + height}" font-family="Inter,system-ui,sans-serif" font-size="${fontSize}"${fontWeight !== undefined ? ` font-weight="${fontWeight}"` : ""} fill="${fill}"${attributes}>${escapeXml(primitive.label ?? String(primitive.props?.text ?? ""))}</text>`];
+    return [`      <text data-livery-id="${escapeXml(primitive.id)}" x="${x}" y="${y + height}" font-family="${escapeXml(String(tokens["type.fontFamily"]))}" font-size="${fontSize}"${fontWeight !== undefined ? ` font-weight="${fontWeight}"` : ""} fill="${fill}"${attributes}>${escapeXml(primitive.label ?? String(primitive.props?.text ?? ""))}</text>`];
   }
   if (primitive.kind === "image" && typeof primitive.props?.src === "string") return isImageSourceAllowed(primitive.props.src, resourcePolicy)
     ? [`      <image data-livery-id="${escapeXml(primitive.id)}" href="${escapeXml(primitive.props.src)}" x="${x}" y="${y}" width="${width}" height="${height}" preserveAspectRatio="xMidYMid meet"${typeof primitive.props.alt === "string" ? ` role="img" aria-label="${escapeXml(primitive.props.alt)}"` : ""}${attributes}/>`]
     : [];
-  if (primitive.kind === "icon") return renderIconPrimitive(primitive, bounds, stroke, strokeWidth, attributes);
+  if (primitive.kind === "icon") return renderIconPrimitive(primitive, bounds, stroke, strokeWidth, attributes, icons);
   if (primitive.kind === "group") return [];
   return appendPrimitiveLabel([`      <rect data-livery-id="${escapeXml(primitive.id)}" x="${x}" y="${y}" width="${width}" height="${height}" rx="${properties?.radius ?? primitive.style?.radius ?? primitive.props?.radius ?? 0}" fill="${fill}" stroke="${stroke}"${paint}${attributes}/>`], primitive, bounds, tokens, attributes, properties);
 }
@@ -183,10 +204,10 @@ function appendPrimitiveLabel(
   const fontSize = resolveVisualValue((properties?.fontSize as number | string | undefined) ?? primitive.style?.fontSize ?? "$type.body", tokens);
   const fontWeight = resolveVisualValue((properties?.fontWeight as number | string | undefined) ?? primitive.style?.fontWeight ?? 600, tokens);
   const color = resolveVisualValue((properties?.color as number | string | undefined) ?? primitive.style?.color ?? "$color.text", tokens);
-  return [...lines, `      <text data-livery-label-for="${escapeXml(primitive.id)}" x="${bounds.x + bounds.width / 2}" y="${bounds.y + bounds.height / 2}" dominant-baseline="middle" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="${fontSize}" font-weight="${fontWeight}" fill="${color}"${attributes}>${escapeXml(primitive.label)}</text>`];
+  return [...lines, `      <text data-livery-label-for="${escapeXml(primitive.id)}" x="${bounds.x + bounds.width / 2}" y="${bounds.y + bounds.height / 2}" dominant-baseline="middle" text-anchor="middle" font-family="${escapeXml(String(tokens["type.fontFamily"]))}" font-size="${fontSize}" font-weight="${fontWeight}" fill="${color}"${attributes}>${escapeXml(primitive.label)}</text>`];
 }
 
-function renderCanvasPrimitives(primitives: CanvasPrimitive[], tokens: TokenOverrides, state?: VisualTimelineState, resourcePolicy?: ResourcePolicy) {
+function renderCanvasPrimitives(primitives: CanvasPrimitive[], tokens: TokenOverrides, state?: VisualTimelineState, resourcePolicy?: ResourcePolicy, icons?: IconRegistry) {
   const byParent = new Map<string | undefined, CanvasPrimitive[]>();
   for (const primitive of primitives) {
     const siblings = byParent.get(primitive.parent) ?? [];
@@ -196,7 +217,7 @@ function renderCanvasPrimitives(primitives: CanvasPrimitive[], tokens: TokenOver
   const renderLevel = (parent: string | undefined, indent: string): string[] => [...(byParent.get(parent) ?? [])]
     .sort((a, b) => a.layer - b.layer || a.id.localeCompare(b.id))
     .flatMap((primitive) => {
-      if (primitive.kind !== "group") return renderPrimitive(primitive, tokens, state, resourcePolicy).map((line) => `${indent}${line.trimStart()}`);
+      if (primitive.kind !== "group") return renderPrimitive(primitive, tokens, state, resourcePolicy, icons).map((line) => `${indent}${line.trimStart()}`);
       const properties = state?.properties.get(primitive.id);
       const transform = transformValue(primitive, properties, primitive.bounds);
       const baseOpacity = finiteNumber(resolveVisualValue(primitive.style?.opacity ?? primitive.props?.opacity, tokens));
@@ -209,24 +230,21 @@ function renderCanvasPrimitives(primitives: CanvasPrimitive[], tokens: TokenOver
   return renderLevel(undefined, "      ");
 }
 
-function renderIconPrimitive(primitive: CanvasPrimitive, bounds: BoardRect, stroke: unknown, strokeWidth: unknown, attributes: string) {
+function renderIconPrimitive(primitive: CanvasPrimitive, bounds: BoardRect, stroke: unknown, strokeWidth: unknown, attributes: string, icons?: IconRegistry) {
   const name = typeof primitive.props?.name === "string" ? primitive.props.name : "unknown";
-  return renderIconGlyph(primitive.id, name, bounds, stroke, strokeWidth, attributes);
+  return renderIconGlyph(primitive.id, name, bounds, stroke, strokeWidth, attributes, icons);
 }
 
-function renderIconGlyph(id: string, name: string, bounds: BoardRect, stroke: unknown, strokeWidth: unknown, attributes: string) {
+function renderIconGlyph(id: string, name: string, bounds: BoardRect, stroke: unknown, strokeWidth: unknown, attributes: string, icons?: IconRegistry) {
   const { x, y, width, height } = bounds;
   const scaleX = width / 24;
   const scaleY = height / 24;
-  const paths: Record<string, string> = {
-    check: "M4 12l5 5L20 6",
-    document: "M6 2h8l4 4v16H6z M14 2v5h5",
-    star: "M12 2l3.1 6.3L22 9.3l-5 4.9 1.2 6.8-6.2-3.2L5.8 21 7 14.2 2 9.3l6.9-1z",
-    terminal: "M4 5h16v14H4z M7 9l3 3-3 3 M12 15h4",
-    warning: "M12 3L2 21h20z M12 9v5 M12 17v.1",
-  };
-  const path = paths[name] ?? paths.star!;
-  return [`      <g data-livery-id="${escapeXml(id)}" data-livery-icon="${escapeXml(name)}"${attributes}><g transform="translate(${x} ${y}) scale(${scaleX} ${scaleY})"><path d="${path}" fill="none" stroke="${stroke}" stroke-width="${strokeWidth ?? 1.5}" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></g></g>`];
+  const paths = canonicalGlyph(name, icons) ?? canonicalGlyph("star")!;
+  return [
+    `      <g data-livery-id="${escapeXml(id)}" data-livery-icon="${escapeXml(name)}"${attributes}><g transform="translate(${x} ${y}) scale(${scaleX} ${scaleY})" fill="none" stroke="${stroke}" stroke-width="${strokeWidth ?? 1.5}" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">`,
+    ...paths.map((path) => `        <path d="${escapeXml(path)}"/>`),
+    "      </g></g>",
+  ];
 }
 
 function renderDebug(scene: BoardScene) {

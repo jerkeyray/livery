@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compile, compileVisual, formatVisualDocument, migrateLegacyArtifact, migrateLegacySource } from "./index.js";
+import { compile, compileVisual, formatVisualDocument, migrateLegacyArtifact, migrateLegacySource, standardLibrary } from "./index.js";
 
 const source = `component RequestPath(client: string, endpoint: string) {
   user = lib.person(label: client)
@@ -121,11 +121,71 @@ figure arithmetic {
       ['figure bad { a = box("A", nonsense: 1) }', "semantic.unknown_argument"],
       ['figure bad { a = box("A", opacity: "high") }', "semantic.invalid_argument_value"],
       ['figure bad { a = path(width: 20, height: 20) }', "semantic.missing_argument"],
-      ['figure bad { a = icon(name: unknown) }', "semantic.invalid_argument_value"],
+      ['figure bad { a = icon(name: 42) }', "semantic.invalid_argument_value"],
       ['figure bad { a = service("A", variant: impossible) }', "semantic.invalid_argument_value"],
       ['figure bad { a = repeat(count: 2, kind: box) }', "semantic.unsupported_context"],
     ] as const;
     for (const [input, code] of cases) expect(compileVisual(input).diagnostics.map((item) => item.code), input).toContain(code);
+  });
+
+  it("supports complete presentation overrides on standard components", () => {
+    const result = compileVisual(`figure styled {
+ stripe = service("Stripe", subtitle: "Payment provider", icon: "credit-card", variant: soft, tone: info, fill: "#f3e8ff", stroke: "#7c3aed", strokeWidth: 2, color: "#4c1d95", iconColor: "#7c3aed", radius: 12, opacity: 0.95, fontSize: 14, fontWeight: 700, width: 180, height: 80)
+ row(stripe)
+}`);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.document?.root.children?.[0]).toMatchObject({
+      kind: "lib.service",
+      label: "Stripe",
+      subtitle: "Payment provider",
+      variant: "soft",
+      tone: "info",
+      style: { fill: "#f3e8ff", stroke: "#7c3aed", strokeWidth: 2, color: "#4c1d95", iconColor: "#7c3aed", radius: 12, opacity: 0.95, fontSize: 14, fontWeight: 700 },
+      props: { icon: "credit-card", width: 180, height: 80 },
+    });
+    const formatted = formatVisualDocument(result.document!);
+    expect(formatted).toContain('subtitle: "Payment provider"');
+    expect(formatted).toContain('icon: "credit-card"');
+    expect(compileVisual(formatted).diagnostics).toEqual([]);
+  });
+
+  it("exposes the complete visual parameter contract on every standard component", () => {
+    const expected = ["label", "subtitle", "icon", "variant", "tone", "fill", "stroke", "strokeWidth", "color", "iconColor", "radius", "opacity", "fontSize", "fontWeight", "width", "height"];
+    for (const component of Object.values(standardLibrary)) {
+      expect(component.parameters.map(({ name }) => name), component.name).toEqual(expected);
+      expect(component.variants, component.name).toEqual(["default", "muted", "emphasis", "soft", "solid", "ghost"]);
+    }
+  });
+
+  it("rejects unsafe paints on primitives and standard components", () => {
+    for (const input of [
+      'figure bad { a = box("A", fill: "url(https://evil.example/x)") }',
+      'figure bad { a = service("A", stroke: "var(--secret)") }',
+    ]) expect(compileVisual(input).diagnostics).toContainEqual(expect.objectContaining({ code: "semantic.invalid_argument_value" }));
+  });
+
+  it("compiles nested styled frames with stable qualified child ids", () => {
+    const result = compileVisual(`figure framed {
+ backend = frame("Backend", subtitle: "Private network", layout: row, gap: lg, padding: lg, fill: "#f8fafc") {
+  api = service("API")
+  db = database("Orders")
+  write = api.right -> db.left("write")
+ }
+ row(backend)
+}`);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.document?.root.children?.[0]).toMatchObject({
+      id: "backend",
+      kind: "frame",
+      subtitle: "Private network",
+      layout: { kind: "row", gap: "$space.lg" },
+      children: [{ id: "backend.api" }, { id: "backend.db" }],
+    });
+    expect(result.document?.connectors[0]).toMatchObject({ from: { node: "backend.api" }, to: { node: "backend.db" } });
+    const formatted = formatVisualDocument(result.document!);
+    expect(formatted).toContain('backend = frame("Backend"');
+    expect(formatted).toContain('api = lib.service(label: "API")');
+    expect(compileVisual(formatted).diagnostics).toEqual([]);
   });
 
   it("rejects duplicate layouts, omitted bindings, and duplicate layout children", () => {

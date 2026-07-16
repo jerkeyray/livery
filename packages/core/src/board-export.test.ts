@@ -25,8 +25,8 @@ figure export_test {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     const svg = boardSceneToSvg(result.scene, { debug: true });
-    expect(svg).toContain('role="img" aria-label="export_test"');
-    expect(svg).not.toContain("<title id=");
+    expect(svg).toContain('role="img" aria-labelledby="export_test-title export_test-desc"');
+    expect(svg).toContain('<title id="export_test-title">export_test</title>');
     expect(svg).toContain('data-livery-id="edge"');
     expect(svg).toContain('data-livery-id="art.shape"');
     expect(svg).toContain('mask="url(#art-shape-mask)"');

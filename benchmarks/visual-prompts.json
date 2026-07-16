@@ -1,0 +1,22 @@
+[
+  { "id": "checkout", "category": "architecture", "prompt": "Create a production checkout architecture with a browser, API gateway, order service, Stripe, Postgres, queue, worker, and email service. Distinguish synchronous requests from asynchronous events and avoid crossings." },
+  { "id": "agent-trace", "category": "agent", "prompt": "Show a research agent querying web search, receiving evidence, calling a reasoning model, and writing a cited answer. Keep the trace left to right." },
+  { "id": "data-pipeline", "category": "workflow", "prompt": "Show raw events moving through validation, normalization, enrichment, a warehouse, and a dashboard. Use a success tone only for validated output." },
+  { "id": "cloud-network", "category": "architecture", "prompt": "Draw a cloud system with a public edge frame and private application frame containing load balancer, services, cache, database, and object storage." },
+  { "id": "order-state", "category": "state-machine", "prompt": "Show an order state machine from draft to authorized, fulfilled, and refunded, including declined and cancelled branches." },
+  { "id": "ops-dashboard", "category": "dashboard", "prompt": "Create a compact operations dashboard with request volume, error rate, latency, queue depth, and deployment status." },
+  { "id": "oauth-sequence", "category": "sequence", "prompt": "Explain an OAuth authorization-code exchange between browser, application, identity provider, and API in strict chronological order." },
+  { "id": "cache-read", "category": "workflow", "prompt": "Explain a cache read-through flow with hit and miss paths, origin read, cache fill, and response." },
+  { "id": "incident-response", "category": "infographic", "prompt": "Create a concise incident-response explainer covering detect, triage, mitigate, recover, and learn, with ownership labels." },
+  { "id": "event-sourcing", "category": "architecture", "prompt": "Show commands entering an aggregate, events written to an event store, projections updating read models, and subscribers consuming events." },
+  { "id": "rag-pipeline", "category": "agent", "prompt": "Show a RAG pipeline from document ingestion through chunking, embeddings, vector search, reranking, and answer generation." },
+  { "id": "ci-pipeline", "category": "workflow", "prompt": "Show a CI pipeline from commit through build, unit tests, security scan, staging deployment, approval, and production." },
+  { "id": "payment-comparison", "category": "comparison", "prompt": "Compare card and bank-transfer payment paths with shared fraud checks and separate settlement behavior." },
+  { "id": "retry-timeline", "category": "timeline", "prompt": "Explain three request retries with exponential backoff, a circuit breaker opening, cooldown, and recovery." },
+  { "id": "database-replication", "category": "architecture", "prompt": "Show a primary Postgres database replicating to two read replicas, backups to object storage, and applications splitting reads from writes." },
+  { "id": "feature-flags", "category": "state-machine", "prompt": "Explain a feature flag progressing from internal to canary, percentage rollout, general availability, and rollback." },
+  { "id": "etl-quality", "category": "dashboard", "prompt": "Create a data-quality summary with freshness, completeness, schema drift, failed rows, and lineage to the source tables." },
+  { "id": "webhook-delivery", "category": "sequence", "prompt": "Show signed webhook delivery, receiver verification, idempotency lookup, asynchronous processing, retry, and dead-letter handling." },
+  { "id": "model-routing", "category": "agent", "prompt": "Show an AI gateway classifying a request and routing it to a nano, mini, or reasoning model based on cost and complexity." },
+  { "id": "platform-map", "category": "infographic", "prompt": "Create a platform map grouping developer experience, runtime, data, observability, and security capabilities into labeled frames." }
+]

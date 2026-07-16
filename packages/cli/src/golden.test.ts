@@ -14,7 +14,7 @@ describe("CLI golden exports", () => {
     const status = await runCli([fixture.pathname, "--format", "svg", "--layout", "fast", "--width", "640"], io);
 
     expect(status).toBe(0);
-    expect(output()).toBe(await readFile(expectedSvg, "utf8"));
+    expect(output()).toBe((await readFile(expectedSvg, "utf8")).trimEnd());
   });
 
   it("matches the JSON fixture", async () => {

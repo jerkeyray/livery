@@ -3,6 +3,7 @@ import { canonicalTheme } from "./theme.js";
 import type { AnchorName, ComponentDefinition, PrimitiveKind } from "./visual.js";
 import {
   CORE_LANGUAGE_CALLS,
+  ICON_NAMES,
   standardComponentCallContract,
   type LanguageCallContext,
   type LanguageCallContract,
@@ -28,6 +29,7 @@ export type LanguageCatalog = {
   calls: readonly LanguageCallContract[];
   tokens: readonly string[];
   anchors: readonly AnchorName[];
+  icons: readonly string[];
   components: readonly ComponentDefinition[];
 };
 
@@ -50,8 +52,18 @@ function componentContracts(): LanguageCallContract[] {
   return Object.values(standardLibrary).map((component) => standardComponentCallContract(component));
 }
 
+function cloneCallContract(contract: LanguageCallContract): LanguageCallContract {
+  return {
+    ...contract,
+    contexts: [...contract.contexts],
+    positional: contract.positional.map((parameter) => ({ ...parameter, ...(parameter.values ? { values: [...parameter.values] } : {}) })),
+    named: contract.named.map((parameter) => ({ ...parameter, ...(parameter.values ? { values: [...parameter.values] } : {}) })),
+    ...(contract.variadic ? { variadic: { ...contract.variadic, ...(contract.variadic.values ? { values: [...contract.variadic.values] } : {}) } } : {}),
+  };
+}
+
 export function getLanguageCatalog(): LanguageCatalog {
-  const calls = [...CORE_LANGUAGE_CALLS, ...componentContracts()];
+  const calls = [...CORE_LANGUAGE_CALLS, ...componentContracts()].map(cloneCallContract);
   const primitives = CORE_LANGUAGE_CALLS
     .filter(({ category, name }) => category === "primitive" || name === "canvas" || name === "connect")
     .map(({ name }) => name as PrimitiveKind | "connect");
@@ -68,6 +80,7 @@ export function getLanguageCatalog(): LanguageCatalog {
     calls,
     tokens,
     anchors,
+    icons: ICON_NAMES,
     components: Object.values(standardLibrary),
   };
 }

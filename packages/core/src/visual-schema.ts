@@ -18,6 +18,7 @@ export const visualNodeSchema: z.ZodType = z.lazy(() => z.object({
   id: z.string().min(1),
   kind: z.string().min(1),
   label: z.string().optional(),
+  subtitle: z.string().optional(),
   description: z.string().optional(),
   variant: z.string().optional(),
   tone: z.enum(["neutral", "info", "success", "warning", "danger"]).optional(),

@@ -138,7 +138,7 @@ class VisualParser {
         this.recoverStatement();
         continue;
       }
-      if (this.peek().value === "=") {
+      if (this.looksLikeBinding()) {
         const binding = this.parseBinding();
         if (binding) items.push({ type: "binding", binding });
         continue;
@@ -177,14 +177,14 @@ class VisualParser {
       this.expectSymbol(":", "Expected : after the parameter name.");
       const type = this.expectIdentifier("Expected a parameter type.");
       if (!name || !type) break;
-      if (!(["string", "number", "boolean", "tone"] as string[]).includes(type)) {
+      if (!(["string", "number", "boolean", "tone", "paint", "length", "identifier"] as string[]).includes(type)) {
         this.error("syntax.invalid_component_parameter", `Unsupported component parameter type ${type}.`);
       }
       const hasDefault = this.matchSymbol("=");
       const defaultValue = hasDefault ? this.parseValueUntil(new Set([",", ")"])) : undefined;
       parameters.push({
         name,
-        type: (["string", "number", "boolean", "tone"] as string[]).includes(type) ? type as ComponentParameter["type"] : "string",
+        type: (["string", "number", "boolean", "tone", "paint", "length", "identifier"] as string[]).includes(type) ? type as ComponentParameter["type"] : "string",
         required: !hasDefault,
         ...(hasDefault && defaultValue !== undefined ? { default: defaultValue } : {}),
       });
@@ -195,7 +195,8 @@ class VisualParser {
 
   private parseBinding(): ParsedBinding | undefined {
     const start = this.current().span.start;
-    const id = this.expectIdentifier("Expected a binding name.");
+    const id = this.qualifiedIdentifier();
+    if (!id) this.error("syntax.invalid_binding", "Expected a binding name.");
     if (!id || !this.expectSymbol("=", "Expected = after the binding name.")) return undefined;
     const call = this.looksLikeArrow() ? this.parseArrow() : this.parseCall();
     if (!call) return undefined;
@@ -396,6 +397,14 @@ class VisualParser {
     offset += 1;
     while (this.peek(offset).value === "." && this.peek(offset + 1).kind === "identifier") offset += 2;
     return this.peek(offset).kind === "arrow";
+  }
+
+  private looksLikeBinding() {
+    let offset = 0;
+    if (this.peek(offset).kind !== "identifier") return false;
+    offset += 1;
+    while (this.peek(offset).value === "." && this.peek(offset + 1).kind === "identifier") offset += 2;
+    return this.peek(offset).value === "=";
   }
 
   private recoverStatement() {

@@ -1,6 +1,6 @@
 import type { SemanticTone } from "./artifact.js";
 
-export type PrimitiveKind = "text" | "box" | "circle" | "line" | "path" | "image" | "icon" | "group" | "canvas" | "repeat";
+export type PrimitiveKind = "text" | "box" | "circle" | "line" | "path" | "image" | "icon" | "group" | "frame" | "canvas" | "repeat";
 export type LayoutKind = "free" | "row" | "column" | "stack" | "grid" | "overlay" | "canvas";
 export type AnchorName = "top" | "right" | "bottom" | "left" | "center";
 export type TokenReference = `$${string}`;
@@ -13,6 +13,7 @@ export type VisualStyle = {
   radius?: VisualValue;
   opacity?: VisualValue;
   color?: VisualValue;
+  iconColor?: VisualValue;
   fontSize?: VisualValue;
   fontWeight?: VisualValue;
 };
@@ -21,6 +22,7 @@ export type VisualNode = {
   id: string;
   kind: PrimitiveKind | `lib.${string}` | `component.${string}`;
   label?: string;
+  subtitle?: string;
   description?: string;
   variant?: string;
   tone?: SemanticTone;
@@ -81,7 +83,7 @@ export type VisualDocument = {
 
 export type ComponentParameter = {
   name: string;
-  type: "string" | "number" | "boolean" | "tone";
+  type: "string" | "number" | "boolean" | "tone" | "paint" | "length" | "identifier";
   required: boolean;
   default?: VisualValue;
 };

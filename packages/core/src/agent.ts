@@ -1,7 +1,7 @@
 import type { Diagnostic } from "./diagnostics.js";
 import { getLanguageCatalog } from "./language-catalog.js";
 
-export type AgentGuideOptions = { mode: "compact" | "reference" };
+export type AgentGuideOptions = { mode: "compact" | "generation" | "reference" };
 
 export function createAgentGuide({ mode }: AgentGuideOptions): string {
   const catalog = getLanguageCatalog();
@@ -12,11 +12,54 @@ export function createAgentGuide({ mode }: AgentGuideOptions): string {
     `Bind primitives or library components (${supported.join(", ")}).`,
     `Compose with ${catalog.layouts.map(({ name }) => name).join(", ")}; prefer spacing tokens and constraints over macro coordinates.`,
     `Connect stable ${catalog.anchors.join("/")} anchors: read = api.right -> db.left("read").`,
+    "Style sparingly with tone/variant or fill/stroke/color/iconColor; subtitle and icon are optional.",
     "Use concise labels, unique IDs, and only declared references.",
     `Optional timelines use ${supportedTimelines.map(({ name }) => name).join(", ")}.`,
     "No JavaScript, I/O, recursion, arbitrary SVG, unbounded loops, or unsupported properties.",
   ].join("\n");
   if (mode === "compact") return compact;
+  if (mode === "generation") return [
+    compact,
+    "",
+    "Exact generation contract:",
+    '- Wrap the complete document in: figure stable_id("Short title") { ... }',
+    `- Supported components: ${supported.join(", ")}.`,
+    "- Component form: id = service(\"Label\", subtitle: \"Optional detail\", icon: \"server\", variant: soft, tone: info).",
+    "- Component style fields: fill, stroke, strokeWidth, color, iconColor, radius, opacity, fontSize, fontWeight, width, height.",
+    "- Variants: default, muted, emphasis, soft, solid, ghost. Tones: neutral, info, success, warning, danger.",
+    `- Canonical icons: ${catalog.icons.join(", ")}. Never invent an icon name or SVG path.`,
+    "- Connectors: id = connect(api.right, database.left, label: \"read\", variant: data, tone: info).",
+    "- Connector variants: directional for normal calls, bidirectional for two-way exchange, async for queued work, data for storage/data movement.",
+    "- Layout exactly once at each scope: row(a, b, gap: $space.xl), column(a, b), grid(a, b, columns: 2), stack(a, b), or overlay(a, b).",
+    "- Nested boundary: area = frame(\"Application\", subtitle: \"Request handling\", layout: column, padding: $space.lg, gap: $space.md) { api = api(\"API gateway\") service = service(\"Conversation\") }.",
+    "- Reference nested children with qualified IDs, for example connect(client.web.right, application.api.left, label: \"request\").",
+    "- A frame owns its internal layout. The figure still needs one root layout for its top-level children.",
+    "- Use safe quoted hex paints. Coordinate fill, stroke, color, and iconColor rather than changing only the border.",
+    "- Use frames only when the user requests groups, areas, boundaries, or hierarchy. Do not use empty decorative frames.",
+    "",
+    "Canonical linear example:",
+    'figure request_path("Request path") {',
+    '  web = browser("Web app", icon: "globe")',
+    '  api = api("API gateway", icon: "api")',
+    '  orders = database("Postgres", icon: "database", variant: soft, tone: info)',
+    '  request = connect(web.right, api.left, label: "request")',
+    '  read = connect(api.right, orders.left, label: "read", variant: data)',
+    '  row(web, api, orders, gap: $space.xl)',
+    '}',
+    "",
+    "Canonical grouped example:",
+    'figure support_system("Support system") {',
+    '  client = frame("Client", layout: column, padding: $space.lg) {',
+    '    web = browser("Web app", icon: "globe")',
+    '  }',
+    '  application = frame("Application", layout: column, padding: $space.lg, gap: $space.md) {',
+    '    gateway = api("API gateway")',
+    '    conversations = service("Conversation")',
+    '  }',
+    '  request = connect(client.web.right, application.gateway.left, label: "message")',
+    '  row(client, application, gap: $space.xl)',
+    '}',
+  ].join("\n");
   const componentReference = catalog.components.map((component) =>
     `- ${component.name} [${component.status}, ${component.category}]: ${component.description} Ports: ${component.ports.join(", ")}. Example: ${component.example}`,
   );

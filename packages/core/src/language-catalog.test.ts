@@ -23,16 +23,22 @@ describe("language intelligence", () => {
     });
     expect(catalog.calls.find(({ name }) => name === "morph")).toMatchObject({ status: "unsupported" });
     expect(catalog.tokens).toContain("color.accent");
+    expect(catalog.icons).toContain("credit-card");
     expect(catalog.components.find(({ name }) => name === "database")).toMatchObject({ category: "storage", status: "supported", sizing: { minWidth: expect.any(Number) }, examples: [expect.any(String)] });
     expect(catalog.components.find(({ name }) => name === "barChart")).toMatchObject({ category: "chart", status: "experimental" });
     expect(getLanguageCatalog()).toEqual(catalog);
   });
 
-  it("generates compact and reference guides from the same catalog", () => {
+  it("generates compact, generation, and reference guides from the same catalog", () => {
     expect(LIVERY_AGENT_GUIDE).toBe(createAgentGuide({ mode: "compact" }));
     expect(LIVERY_AGENT_GUIDE).toContain("database");
     expect(LIVERY_AGENT_GUIDE).not.toContain("morph");
+    expect(LIVERY_AGENT_GUIDE).toContain("iconColor");
     expect(createAgentGuide({ mode: "reference" })).toContain("barChart [experimental, chart]");
+    const generation = createAgentGuide({ mode: "generation" });
+    expect(generation).toContain("Exact generation contract:");
+    expect(generation).toContain("Canonical grouped example:");
+    expect(generation).toContain("qualified IDs");
     expect(LIVERY_AGENT_GUIDE.trim().split(/\s+/).length).toBeLessThan(300);
   });
 

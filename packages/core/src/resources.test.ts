@@ -30,4 +30,12 @@ describe("resource policy", () => {
     expect(render(boardImageFigure("https://assets.example.com/image.png"), { width: 320, resourcePolicy: policy }).svg).toContain("<image");
     expect(svg).not.toMatch(/<script|\son\w+=/i);
   });
+
+  it("requires non-canonical icons to be registered by the host", () => {
+    const source = `figure icons { service = service("Billing", icon: "private-logo") row(service) }`;
+    expect(render(source, { width: 320 }).diagnostics.map(({ code }) => code)).toContain("resource.icon_not_registered");
+    const result = render(source, { width: 320, icons: { "private-logo": ["M3 3h18v18H3z"] } });
+    expect(result.diagnostics).toEqual([]);
+    expect(result.svg).toContain('data-livery-glyph="private-logo"');
+  });
 });

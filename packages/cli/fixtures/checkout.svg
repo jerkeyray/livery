@@ -1,4 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="640" height="162" viewBox="0 0 640 162" role="img" aria-label="Checkout fixture" aria-describedby="checkout-desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="162" viewBox="0 0 640 162" role="img" aria-labelledby="checkout-title checkout-desc">
+  <title id="checkout-title">Checkout fixture</title>
   <desc id="checkout-desc">Checkout fixture: 4 elements and 2 connections.</desc>
   <rect width="640" height="162" fill="#f8fafc"/>
   <defs>

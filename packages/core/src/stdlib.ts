@@ -61,13 +61,18 @@ export function instantiateStandardComponent(
 ): VisualNode {
   const definition = standardLibrary[name];
   if (!definition) throw new Error(`Unknown standard library component ${name}.`);
+  const styleKeys = new Set(["fill", "stroke", "strokeWidth", "color", "iconColor", "radius", "opacity", "fontSize", "fontWeight"]);
+  const style = Object.fromEntries(Object.entries(props).filter(([key]) => styleKeys.has(key)));
+  const componentProps = Object.fromEntries(Object.entries(props).filter(([key]) => !styleKeys.has(key) && !["subtitle", "variant", "tone"].includes(key)));
   return {
     id,
     kind: `lib.${name}`,
     label: typeof props.label === "string" ? props.label : humanize(name),
+    ...(typeof props.subtitle === "string" ? { subtitle: props.subtitle } : {}),
     ...(typeof props.variant === "string" ? { variant: props.variant } : {}),
     ...(typeof props.tone === "string" && ["neutral", "info", "success", "warning", "danger"].includes(props.tone) ? { tone: props.tone as "neutral" | "info" | "success" | "warning" | "danger" } : {}),
-    props,
+    ...(Object.keys(style).length ? { style } : {}),
+    ...(Object.keys(componentProps).length ? { props: componentProps } : {}),
     anchors: ["top", "right", "bottom", "left", "center"],
   };
 }
@@ -83,8 +88,21 @@ function component(name: string): ComponentDefinition {
     status: metadata.status ?? "supported",
     parameters: [
       { name: "label", type: "string", required: false },
+      { name: "subtitle", type: "string", required: false },
+      { name: "icon", type: "identifier", required: false },
       { name: "variant", type: "string", required: false },
       { name: "tone", type: "tone", required: false, default: "neutral" },
+      { name: "fill", type: "paint", required: false },
+      { name: "stroke", type: "paint", required: false },
+      { name: "strokeWidth", type: "length", required: false },
+      { name: "color", type: "paint", required: false },
+      { name: "iconColor", type: "paint", required: false },
+      { name: "radius", type: "length", required: false },
+      { name: "opacity", type: "number", required: false },
+      { name: "fontSize", type: "length", required: false },
+      { name: "fontWeight", type: "number", required: false },
+      { name: "width", type: "length", required: false },
+      { name: "height", type: "length", required: false },
     ],
     root: {
       id: "root",
@@ -93,8 +111,8 @@ function component(name: string): ComponentDefinition {
       anchors: ["top", "right", "bottom", "left", "center"],
     },
     ports: ["top", "right", "bottom", "left", "center"],
-    variants: ["default", "muted", "emphasis"],
-    tokens: ["color.surface", "color.border", "color.text", "space.md", "radius.md", "stroke.normal"],
+    variants: ["default", "muted", "emphasis", "soft", "solid", "ghost"],
+    tokens: ["color.surface", "color.border", "color.text", "color.accent", "color.accentSoft", "space.md", "radius.md", "stroke.normal"],
     intrinsicSize: { minWidth: geometry?.minWidth ?? 120, minHeight: geometry?.minHeight ?? 64 },
     sizing: { minWidth: geometry?.minWidth ?? 120, minHeight: geometry?.minHeight ?? 64, ...(geometry?.maxWidth ? { maxWidth: geometry.maxWidth } : {}) },
     accessibility: { role: "group", labelParameter: "label" },

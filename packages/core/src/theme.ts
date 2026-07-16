@@ -49,12 +49,27 @@ export const canonicalTheme: LiveryTheme = {
       accent: "#c0264f",
       accentSoft: "#fff1f4",
       info: "#2563eb",
+      infoSoft: "#eff6ff",
       success: "#15803d",
+      successSoft: "#f0fdf4",
       warning: "#a16207",
+      warningSoft: "#fffbeb",
       danger: "#b91c1c",
+      dangerSoft: "#fef2f2",
+      onAccent: "#ffffff",
     },
     space: { xs: 4, sm: 8, md: 16, lg: 24, xl: 40 },
-    type: { caption: 10, body: 13, label: 14, title: 18 },
+    type: {
+      fontFamily: "Inter,system-ui,sans-serif",
+      monoFamily: "SFMono-Regular,Consolas,monospace",
+      caption: 10,
+      body: 13,
+      label: 14,
+      title: 18,
+      bodyWeight: 600,
+      titleWeight: 700,
+      lineHeight: 18,
+    },
     radius: { none: 0, sm: 4, md: 6, lg: 8, pill: 999 },
     stroke: { hairline: 1, normal: 1.5, strong: 2 },
     elevation: { none: "none", low: "0 1px 2px rgb(15 23 42 / 6%)", raised: "0 6px 18px rgb(15 23 42 / 9%)" },
@@ -62,6 +77,21 @@ export const canonicalTheme: LiveryTheme = {
   },
   components: {
     box: nodeRecipe("none", { detailWidth: 0 }),
+    frame: {
+      geometry: { minWidth: 220, maxWidth: 960, minHeight: 140, paddingX: 20, paddingY: 18, detailWidth: 0, labelGap: 0 },
+      surface: { fill: "$color.surfaceMuted", stroke: "$color.border", strokeWidth: "$stroke.hairline", radius: "$radius.lg" },
+      typography: { color: "$color.text", fontSize: "$type.label", fontWeight: "$type.titleWeight", lineHeight: 20, align: "start" },
+      shape: "rect",
+      elevation: "none",
+      states: { focused: { stroke: "$color.accent", strokeWidth: "$stroke.strong" }, muted: { opacity: 0.62 } },
+      variants: {
+        muted: { fill: "$color.surfaceMuted", opacity: 0.72 },
+        emphasis: { fill: "$color.accentSoft", stroke: "$color.accent", strokeWidth: "$stroke.strong" },
+        soft: { fill: "$color.accentSoft", stroke: "$color.accent" },
+        solid: { fill: "$color.accent", stroke: "$color.accent", color: "$color.onAccent" },
+        ghost: { fill: "transparent", stroke: "transparent" },
+      },
+    },
     text: { typography: { color: "$color.text", fontSize: "$type.body", fontWeight: 500, lineHeight: 18 } },
     connector: { surface: { stroke: "$color.connector", strokeWidth: "$stroke.normal" }, states: { traced: { stroke: "$color.accent", strokeWidth: "$stroke.strong" } } },
     "lib.person": nodeRecipe("person", { minWidth: 132, detailWidth: 28 }),
@@ -163,10 +193,87 @@ function nodeRecipe(glyph: string, geometry: Partial<ComponentGeometry> = {}, sh
     shape,
     elevation: "none",
     states: { focused: { fill: "$color.accentSoft", stroke: "$color.accent", strokeWidth: "$stroke.strong" }, muted: { opacity: 0.62 } },
-    variants: { muted: { fill: "$color.surfaceMuted" }, emphasis: { stroke: "$color.accent", strokeWidth: "$stroke.strong" } },
+    variants: {
+      muted: { fill: "$color.surfaceMuted", opacity: 0.72 },
+      emphasis: { fill: "$color.accentSoft", stroke: "$color.accent", strokeWidth: "$stroke.strong", iconColor: "$color.accent" },
+      soft: { fill: "$color.accentSoft", stroke: "$color.accent", iconColor: "$color.accent" },
+      solid: { fill: "$color.accent", stroke: "$color.accent", color: "$color.onAccent", iconColor: "$color.onAccent" },
+      ghost: { fill: "transparent", stroke: "transparent", color: "$color.text", iconColor: "$color.muted" },
+    },
   };
 }
 
 function raisedRecipe(glyph: string, geometry: Partial<ComponentGeometry> = {}, shape: ComponentRecipe["shape"] = "rect"): ComponentRecipe {
   return { ...nodeRecipe(glyph, geometry, shape), elevation: "low" };
+}
+
+export function componentToneStyle(tone: SemanticTone | undefined, variant?: string): VisualStyle {
+  if (!tone || tone === "neutral") return {};
+  const color = `$color.${tone}`;
+  if (variant === "solid") return { fill: color, stroke: color, color: "$color.onAccent", iconColor: "$color.onAccent" };
+  if (variant === "ghost") return { fill: "transparent", stroke: "transparent", color, iconColor: color };
+  return { fill: `$color.${tone}Soft`, stroke: color, iconColor: color };
+}
+
+export const editorialTheme: LiveryTheme = { ...canonicalTheme, name: "editorial" };
+
+export const paperTheme: LiveryTheme = {
+  ...canonicalTheme,
+  name: "paper",
+  tokens: {
+    ...canonicalTheme.tokens,
+    color: {
+      ...canonicalTheme.tokens.color,
+      background: "#f5f1e8",
+      canvas: "#f8f5ee",
+      surface: "#fffdf8",
+      surfaceMuted: "#f1ece2",
+      text: "#24211d",
+      muted: "#746e65",
+      border: "#d6cec0",
+      connector: "#8c857b",
+    },
+  },
+};
+
+export const midnightTheme: LiveryTheme = {
+  ...canonicalTheme,
+  name: "midnight",
+  tokens: {
+    ...canonicalTheme.tokens,
+    color: {
+      ...canonicalTheme.tokens.color,
+      background: "#0b1020",
+      canvas: "#0f1629",
+      surface: "#171f34",
+      surfaceMuted: "#202a42",
+      text: "#eef2ff",
+      muted: "#9aa7bd",
+      border: "#34415b",
+      connector: "#71809a",
+      accent: "#f0527d",
+      accentSoft: "#341a2a",
+      info: "#60a5fa",
+      infoSoft: "#142a46",
+      success: "#4ade80",
+      successSoft: "#153526",
+      warning: "#fbbf24",
+      warningSoft: "#3a2d13",
+      danger: "#fb7185",
+      dangerSoft: "#3c1922",
+      onAccent: "#ffffff",
+    },
+  },
+};
+
+export const builtInThemes = {
+  editorial: editorialTheme,
+  paper: paperTheme,
+  midnight: midnightTheme,
+} as const satisfies Record<string, LiveryTheme>;
+
+export type BuiltInThemeName = keyof typeof builtInThemes;
+
+export function getBuiltInTheme(name: BuiltInThemeName): LiveryTheme {
+  return builtInThemes[name];
 }

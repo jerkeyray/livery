@@ -4,6 +4,7 @@ import { diagnostic, type Diagnostic } from "./diagnostics.js";
 import {
   getCoreCallContract,
   isLanguageValue,
+  isSafePaint,
   standardComponentCallContract,
   TONE_VALUES,
   type LanguageCallContext,
@@ -127,20 +128,24 @@ export function formatVisualDocument(document: VisualDocument) {
   return lines.join("\n");
 }
 
-function formatNodeBinding(node: VisualNode, indent: string): string[] {
+function formatNodeBinding(node: VisualNode, indent: string, parentId?: string): string[] {
+  const bindingId = parentId && node.id.startsWith(`${parentId}.`) ? node.id.slice(parentId.length + 1) : node.id;
+  const isFrame = node.kind === "frame";
   const name = node.kind.startsWith("lib.") ? node.kind : node.kind.startsWith("component.") ? "group" : node.kind;
   const positional = node.label !== undefined && !node.kind.startsWith("lib.") ? [`\"${escapeString(node.label)}\"`] : [];
   const named = [
     ...(node.kind.startsWith("lib.") && node.label !== undefined ? [`label: \"${escapeString(node.label)}\"`] : []),
+    ...(node.subtitle !== undefined ? [`subtitle: \"${escapeString(node.subtitle)}\"`] : []),
     ...formatProperties(node.props, new Set(["label", "variant", "tone"])),
+    ...(isFrame && node.layout ? formatProperties({ layout: node.layout.kind, ...Object.fromEntries(Object.entries(node.layout).filter(([key]) => key !== "kind")) }) : []),
     ...formatProperties(node.style),
     ...(node.variant ? [`variant: ${formatValue(node.variant)}`] : []),
     ...(node.tone && node.tone !== "neutral" ? [`tone: ${formatValue(node.tone)}`] : []),
   ];
   const args = [...positional, ...named].join(", ");
-  if (!node.children?.length) return [`${indent}${node.id} = ${name}(${args})`];
-  const lines = [`${indent}${node.id} = group(${args}) {`];
-  for (const child of node.children) lines.push(...formatNodeBinding(child, `${indent}  `));
+  if (!node.children?.length) return [`${indent}${bindingId} = ${name}(${args})`];
+  const lines = [`${indent}${bindingId} = ${isFrame ? "frame" : "group"}(${args}) {`];
+  for (const child of node.children) lines.push(...formatNodeBinding(child, `${indent}  `, node.id));
   lines.push(`${indent}}`);
   return lines;
 }
@@ -339,7 +344,8 @@ function validateTimelineProperties(
           "tone", "opacity", ...transforms,
           ...(!["line", "icon", "image"].includes(target.kind) ? ["fill"] : []),
           ...(!["text", "image"].includes(target.kind) ? ["stroke", "strokeWidth"] : []),
-          ...(target.hasLabel ? ["color"] : []),
+          ...(!["line", "icon", "image", "text"].includes(target.kind) ? ["radius", "iconColor"] : []),
+          ...(target.hasLabel ? ["color", "fontSize", "fontWeight"] : []),
         ])
       : new Set([
           "opacity",
@@ -357,13 +363,13 @@ function validateTimelineProperties(
     }
     if (name === "tone" && (typeof value !== "string" || !TONE_VALUES.includes(value as (typeof TONE_VALUES)[number]))) {
       diagnostics.push(diagnostic("semantic.invalid_timeline_property_value", `${id}.${name} must be ${TONE_VALUES.join(", ")}.`));
-    } else if (["fill", "stroke", "color"].includes(name) && typeof value !== "string") {
+    } else if (["fill", "stroke", "color", "iconColor"].includes(name) && (typeof value !== "string" || !isSafePaint(value))) {
       diagnostics.push(diagnostic("semantic.invalid_timeline_property_value", `${id}.${name} must be a paint value.`));
-    } else if (!["tone", "fill", "stroke", "color"].includes(name) && (typeof value !== "number" || !Number.isFinite(value))) {
+    } else if (!["tone", "fill", "stroke", "color", "iconColor"].includes(name) && (typeof value !== "number" || !Number.isFinite(value))) {
       diagnostics.push(diagnostic("semantic.invalid_timeline_property_value", `${id}.${name} must be a finite number.`));
     } else if (name === "opacity" && typeof value === "number" && (value < 0 || value > 1)) {
       diagnostics.push(diagnostic("semantic.invalid_timeline_property_value", `${id}.opacity must be between 0 and 1.`));
-    } else if ((name === "width" || name === "height" || name === "fontSize" || name === "strokeWidth") && typeof value === "number" && value < 0) {
+    } else if ((name === "width" || name === "height" || name === "fontSize" || name === "strokeWidth" || name === "radius") && typeof value === "number" && value < 0) {
       diagnostics.push(diagnostic("semantic.invalid_timeline_property_value", `${id}.${name} cannot be negative.`));
     }
   }
@@ -401,14 +407,15 @@ function expandBinding(
     validateStandardComponentCall(call, name, callContext, context.diagnostics);
     return instantiateStandardComponent(name, binding.id, { ...(typeof call.positional[0] === "string" ? { label: call.positional[0] } : {}), ...call.named });
   }
-  if (["text", "box", "circle", "line", "path", "image", "icon", "group", "repeat"].includes(call.name)) {
+  if (["text", "box", "circle", "line", "path", "image", "icon", "group", "frame", "repeat"].includes(call.name)) {
     validateContractCall(call, getCoreCallContract(call.name), callContext, context.diagnostics);
     if (call.name === "repeat") validateRepeatTemplate(binding.id, call, context.diagnostics);
     if (call.name === "image") validateImageSource(binding.id, call.named.src, context.diagnostics, binding.span);
-    if (call.name === "icon" && (typeof call.named.name !== "string" || !["check", "document", "star", "terminal", "warning"].includes(call.named.name))) context.diagnostics.push(diagnostic("semantic.unknown_icon", `Icon ${binding.id} requires a supported name.`, binding.span));
-    const styleKeys = new Set(["fill", "stroke", "strokeWidth", "radius", "opacity", "color", "fontSize", "fontWeight"]);
+    if (call.name === "icon" && typeof call.named.name !== "string") context.diagnostics.push(diagnostic("semantic.unknown_icon", `Icon ${binding.id} requires a name.`, binding.span));
+    const styleKeys = new Set(["fill", "stroke", "strokeWidth", "radius", "opacity", "color", "iconColor", "fontSize", "fontWeight"]);
     const style = Object.fromEntries(Object.entries(call.named).filter(([key]) => styleKeys.has(key)));
-    const props = Object.fromEntries(Object.entries(call.named).filter(([key]) => !styleKeys.has(key)));
+    const structuralKeys = new Set(call.name === "frame" ? ["subtitle", "layout", "gap", "columns", "align", "distribute"] : []);
+    const props = Object.fromEntries(Object.entries(call.named).filter(([key]) => !styleKeys.has(key) && !structuralKeys.has(key)));
     const children = expandNestedBindings(binding, values, context, depth, callContext);
     const label = typeof call.positional[0] === "string"
       ? call.positional[0]
@@ -417,7 +424,15 @@ function expandBinding(
         : typeof call.named.label === "string"
           ? call.named.label
           : undefined;
-    return { id: binding.id, kind: call.name as VisualNode["kind"], ...(label !== undefined ? { label } : {}), ...(Object.keys(style).length ? { style } : {}), ...(Object.keys(props).length ? { props } : {}), ...(children.length ? { children } : {}) };
+    const subtitle = typeof call.named.subtitle === "string" ? call.named.subtitle : undefined;
+    const frameLayout = call.name === "frame" ? {
+      kind: typeof call.named.layout === "string" ? call.named.layout as LayoutKind : "row" as const,
+      ...(call.named.gap !== undefined ? { gap: call.named.gap } : {}),
+      ...(typeof call.named.columns === "number" ? { columns: call.named.columns } : {}),
+      ...(typeof call.named.align === "string" ? { align: call.named.align as Exclude<NonNullable<VisualNode["layout"]>["align"], undefined> } : {}),
+      ...(typeof call.named.distribute === "string" ? { distribute: call.named.distribute as Exclude<NonNullable<VisualNode["layout"]>["distribute"], undefined> } : {}),
+    } : undefined;
+    return { id: binding.id, kind: call.name as VisualNode["kind"], ...(label !== undefined ? { label } : {}), ...(subtitle ? { subtitle } : {}), ...(frameLayout ? { layout: frameLayout } : {}), ...(Object.keys(style).length ? { style } : {}), ...(Object.keys(props).length ? { props } : {}), ...(children.length ? { children } : {}) };
   }
   const definition = context.components.get(call.name);
   if (!definition) {
@@ -659,6 +674,9 @@ function expandNestedBindings(binding: Binding, values: Record<string, VisualVal
 
 function matchesParameterType(value: VisualValue, type: ComponentParameter["type"]) {
   if (type === "tone") return typeof value === "string" && ["neutral", "info", "success", "warning", "danger"].includes(value);
+  if (type === "paint") return typeof value === "string" && isSafePaint(value);
+  if (type === "length") return (typeof value === "number" && Number.isFinite(value) && value >= 0) || (typeof value === "string" && value.startsWith("$"));
+  if (type === "identifier") return typeof value === "string" && value.length > 0;
   return typeof value === type;
 }
 

@@ -2,7 +2,9 @@ import { readFile, writeFile } from "node:fs/promises";
 
 import {
   exportVisual,
+  getBuiltInTheme,
   migrateLegacySource,
+  type BuiltInThemeName,
   type Diagnostic,
   type HeadlessExportFormat,
 } from "@jerkeyray/core";
@@ -17,6 +19,7 @@ export type CliOptions = {
   outputWidth?: number;
   pretty: boolean;
   scale?: number;
+  theme: BuiltInThemeName;
   width: number;
 };
 
@@ -34,6 +37,7 @@ Options:
   -o, --output <path>          Write to a file instead of stdout
       --layout <auto|fast>     Deprecated compatibility option
       --migrate                Translate legacy flow source to the programmable language
+      --theme <name>           Visual theme: editorial, paper, or midnight
       --width <pixels>         Diagram layout width (default: 960)
       --scale <number>         PNG scale from 0.1 to 8
       --output-width <pixels>  PNG output width independent of layout width
@@ -49,6 +53,7 @@ export function parseCliArgs(argv: string[]): CliOptions | { help: true } {
   let outputWidth: number | undefined;
   let pretty = false;
   let scale: number | undefined;
+  let theme: BuiltInThemeName = "editorial";
   let width = 960;
 
   for (let index = 0; index < argv.length; index++) {
@@ -74,6 +79,10 @@ export function parseCliArgs(argv: string[]): CliOptions | { help: true } {
       const value = requiredValue(argv, ++index, argument);
       if (value !== "auto" && value !== "fast") throw new Error(`Invalid layout ${value}.`);
       layout = value;
+      continue;
+    }
+    if (argument === "--theme") {
+      theme = themeValue(requiredValue(argv, ++index, argument));
       continue;
     }
     if (argument === "--width") {
@@ -104,6 +113,7 @@ export function parseCliArgs(argv: string[]): CliOptions | { help: true } {
     ...(outputWidth !== undefined ? { outputWidth } : {}),
     pretty,
     ...(scale !== undefined ? { scale } : {}),
+    theme,
     width,
   };
 }
@@ -137,11 +147,13 @@ export async function runCli(argv: string[], io: CliIo = nodeIo): Promise<number
       ? exportVisualPng(source, {
           ...(options.outputWidth !== undefined ? { outputWidth: options.outputWidth } : {}),
           ...(options.scale !== undefined ? { scale: options.scale } : {}),
+          theme: getBuiltInTheme(options.theme),
           width: options.width,
         })
       : exportVisual(source, {
           format: options.format,
           pretty: options.pretty,
+          theme: getBuiltInTheme(options.theme),
           width: options.width,
         });
     if (!result.output) {
@@ -179,6 +191,11 @@ function positiveNumber(value: string, option: string) {
 function formatValue(value: string): CliOptions["format"] {
   if (value === "svg" || value === "json" || value === "png") return value;
   throw new Error(`Invalid format ${value}.`);
+}
+
+function themeValue(value: string): BuiltInThemeName {
+  if (value === "editorial" || value === "paper" || value === "midnight") return value;
+  throw new Error(`Invalid theme ${value}.`);
 }
 
 function inferFormat(output?: string): CliOptions["format"] {

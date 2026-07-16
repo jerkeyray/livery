@@ -1,4 +1,5 @@
 import type { ComponentDefinition, VisualValue } from "./visual.js";
+import { canonicalGlyphs } from "./glyphs.js";
 
 export type LanguageCallCategory =
   | "primitive"
@@ -44,7 +45,7 @@ export const ALIGN_VALUES = ["start", "center", "end", "stretch"] as const;
 export const DISTRIBUTE_VALUES = ["start", "center", "end", "between", "around"] as const;
 export const CONNECTOR_VARIANTS = ["directional", "bidirectional", "async", "data"] as const;
 export const TIMELINE_DURATIONS = ["fast", "normal", "slow"] as const;
-export const ICON_NAMES = ["check", "document", "star", "terminal", "warning"] as const;
+export const ICON_NAMES = Object.freeze(Object.keys(canonicalGlyphs).sort());
 
 const transformParameters: readonly LanguageParameterContract[] = [
   { name: "translateX", type: "number" },
@@ -158,11 +159,26 @@ export const CORE_LANGUAGE_CALLS: readonly LanguageCallContract[] = [
     { name: "stroke", type: "paint" },
     { name: "strokeWidth", type: "length" },
     { name: "opacity", type: "number" },
-    { name: "name", type: "string", required: true, values: ICON_NAMES },
+    { name: "name", type: "string", required: true },
   ]),
   primitive("group", "Group child visuals without adding geometry.", [], [
     ...placementParameters,
     { name: "opacity", type: "number" },
+  ]),
+  primitive("frame", "Create a labeled visual boundary with an internal layout.", [{ name: "label", type: "string" }], [
+    { name: "label", type: "string" },
+    { name: "subtitle", type: "string" },
+    { name: "layout", type: "identifier", values: ["row", "column", "grid", "stack", "overlay"] },
+    { name: "columns", type: "number" },
+    { name: "gap", type: "length" },
+    { name: "padding", type: "length" },
+    { name: "align", type: "string", values: ALIGN_VALUES },
+    { name: "distribute", type: "string", values: DISTRIBUTE_VALUES },
+    { name: "width", type: "length" },
+    { name: "height", type: "length" },
+    ...paintParameters,
+    ...textParameters,
+    { name: "radius", type: "length" },
   ]),
   {
     ...primitive("repeat", "Repeat a bounded primitive template.", [], [
@@ -175,7 +191,7 @@ export const CORE_LANGUAGE_CALLS: readonly LanguageCallContract[] = [
       { name: "stepY", type: "number" },
       { name: "radius", type: "length" },
       { name: "d", type: "string" },
-      { name: "name", type: "string", values: ICON_NAMES },
+      { name: "name", type: "string" },
       { name: "text", type: "string" },
     ]),
     contexts: ["canvas"],
@@ -378,8 +394,16 @@ export function isLanguageValue(value: VisualValue, parameter: LanguageParameter
     case "tone":
       return typeof value === "string" && TONE_VALUES.includes(value as (typeof TONE_VALUES)[number]);
     case "string":
-    case "paint":
     case "identifier":
       return typeof value === "string";
+    case "paint":
+      return typeof value === "string" && isSafePaint(value);
   }
+}
+
+export function isSafePaint(value: string) {
+  if (/^\$color\.[A-Za-z][A-Za-z0-9_-]*$/.test(value)) return true;
+  if (/^#[0-9A-Fa-f]{3,8}$/.test(value)) return true;
+  if (/^[A-Za-z]+$/.test(value)) return true;
+  return /^(?:rgb|rgba|hsl|hsla|oklab|oklch)\([0-9A-Za-z.%+/, -]+\)$/.test(value);
 }

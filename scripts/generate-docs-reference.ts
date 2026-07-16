@@ -8,6 +8,12 @@ const formatParameter = (parameter: (typeof catalog.calls)[number]["named"][numb
   const values = parameter.values?.length ? ` (${parameter.values.join(" / ")})` : "";
   return `\`${parameter.name}${parameter.required ? "" : "?"}: ${parameter.type}${values}\``;
 };
+const uniqueParameters = (item: (typeof catalog.calls)[number]) => {
+  const parameters = [...item.positional, ...(item.variadic ? [item.variadic] : []), ...item.named];
+  return parameters.filter((parameter, index) =>
+    parameters.findIndex(({ name }) => name === parameter.name) === index,
+  );
+};
 const lines = [
   "# Standard library",
   "",
@@ -21,7 +27,7 @@ const lines = [
   "",
   "| Call | Category | Status | Contexts | Parameters |",
   "| --- | --- | --- | --- | --- |",
-  ...catalog.calls.map((item) => `| \`${item.name}\` | ${item.category} | ${item.status} | ${item.contexts.join(", ")} | ${[...item.positional, ...(item.variadic ? [item.variadic] : []), ...item.named].map(formatParameter).join("<br>")} |`),
+  ...catalog.calls.map((item) => `| \`${item.name}\` | ${item.category} | ${item.status} | ${item.contexts.join(", ")} | ${uniqueParameters(item).map(formatParameter).join("<br>")} |`),
   "",
   "## Semantic tokens",
   "",

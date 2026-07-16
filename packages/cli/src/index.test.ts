@@ -4,8 +4,8 @@ import { parseCliArgs, runCli, type CliIo } from "./index.js";
 
 describe("Livery CLI", () => {
   it("parses render options and infers output format", () => {
-    expect(parseCliArgs(["input.livery", "-o", "visual.png", "--width", "720", "--scale", "2"]))
-      .toMatchObject({ format: "png", input: "input.livery", output: "visual.png", scale: 2, width: 720 });
+    expect(parseCliArgs(["input.livery", "-o", "visual.png", "--width", "720", "--scale", "2", "--theme", "paper"]))
+      .toMatchObject({ format: "png", input: "input.livery", output: "visual.png", scale: 2, theme: "paper", width: 720 });
   });
 
   it("renders SVG to stdout", async () => {
@@ -22,6 +22,15 @@ describe("Livery CLI", () => {
 
     expect(status).toBe(0);
     expect(io.stdout).toHaveBeenCalledWith(expect.stringContaining("Programmable"));
+  });
+
+  it("renders a named built-in theme", async () => {
+    const io = fakeIo(`figure cli("Midnight") {\n a = service("API")\n}`);
+    const status = await runCli(["-", "--format", "svg", "--theme", "midnight"], io);
+
+    expect(status).toBe(0);
+    expect(io.stdout).toHaveBeenCalledWith(expect.stringContaining("#0f1629"));
+    expect(io.stdout).toHaveBeenCalledWith(expect.stringContaining("#eef2ff"));
   });
 
   it("prints deterministic programmable source for legacy flows", async () => {
@@ -56,6 +65,14 @@ describe("Livery CLI", () => {
 
     expect(status).toBe(2);
     expect(io.stderr).toHaveBeenCalledWith(expect.stringContaining("requires a positive number"));
+  });
+
+  it("rejects an unknown theme", async () => {
+    const io = fakeIo("");
+    const status = await runCli(["input.livery", "--theme", "neon"], io);
+
+    expect(status).toBe(2);
+    expect(io.stderr).toHaveBeenCalledWith(expect.stringContaining("Invalid theme neon"));
   });
 });
 

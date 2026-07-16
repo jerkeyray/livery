@@ -5,6 +5,7 @@ import {
   type BoardScene,
   type Diagnostic,
   type LiveryTheme,
+  type IconRegistry,
   type ResourcePolicy,
   type TokenOverrides,
   type VisualDocument,
@@ -13,6 +14,7 @@ import {
 export type LiveryVisualOptions = {
   theme?: LiveryTheme;
   tokenOverrides?: TokenOverrides;
+  icons?: IconRegistry;
   resourcePolicy?: ResourcePolicy;
   width?: number;
   timeline?: string;
@@ -112,6 +114,7 @@ export function mountLiveryVisual(container: HTMLElement, source: string, option
     const next = parseSvg(boardSceneToSvg(revision.scene, {
       ...(options.theme ? { theme: options.theme } : {}),
       ...(options.tokenOverrides ? { tokenOverrides: options.tokenOverrides } : {}),
+      ...(options.icons ? { icons: options.icons } : {}),
       ...(options.resourcePolicy ? { resourcePolicy: options.resourcePolicy } : {}),
       ...(state ? { state } : {}),
       ...(options.debug ? { debug: true } : {}),

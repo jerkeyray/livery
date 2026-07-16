@@ -5,6 +5,7 @@ export type SolvedVisualNode = VisualBounds & {
   id: string;
   kind: VisualNode["kind"];
   label?: string;
+  subtitle?: string;
   description?: string;
   variant?: string;
   tone?: VisualNode["tone"];
@@ -149,7 +150,7 @@ function place(
   const ownBounds = { x: node.layout?.x ?? x, y: node.layout?.y ?? y, width, height };
   bounds.set(node.id, ownBounds);
   if (!node.children?.length) {
-    nodes.push({ id: node.id, kind: node.kind, ...ownBounds, ...(node.label ? { label: node.label } : {}), ...(node.description ? { description: node.description } : {}), ...(node.variant ? { variant: node.variant } : {}), ...(node.tone ? { tone: node.tone } : {}), ...(node.style ? { style: node.style } : {}), ...(node.props ? { props: node.props } : {}), ...(parent ? { parent } : {}) });
+    nodes.push({ id: node.id, kind: node.kind, ...ownBounds, ...(node.label ? { label: node.label } : {}), ...(node.subtitle ? { subtitle: node.subtitle } : {}), ...(node.description ? { description: node.description } : {}), ...(node.variant ? { variant: node.variant } : {}), ...(node.tone ? { tone: node.tone } : {}), ...(node.style ? { style: node.style } : {}), ...(node.props ? { props: node.props } : {}), ...(parent ? { parent } : {}) });
     return;
   }
   const gap = numeric(node.layout?.gap, DEFAULT_GAP);

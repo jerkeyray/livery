@@ -1,4 +1,6 @@
-export const canonicalGlyphs: Readonly<Record<string, readonly string[]>> = {
+export type IconRegistry = Readonly<Record<string, readonly string[]>>;
+
+export const canonicalGlyphs: IconRegistry = {
   person: ["M20 21a8 8 0 0 0-16 0", "M12 13a4 4 0 1 0 0-8 4 4 0 0 0 0 8"],
   team: ["M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2", "M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8", "M22 21v-2a4 4 0 0 0-3-3.87", "M16 3.13a4 4 0 0 1 0 7.75"],
   service: ["M4 5h16v14H4z", "M8 9h8", "M8 13h5"],
@@ -26,8 +28,24 @@ export const canonicalGlyphs: Readonly<Record<string, readonly string[]>> = {
   lineChart: ["M3 19l5-6 4 3 7-10", "M3 20h18"],
   areaChart: ["M3 19l5-6 4 3 7-10v13H3z", "M3 20h18"],
   progress: ["M4 12h16", "M4 12a8 8 0 0 1 8-8"],
+  check: ["M20 6 9 17l-5-5"],
+  star: ["M12 2l3.1 6.3L22 9.3l-5 4.9 1.2 6.8-6.2-3.2L5.8 21 7 14.2 2 9.3l6.9-1z"],
+  warning: ["M12 3 2 21h20L12 3z", "M12 9v5", "M12 17h.01"],
+  "credit-card": ["M3 5h18v14H3z", "M3 10h18", "M7 15h3"],
+  cloud: ["M17.5 19H7a5 5 0 0 1-.7-9.95A7 7 0 0 1 19.7 8 5.5 5.5 0 0 1 17.5 19z"],
+  globe: ["M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z", "M2 12h20", "M12 2a15 15 0 0 1 0 20", "M12 2a15 15 0 0 0 0 20"],
+  lock: ["M5 10h14v11H5z", "M8 10V7a4 4 0 0 1 8 0v3"],
+  mail: ["M3 5h18v14H3z", "m3 8 9 6 9-6"],
+  package: ["m12 2 9 5-9 5-9-5 9-5z", "M3 7v10l9 5 9-5V7", "M12 12v10"],
+  search: ["M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z", "m21 21-4.35-4.35"],
+  sparkles: ["m12 3 1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z", "m19 15 .8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15z"],
+  webhook: ["M18 16.5a3.5 3.5 0 1 1-3.5-3.5", "M6 7.5A3.5 3.5 0 1 1 9.5 11", "M8.5 18a3.5 3.5 0 1 1 3.5-3.5", "M9.5 11h5", "m12 14.5-2.5-3.5", "m14.5 13-2.5 1.5"],
 };
 
-export function canonicalGlyph(name: string | undefined) {
-  return name ? canonicalGlyphs[name] : undefined;
+export function canonicalGlyph(name: string | undefined, registry?: IconRegistry) {
+  return name ? canonicalGlyphs[name] ?? registry?.[name] : undefined;
+}
+
+export function iconNames(registry?: IconRegistry) {
+  return [...new Set([...Object.keys(canonicalGlyphs), ...Object.keys(registry ?? {})])].sort();
 }

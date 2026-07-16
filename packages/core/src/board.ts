@@ -52,6 +52,7 @@ export type SolvedElement = {
   bounds: BoardRect;
   visualBounds: BoardRect;
   label?: string;
+  subtitle?: string;
   labelBounds?: BoardRect;
   parent?: string;
   layer: number;

@@ -1,5 +1,6 @@
 import { diagnostic, type Diagnostic } from "./diagnostics.js";
 import type { BoardScene, CanvasPrimitive } from "./board.js";
+import { canonicalGlyph, type IconRegistry } from "./glyphs.js";
 
 export type ResourcePolicy = {
   allowDataImages?: boolean;
@@ -21,10 +22,13 @@ export function resolveResourcePolicy(policy: ResourcePolicy = {}): Required<Res
   };
 }
 
-export function validateBoardResources(scene: BoardScene, policy: ResourcePolicy = {}): Diagnostic[] {
-  const canvasDiagnostics = scene.canvases.flatMap(({ primitives }) => primitives.flatMap((primitive) => validatePrimitiveResource(primitive, policy)));
-  const elementDiagnostics = scene.elements.flatMap((element) => element.kind === "image" && typeof element.props?.src === "string"
-    ? validateImageResource(element.id, element.props.src, policy, ["elements", element.id]) : []);
+export function validateBoardResources(scene: BoardScene, policy: ResourcePolicy = {}, icons?: IconRegistry): Diagnostic[] {
+  const canvasDiagnostics = scene.canvases.flatMap(({ primitives }) => primitives.flatMap((primitive) => validatePrimitiveResource(primitive, policy, icons)));
+  const elementDiagnostics = scene.elements.flatMap((element) => {
+    if (element.kind === "image" && typeof element.props?.src === "string") return validateImageResource(element.id, element.props.src, policy, ["elements", element.id]);
+    if (typeof element.props?.icon === "string") return validateIconResource(element.id, element.props.icon, icons, ["elements", element.id]);
+    return [];
+  });
   return [...elementDiagnostics, ...canvasDiagnostics];
 }
 
@@ -45,9 +49,19 @@ export function assertSvgResourcesAllowed(svg: string, policy: ResourcePolicy = 
   if (denied) throw new Error(`SVG resource is not allowed by the resource policy: ${summarizeSource(denied)}`);
 }
 
-function validatePrimitiveResource(primitive: CanvasPrimitive, policy: ResourcePolicy) {
-  if (primitive.kind !== "image" || typeof primitive.props?.src !== "string") return [];
-  return validateImageResource(primitive.id, primitive.props.src, policy, ["canvases", primitive.parent ?? primitive.id, primitive.id]);
+function validatePrimitiveResource(primitive: CanvasPrimitive, policy: ResourcePolicy, icons?: IconRegistry) {
+  if (primitive.kind === "image" && typeof primitive.props?.src === "string") return validateImageResource(primitive.id, primitive.props.src, policy, ["canvases", primitive.parent ?? primitive.id, primitive.id]);
+  if (primitive.kind === "icon" && typeof primitive.props?.name === "string") return validateIconResource(primitive.id, primitive.props.name, icons, ["canvases", primitive.parent ?? primitive.id, primitive.id]);
+  return [];
+}
+
+function validateIconResource(id: string, name: string, icons: IconRegistry | undefined, path: Array<string | number>) {
+  if (canonicalGlyph(name, icons)?.length) return [];
+  return [{
+    ...diagnostic("resource.icon_not_registered", `Icon ${name} used by ${id} is not registered.`),
+    path,
+    repair: { description: "Use a canonical icon name or register a trusted icon path set in the renderer." },
+  }];
 }
 
 function validateImageResource(id: string, source: string, policy: ResourcePolicy, path: Array<string | number>) {
