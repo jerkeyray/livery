@@ -49,6 +49,19 @@ describe("board scene validation", () => {
     expect(codes).toContain("layout.connector_label_collision");
   });
 
+  it("rejects connector labels that cross frame borders", () => {
+    const invalid = scene();
+    invalid.elements.push({
+      ...element("frame", 136),
+      kind: "frame",
+      bounds: { x: 136, y: 24, width: 120, height: 128 },
+      visualBounds: { x: 136, y: 24, width: 120, height: 128 },
+      labelBounds: { x: 148, y: 36, width: 80, height: 20 },
+    });
+    invalid.connectors[0]!.label = { text: "send", x: 126, y: 58, width: 30, height: 16 };
+    expect(validateBoardScene(invalid).diagnostics.map(({ code }) => code)).toContain("layout.connector_label_collision");
+  });
+
   it("rejects non-finite and out-of-bounds geometry", () => {
     const invalid = scene();
     invalid.elements[0]!.bounds.x = Number.NaN;

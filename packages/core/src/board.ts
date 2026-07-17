@@ -1,6 +1,6 @@
 import type { Diagnostic } from "./diagnostics.js";
 import type { SemanticTone } from "./artifact.js";
-import type { VisualStyle, VisualValue } from "./visual.js";
+import type { ConnectorRole, VisualStyle, VisualValue } from "./visual.js";
 
 export type BoardPoint = { x: number; y: number };
 export type BoardRect = { x: number; y: number; width: number; height: number };
@@ -76,6 +76,8 @@ export type BoardConnector = {
   label?: ConnectorLabel;
   variant?: "directional" | "bidirectional" | "async" | "data";
   tone?: SemanticTone;
+  role?: ConnectorRole;
+  feedback?: boolean;
   style?: VisualStyle;
   channelIds: string[];
 };
@@ -147,6 +149,13 @@ export type LayoutViolationCode =
   | "layout.motion_outside_envelope"
   | "layout.canvas_bleed"
   | "layout.duplicate_id"
+  | "layout.excessive_aspect_ratio"
+  | "layout.excessive_route_detour"
+  | "layout.excessive_backtracking"
+  | "layout.poor_rank_progression"
+  | "layout.route_congestion"
+  | "layout.poor_density"
+  | "layout.broken_primary_continuity"
   | "layout.invalid_reading_order";
 
 export type LayoutDiagnostic = Diagnostic & {
@@ -168,6 +177,11 @@ export type ValidationMetrics = {
   aspectImbalance: number;
   whitespaceImbalance: number;
   topologyDeviation: number;
+  backtrackingCount: number;
+  rankErrorCount: number;
+  congestionScore: number;
+  densityPenalty: number;
+  primaryContinuity: number;
 };
 
 export type ValidationReport = {
@@ -176,7 +190,7 @@ export type ValidationReport = {
   metrics: ValidationMetrics;
 };
 
-export type LayoutStrategy = "requested" | "expanded_tracks" | "alternate_spans" | "balanced_grid" | "vertical_reflow" | "increased_height";
+export type LayoutStrategy = "requested" | "expanded_tracks" | "alternate_spans" | "balanced_grid" | "flow_right" | "flow_down" | "vertical_reflow" | "increased_height";
 
 export type LayoutAttempt = {
   strategy: LayoutStrategy;

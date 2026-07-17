@@ -38,4 +38,9 @@ describe("resource policy", () => {
     expect(result.diagnostics).toEqual([]);
     expect(result.svg).toContain('data-livery-glyph="private-logo"');
   });
+
+  it("accepts the canonical database icon used by the generated agent guide", () => {
+    const source = `figure storage { db = database("Postgres", icon: "database") row(db) }`;
+    expect(render(source, { width: 320 }).diagnostics.map(({ code }) => code)).not.toContain("resource.icon_not_registered");
+  });
 });

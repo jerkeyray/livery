@@ -53,6 +53,42 @@ figure lunar_autonomy("Autonomous lunar landing") {
 }`;
 
 describe("solvePinboard", () => {
+  it.each([[360, "down"], [900, "right"]] as const)("solves native compound flow at %ipx in the expected direction", (width, direction) => {
+    const compiled = compileVisual(`figure checkout("Checkout") {
+      client = frame("Client", layout: column) { browser = browser("Browser") }
+      commerce = frame("Commerce", layout: column) { api = api("Checkout API") stripe = service("Stripe") }
+      async = frame("Async", layout: column) { queue = queue("Queue") worker = worker("Worker") }
+      call = connect(client.browser.right, commerce.api.left, label: "checkout", role: primary)
+      publish = connect(commerce.api.right, async.queue.left, label: "order", variant: async, role: primary)
+      flow(client, commerce, async, direction: auto, gap: lg, rankGap: xl)
+    }`);
+    expect(compiled.diagnostics).toEqual([]);
+    const result = solvePinboard(compiled.document!, { width });
+    expect(result.ok, result.ok ? undefined : result.diagnostics.map(({ code }) => code).join(", ")).toBe(true);
+    if (!result.ok) return;
+    const frames = ["client", "commerce", "async"].map((id) => result.scene.elements.find((element) => element.id === id)!.bounds);
+    const coordinates = frames.map((bounds) => direction === "right" ? bounds.x : bounds.y);
+    expect(coordinates).toEqual([...coordinates].sort((a, b) => a - b));
+    expect(result.scene.connectors.every(({ role }) => role === "primary")).toBe(true);
+    expect(result.report.metrics.crossingCount).toBe(0);
+  });
+
+  it("routes a cyclic native flow through reserved outer channels", () => {
+    const compiled = compileVisual(`figure cycle {
+      a = service("A")
+      b = service("B")
+      c = service("C")
+      ab = connect(a.right, b.left, label: "ab")
+      bc = connect(b.right, c.left, label: "bc")
+      ca = connect(c.right, a.left, label: "feedback", role: secondary)
+      flow(a, b, c, direction: right, gap: lg, rankGap: xl)
+    }`);
+    const result = solvePinboard(compiled.document!, { width: 900 });
+    expect(result.ok, result.ok ? undefined : result.diagnostics.map(({ code }) => code).join(", ")).toBe(true);
+    if (!result.ok) return;
+    expect(result.scene.connectors.find(({ id }) => id === "ca")?.channelIds.some((id) => id.startsWith("channel.outer."))).toBe(true);
+  });
+
   it.each([320, 480, 720, 1024])("returns only validated scenes at %ipx", (width) => {
     const result = solvePinboard(document, { width });
     expect(result.ok, result.ok ? undefined : result.diagnostics.map(({ code }) => code).join(", ")).toBe(true);
@@ -76,6 +112,18 @@ describe("solvePinboard", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.diagnostics[0]?.code).toBe("layout.resource_limit");
+  });
+
+  it("enforces native flow child limits independently of the board limit", () => {
+    const oversized: VisualDocument = {
+      ...document,
+      root: { id: "root", kind: "group", layout: { kind: "flow" }, children: Array.from({ length: 65 }, (_, index) => ({ id: `n${index}`, kind: "lib.service" as const, label: `Node ${index}` })) },
+      connectors: [],
+    };
+    const result = solvePinboard(oversized, { maxElements: 100 });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.diagnostics[0]).toMatchObject({ code: "layout.resource_limit", elementIds: ["root"] });
   });
 
   it.each([
@@ -267,12 +315,156 @@ figure motion {
  target = service("Telemetry buffer")
  last = service("Last")
  edge = source.bottom -> target.top("decode")
- grid(first, source, target, last, columns: 2, gap: xl)
+ column(first, source, target, last, gap: xl)
 }`);
     const result = solvePinboard(compiled.document!, { width: 720 });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.scene.connectors[0]).toMatchObject({ fromPin: "source.bottom", toPin: "target.top" });
+  });
+
+  it("adapts mismatched pins and contains routes inside a vertically stacked frame", () => {
+    const compiled = compileVisual(`figure deploy("Safe deploy") {
+ pipeline = frame("Pipeline", layout: column, gap: lg, padding: lg) {
+  developer = person("Developer")
+  commit = code("Commit")
+  tests = tool("CI Tests")
+  push = developer.right -> commit.left("push")
+  run = commit.right -> tests.left("run")
+ }
+ column(pipeline)
+}`);
+    const result = solvePinboard(compiled.document!, { width: 760 });
+    expect(result.ok, result.ok ? undefined : result.diagnostics.map(({ message }) => message).join(" ")).toBe(true);
+    if (!result.ok) return;
+    const frame = result.scene.elements.find(({ id }) => id === "pipeline")!.bounds;
+    for (const connector of result.scene.connectors) {
+      expect(connector.fromPin).toMatch(/\.bottom$/);
+      expect(connector.toPin).toMatch(/\.top$/);
+      expect(connector.points.every((point) => point.x >= frame.x && point.x <= frame.x + frame.width && point.y >= frame.y && point.y <= frame.y + frame.height)).toBe(true);
+      expect(connector.label && connector.label.x >= frame.x && connector.label.x + connector.label.width <= frame.x + frame.width).toBe(true);
+    }
+  });
+
+  it("keeps cross-frame connector labels clear of frame borders and headings", () => {
+    const compiled = compileVisual(`figure checkout("Checkout") {
+ client = frame("Client", layout: column, padding: lg) {
+  browser = person("Browser")
+ }
+ commerce = frame("Commerce", layout: column, padding: lg) {
+  api = service("Checkout API")
+ }
+ checkout = client.right -> commerce.left("checkout")
+ row(client, commerce, gap: xl)
+}`);
+    const result = solvePinboard(compiled.document!, { width: 760 });
+    expect(result.ok, result.ok ? undefined : result.diagnostics.map(({ message }) => message).join(" ")).toBe(true);
+    if (!result.ok) return;
+    const label = result.scene.connectors[0]!.label!;
+    for (const frame of result.scene.elements.filter(({ kind }) => kind === "frame")) {
+      const inside = label.x >= frame.bounds.x + 4
+        && label.y >= frame.bounds.y + 4
+        && label.x + label.width <= frame.bounds.x + frame.bounds.width - 4
+        && label.y + label.height <= frame.bounds.y + frame.bounds.height - 4;
+      const outside = label.x + label.width <= frame.bounds.x - 4
+        || label.x >= frame.bounds.x + frame.bounds.width + 4
+        || label.y + label.height <= frame.bounds.y - 4
+        || label.y >= frame.bounds.y + frame.bounds.height + 4;
+      expect(inside || outside).toBe(true);
+      if (frame.labelBounds) expect(intersectsForTest(label, frame.labelBounds)).toBe(false);
+    }
+  });
+
+  it("keeps a compound checkout flow on a stable primary row with local supporting data", () => {
+    const compiled = compileVisual(`figure checkout("Checkout architecture") {
+ client = frame("Client", layout: column, padding: lg) {
+  browser = browser("Browser")
+ }
+ commerce = frame("Commerce", layout: column, gap: lg, padding: lg) {
+  api = api("Checkout API")
+  stripe = service("Stripe")
+  authorize = api.right -> stripe.left("authorize", role: supporting)
+ }
+ async = frame("Async processing", layout: column, gap: lg, padding: lg) {
+  queue = queue("Queue")
+  worker = worker("Fulfillment worker")
+  dispatch = queue.right -> worker.left("dispatch", role: primary)
+ }
+ data = frame("Data", layout: column, padding: lg) {
+  postgres = database("Postgres")
+ }
+ call = client.browser.right -> commerce.api.left("checkout", role: primary)
+ event = commerce.api.right -> async.queue.left("event", variant: async, role: primary)
+ write = commerce.api.bottom -> data.postgres.top("write", variant: data, role: supporting)
+ flow(client, commerce, async, data, direction: auto, gap: lg, rankGap: xl)
+}`);
+    expect(compiled.diagnostics).toEqual([]);
+    const result = solvePinboard(compiled.document!, { width: 900 });
+    expect(result.ok, result.ok ? undefined : result.diagnostics.map(({ message }) => message).join(" ")).toBe(true);
+    if (!result.ok) return;
+
+    const frame = (id: string) => result.scene.elements.find((element) => element.id === id)!.bounds;
+    expect(new Set([frame("client").y, frame("commerce").y, frame("async").y]).size).toBe(1);
+    expect(frame("data").x + frame("data").width / 2).toBe(frame("commerce").x + frame("commerce").width / 2);
+    expect(frame("data").y).toBeGreaterThan(frame("commerce").y + frame("commerce").height);
+
+    for (const connector of result.scene.connectors) {
+      if (!connector.label) continue;
+      expect(connector.label.x).toBeGreaterThanOrEqual(0);
+      expect(connector.label.x + connector.label.width).toBeLessThanOrEqual(result.scene.board.width);
+    }
+  });
+
+  it("top-aligns unequal architecture frames in a grid to preserve a straight primary flow", () => {
+    const compiled = compileVisual(`figure checkout("Checkout") {
+ client = frame("Client", layout: column, padding: lg) {
+  browser = browser("Browser")
+ }
+ commerce = frame("Commerce", layout: column, gap: lg, padding: lg) {
+  api = api("Checkout API")
+  stripe = service("Stripe", variant: solid, tone: success)
+  authorize = api.right -> stripe.left("authorize")
+ }
+ async = frame("Async processing", layout: column, gap: lg, padding: lg) {
+  queue = queue("Queue")
+  worker = worker("Fulfillment worker")
+  dispatch = queue.right -> worker.left("dispatch", variant: async)
+ }
+ data = frame("Data", layout: column, padding: lg) {
+  postgres = database("Postgres")
+ }
+ call = client.browser.right -> commerce.api.left("call")
+ order = commerce.api.right -> async.queue.left("order event", variant: async)
+ write = commerce.api.bottom -> data.postgres.top("write", variant: data)
+ grid(client, commerce, async, data, columns: 3, gap: xl)
+}`);
+    expect(compiled.diagnostics).toEqual([]);
+    const result = solvePinboard(compiled.document!, { width: 900 });
+    expect(result.ok, result.ok ? undefined : result.diagnostics.map(({ message }) => message).join(" ")).toBe(true);
+    if (!result.ok) return;
+    const firstRow = ["client", "commerce", "async"].map((id) => result.scene.elements.find((element) => element.id === id)!);
+    expect(new Set(firstRow.map(({ bounds }) => bounds.y)).size).toBe(1);
+    const call = result.scene.connectors.find(({ id }) => id === "call")!;
+    expect(call.points).toHaveLength(2);
+    expect(call.points[0]!.y).toBe(call.points[1]!.y);
+  });
+
+  it("rejects tower-shaped frames instead of accepting unusable density", () => {
+    const compiled = compileVisual(`figure tower {
+ pipeline = frame("Pipeline", layout: column, gap: lg, padding: lg) {
+  one = service("One")
+  two = service("Two")
+  three = service("Three")
+  four = service("Four")
+  five = service("Five")
+  six = service("Six")
+  seven = service("Seven")
+ }
+ column(pipeline)
+}`);
+    const result = solvePinboard(compiled.document!, { width: 760 });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.diagnostics.map(({ code }) => code)).toContain("layout.excessive_aspect_ratio");
   });
 
   it("connects to stable pins on objects inside a canvas", () => {
@@ -495,3 +687,7 @@ figure nested {
     expect(child.y + child.height).toBeLessThanOrEqual(container.y + container.height - 12);
   });
 });
+
+function intersectsForTest(a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }) {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+}

@@ -26,7 +26,7 @@
     "changeset": "changeset",
     "version:packages": "changeset version",
     "release:packages": "changeset publish --tag alpha",
-    "lint:packages": "publint packages/core packages/web packages/react packages/layout-elk packages/export-node packages/cli && attw --profile esm-only --pack packages/core && attw --profile esm-only --exclude-entrypoints ./styles.css --pack packages/web && attw --profile esm-only --exclude-entrypoints ./styles.css --pack packages/react && attw --profile esm-only --pack packages/layout-elk && attw --profile esm-only --pack packages/export-node && attw --profile esm-only --pack packages/cli",
+    "lint:packages": "publint packages/core packages/web packages/react packages/export-node packages/cli && attw --profile esm-only --pack packages/core && attw --profile esm-only --exclude-entrypoints ./styles.css --pack packages/web && attw --profile esm-only --exclude-entrypoints ./styles.css --pack packages/react && attw --profile esm-only --pack packages/export-node && attw --profile esm-only --pack packages/cli",
     "verify:release": "bun run typecheck && bun run test && bun run eval:agent && bun run docs:check && bun run build && bun run lint:packages && bun scripts/smoke-packages.ts"
   },
   "devDependencies": {

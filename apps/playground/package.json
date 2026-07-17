@@ -17,7 +17,6 @@
     "@fontsource/ibm-plex-mono": "^5.2.7",
     "@fontsource/inter": "^5.2.8",
     "@jerkeyray/core": "workspace:*",
-    "@jerkeyray/layout-elk": "workspace:*",
     "@jerkeyray/react": "workspace:*",
     "@jerkeyray/web": "workspace:*",
     "@lezer/highlight": "^1.2.3",

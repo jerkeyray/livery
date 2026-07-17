@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { editorialTheme, midnightTheme, paperTheme, render } from "@jerkeyray/core";
+import { blackoutTheme, blueprintTheme, editorialTheme, midnightTheme, monochromeTheme, paperTheme, render } from "@jerkeyray/core";
 
 const source = `figure foundation("Visual foundation") {
   normal = service("Default", subtitle: "Neutral")
@@ -16,6 +16,9 @@ describe("visual foundation proof matrix", () => {
     ["editorial", editorialTheme],
     ["paper", paperTheme],
     ["midnight", midnightTheme],
+    ["blackout", blackoutTheme],
+    ["blueprint", blueprintTheme],
+    ["monochrome", monochromeTheme],
   ])("lays out every variant in %s at mobile, standard, and wide widths", (_name, theme) => {
     for (const width of [320, 720, 1200]) {
       const result = render(source, { theme, width });

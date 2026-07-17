@@ -30,6 +30,7 @@ export * from "./visual-schema.js";
 export * from "./board.js";
 export * from "./board-validator.js";
 export * from "./pinboard.js";
+export * from "./flow-layout.js";
 export * from "./board-export.js";
 export * from "./text.js";
 export * from "./text-metrics.js";

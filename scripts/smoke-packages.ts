@@ -8,7 +8,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const temporary = await mkdtemp(join(tmpdir(), "livery-packages-"));
 const tarballsDirectory = join(temporary, "tarballs");
 const consumerDirectory = join(temporary, "consumer");
-const packages = ["core", "web", "react", "layout-elk", "export-node", "cli"];
+const packages = ["core", "web", "react", "export-node", "cli"];
 
 await mkdir(tarballsDirectory);
 await mkdir(consumerDirectory);
@@ -34,7 +34,6 @@ await writeFile(
   join(consumerDirectory, "smoke.mjs"),
   `import { boardSceneToSvg, compileVisual, createAgentGuide, exportHeadless, solvePinboard } from "@jerkeyray/core";
 import { exportHeadlessPng, exportVisualPng } from "@jerkeyray/export-node";
-import { createElkLayoutAdapter } from "@jerkeyray/layout-elk";
 import { Livery, LiveryChatVisual, LiveryVisual } from "@jerkeyray/react";
 import { mountLivery, mountLiveryVisual } from "@jerkeyray/web";
 import { createElement } from "react";
@@ -47,7 +46,6 @@ const board = visual.document ? solvePinboard(visual.document) : undefined;
 if (!board?.ok || !boardSceneToSvg(board.scene).startsWith("<svg")) throw new Error("Programmable SVG export failed.");
 if (typeof exportHeadlessPng !== "function") throw new Error("PNG export is missing.");
 if (typeof exportVisualPng !== "function") throw new Error("Visual PNG export is missing.");
-if (createElkLayoutAdapter().id !== "livery.elk-layered") throw new Error("ELK adapter is invalid.");
 if (typeof Livery !== "function" || typeof LiveryVisual !== "function" || typeof LiveryChatVisual !== "function" || typeof mountLivery !== "function" || typeof mountLiveryVisual !== "function") throw new Error("Renderer exports are invalid.");
 if (createAgentGuide({ mode: "compact" }).length < 100) throw new Error("Agent guide export is invalid.");
 if (!renderToString(createElement(LiveryChatVisual, { source: "", streaming: true })).includes("livery-chat-visual")) throw new Error("React SSR failed.");

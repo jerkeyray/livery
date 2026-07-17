@@ -1,6 +1,6 @@
 # Language reference
 
-One file may declare reusable components followed by one `figure`. Bindings create stable identities; calls create primitives and standard components; layouts claim board regions; connectors join named anchors.
+One file may declare reusable components followed by one `figure`. Bindings create stable identities; calls create primitives and standard components; layouts claim board regions; connectors join named anchors. Use `flow(...)` for connected architectures and workflows; it ranks the graph, preserves compound frames, and reflows responsively.
 
 ```livery
 figure request("Request path") {

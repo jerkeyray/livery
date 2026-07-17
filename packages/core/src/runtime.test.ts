@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { compileProgram, exportVisual, render } from "./runtime.js";
-import { editorialTheme, midnightTheme, paperTheme } from "./theme.js";
+import { blackoutTheme, blueprintTheme, editorialTheme, midnightTheme, monochromeTheme, paperTheme } from "./theme.js";
 
 const visualSource = `figure runtime("Runtime") {
   api = box("API", fill: "#fef3c7", stroke: "#92400e")
@@ -77,13 +77,20 @@ describe("canonical visual runtime", () => {
     expect(result.svg).toContain('data-livery-id="backend"');
     expect(result.svg).toContain('data-livery-id="backend.api"');
     expect(result.svg).toContain("Private network");
-    expect(result.svg!.indexOf('data-livery-id="backend"')).toBeLessThan(result.svg!.indexOf('data-livery-id="backend.api"'));
+    const frameIndex = result.svg!.indexOf('data-livery-id="backend"');
+    const connectorIndex = result.svg!.indexOf('data-livery-connector="backend.write"');
+    const childIndex = result.svg!.indexOf('data-livery-id="backend.api"');
+    expect(frameIndex).toBeLessThan(connectorIndex);
+    expect(connectorIndex).toBeLessThan(childIndex);
   });
 
   it.each([
     ["editorial", editorialTheme, "#f8fafc", "#172033"],
     ["paper", paperTheme, "#f8f5ee", "#24211d"],
     ["midnight", midnightTheme, "#0f1629", "#eef2ff"],
+    ["blackout", blackoutTheme, "#050505", "#fafafa"],
+    ["blueprint", blueprintTheme, "#091a2d", "#e8f5ff"],
+    ["monochrome", monochromeTheme, "#fafafa", "#0a0a0a"],
   ])("renders the %s theme with accessible title metadata", (_name, theme, canvas, text) => {
     const result = render(`figure themed("Theme preview") { api = service("API", subtitle: "Public endpoint") row(api) }`, { theme, width: 360 });
     expect(result.diagnostics).toEqual([]);
@@ -91,6 +98,13 @@ describe("canonical visual runtime", () => {
     expect(result.svg).toContain(`fill="${text}"`);
     expect(result.svg).toContain('<title id="themed-title">Theme preview</title>');
     expect(result.svg).toContain("<title>API: Public endpoint</title>");
+  });
+
+  it.each([["blackout", blackoutTheme], ["blueprint", blueprintTheme]] as const)("renders the %s drafting grid", (_name, theme) => {
+    const result = render(`figure grid("Grid") { api = service("API") row(api) }`, { theme, width: 360 });
+    expect(result.diagnostics).toEqual([]);
+    expect(result.svg).toContain("patternUnits=\"userSpaceOnUse\"");
+    expect(result.svg).toContain("fill=\"url(#grid-grid)\"");
   });
 
   it.each(["default", "muted", "emphasis", "soft", "solid", "ghost"])("renders the %s component variant", (variant) => {

@@ -1,7 +1,9 @@
 import type { SemanticTone } from "./artifact.js";
 
 export type PrimitiveKind = "text" | "box" | "circle" | "line" | "path" | "image" | "icon" | "group" | "frame" | "canvas" | "repeat";
-export type LayoutKind = "free" | "row" | "column" | "stack" | "grid" | "overlay" | "canvas";
+export type LayoutKind = "free" | "row" | "column" | "stack" | "grid" | "flow" | "overlay" | "canvas";
+export type FlowDirection = "auto" | "right" | "down";
+export type ConnectorRole = "auto" | "primary" | "secondary" | "supporting";
 export type AnchorName = "top" | "right" | "bottom" | "left" | "center";
 export type TokenReference = `$${string}`;
 export type VisualValue = string | number | boolean | TokenReference;
@@ -43,6 +45,9 @@ export type LayoutSpec = {
   y?: number;
   width?: number;
   height?: number;
+  direction?: FlowDirection;
+  rankGap?: VisualValue;
+  maxCandidates?: number;
 };
 
 export type Connector = {
@@ -52,6 +57,7 @@ export type Connector = {
   label?: string;
   variant?: "directional" | "bidirectional" | "async" | "data";
   tone?: SemanticTone;
+  role?: ConnectorRole;
   style?: VisualStyle;
 };
 

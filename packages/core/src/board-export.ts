@@ -19,6 +19,7 @@ export function boardSceneToSvg(scene: BoardScene, options: BoardSvgOptions = {}
   const tokens = resolveTheme(options.theme ?? canonicalTheme, options.tokenOverrides);
   const titleHeight = scene.title ? 42 : 0;
   const markerId = `${safeId(scene.id)}-arrow`;
+  const gridId = `${safeId(scene.id)}-grid`;
   const childParents = new Set(scene.elements.flatMap(({ parent }) => parent ? [parent] : []));
   const canvasOwners = new Set(scene.canvases.map(({ owner }) => owner));
   const lines = [
@@ -32,13 +33,19 @@ export function boardSceneToSvg(scene: BoardScene, options: BoardSvgOptions = {}
       return `    <marker id="${connectorMarkerId(markerId, connector.id)}" markerWidth="5" markerHeight="5" refX="4.6" refY="2.5" orient="auto"><path d="M 0 0 L 5 2.5 L 0 5 z" fill="${stroke}"/></marker>`;
     }),
     `    <filter id="${safeId(scene.id)}-card-shadow" x="-15%" y="-20%" width="130%" height="150%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#101828" flood-opacity="0.08"/></filter>`,
+    ...(tokens["color.grid"] ? [`    <pattern id="${gridId}" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M 24 0 L 0 0 0 24" fill="none" stroke="${tokens["color.grid"]}" stroke-width="1"/></pattern>`] : []),
     ...scene.canvases.filter(({ clip }) => clip).map((canvas) => `    <clipPath id="${safeId(canvas.id)}-clip"><rect x="${canvas.bounds.x}" y="${canvas.bounds.y}" width="${canvas.bounds.width}" height="${canvas.bounds.height}"/></clipPath>`),
     ...canvasReferences(scene, "clip").map(({ id, target }) => `    <clipPath id="${safeId(id)}-clip">${referenceShape(target, "#fff")}</clipPath>`),
     ...canvasReferences(scene, "mask").map(({ id, target }) => `    <mask id="${safeId(id)}-mask">${referenceShape(target, "#fff")}</mask>`),
     "  </defs>",
   ];
+  if (tokens["color.grid"]) lines.push(`  <rect width="${scene.board.width}" height="${scene.board.height + titleHeight}" fill="url(#${gridId})"/>`);
   if (scene.title) lines.push(`  <text x="20" y="27" font-family="${escapeXml(String(tokens["type.fontFamily"]))}" font-size="${tokens["type.label"]}" font-weight="${tokens["type.titleWeight"]}" fill="${tokens["color.text"]}">${escapeXml(scene.title)}</text>`);
   lines.push(`  <g transform="translate(0 ${titleHeight})">`);
+  for (const element of scene.elements) {
+    if (element.kind !== "frame" || canvasOwners.has(element.id)) continue;
+    lines.push(...renderElement(element, tokens, `${safeId(scene.id)}-card-shadow`, options.state, options.theme ?? canonicalTheme, options.resourcePolicy, options.icons));
+  }
   for (const connector of scene.connectors) {
     const { stroke, strokeWidth, opacity } = connectorStyle(connector, options.state, tokens, options.theme ?? canonicalTheme);
     const variant = connector.variant ?? "directional";
@@ -63,7 +70,7 @@ export function boardSceneToSvg(scene: BoardScene, options: BoardSvgOptions = {}
     lines.push("    </g>");
   }
   for (const element of scene.elements) {
-    if ((childParents.has(element.id) && element.kind !== "frame") || canvasOwners.has(element.id) || element.kind === "canvas") continue;
+    if (element.kind === "frame" || childParents.has(element.id) || canvasOwners.has(element.id) || element.kind === "canvas") continue;
     lines.push(...renderElement(element, tokens, `${safeId(scene.id)}-card-shadow`, options.state, options.theme ?? canonicalTheme, options.resourcePolicy, options.icons));
   }
   if (options.debug) lines.push(...renderDebug(scene));
@@ -257,7 +264,30 @@ function renderDebug(scene: BoardScene) {
   return lines;
 }
 
-function pathData(points: Array<{ x: number; y: number }>) { return points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" "); }
+function pathData(points: Array<{ x: number; y: number }>) {
+  if (points.length < 3) return points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
+  const commands = [`M ${points[0]!.x} ${points[0]!.y}`];
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const previous = points[index - 1]!;
+    const corner = points[index]!;
+    const next = points[index + 1]!;
+    const incoming = Math.abs(corner.x - previous.x) + Math.abs(corner.y - previous.y);
+    const outgoing = Math.abs(next.x - corner.x) + Math.abs(next.y - corner.y);
+    const radius = Math.min(8, incoming / 2, outgoing / 2);
+    const before = moveToward(corner, previous, radius);
+    const after = moveToward(corner, next, radius);
+    commands.push(`L ${before.x} ${before.y}`, `Q ${corner.x} ${corner.y} ${after.x} ${after.y}`);
+  }
+  const last = points.at(-1)!;
+  commands.push(`L ${last.x} ${last.y}`);
+  return commands.join(" ");
+}
+
+function moveToward(from: { x: number; y: number }, to: { x: number; y: number }, distance: number) {
+  const length = Math.abs(to.x - from.x) + Math.abs(to.y - from.y);
+  if (!length) return from;
+  return { x: from.x + (to.x - from.x) * distance / length, y: from.y + (to.y - from.y) * distance / length };
+}
 function connectorMarkerId(markerId: string, connectorId: string) { return `${markerId}-${safeId(connectorId)}`; }
 function connectorStyle(connector: BoardScene["connectors"][number], state: VisualTimelineState | undefined, tokens: TokenOverrides, theme: LiveryTheme) {
   const properties = state?.properties.get(connector.id);

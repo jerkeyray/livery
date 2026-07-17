@@ -109,7 +109,7 @@ export function formatVisualDocument(document: VisualDocument) {
   for (const connector of document.connectors) {
     const from = `${connector.from.node}.${connector.from.anchor ?? "right"}`;
     const to = `${connector.to.node}.${connector.to.anchor ?? "left"}`;
-    const properties = [...(connector.label ? [`label: \"${escapeString(connector.label)}\"`] : []), ...(connector.variant ? [`variant: ${formatValue(connector.variant)}`] : []), ...(connector.tone && connector.tone !== "neutral" ? [`tone: ${formatValue(connector.tone)}`] : []), ...formatProperties(connector.style)];
+    const properties = [...(connector.label ? [`label: \"${escapeString(connector.label)}\"`] : []), ...(connector.variant ? [`variant: ${formatValue(connector.variant)}`] : []), ...(connector.role && connector.role !== "auto" ? [`role: ${formatValue(connector.role)}`] : []), ...(connector.tone && connector.tone !== "neutral" ? [`tone: ${formatValue(connector.tone)}`] : []), ...formatProperties(connector.style)];
     lines.push(`  ${connector.id} = connect(${from}, ${to}${properties.length ? `, ${properties.join(", ")}` : ""})`);
   }
   lines.push("", `  ${formatLayout(document.root.layout, (document.root.children ?? []).map(({ id }) => id))}`);
@@ -191,6 +191,7 @@ function compileFigure(
         "figure",
         context.diagnostics,
       );
+      validateFlowOptions(item.layout.kind, item.layout.named, context.diagnostics, item.layout.span);
       if (rootLayout) context.diagnostics.push(diagnostic("semantic.duplicate_root_layout", `Figure ${figure.id} declares more than one root layout.`, item.layout.span));
       else rootLayout = item.layout;
       continue;
@@ -288,6 +289,7 @@ function validateComponentDeclaration(component: ComponentSource, diagnostics: D
     diagnostics,
     true,
   );
+  if (component.returned) validateFlowOptions(component.returned.kind, component.returned.named, diagnostics, component.returned.span);
   const bindingIds = new Set(component.bindings.filter(({ call }) => call.name !== "connect").map(({ id }) => id));
   const returnedIds = new Set<string>();
   for (const child of component.returned?.children ?? []) {
@@ -412,9 +414,10 @@ function expandBinding(
     if (call.name === "repeat") validateRepeatTemplate(binding.id, call, context.diagnostics);
     if (call.name === "image") validateImageSource(binding.id, call.named.src, context.diagnostics, binding.span);
     if (call.name === "icon" && typeof call.named.name !== "string") context.diagnostics.push(diagnostic("semantic.unknown_icon", `Icon ${binding.id} requires a name.`, binding.span));
+    if (call.name === "frame" && call.named.layout === "flow") validateFlowOptions("flow", call.named, context.diagnostics, binding.span);
     const styleKeys = new Set(["fill", "stroke", "strokeWidth", "radius", "opacity", "color", "iconColor", "fontSize", "fontWeight"]);
     const style = Object.fromEntries(Object.entries(call.named).filter(([key]) => styleKeys.has(key)));
-    const structuralKeys = new Set(call.name === "frame" ? ["subtitle", "layout", "gap", "columns", "align", "distribute"] : []);
+    const structuralKeys = new Set(call.name === "frame" ? ["subtitle", "layout", "gap", "rankGap", "direction", "maxCandidates", "columns", "align", "distribute"] : []);
     const props = Object.fromEntries(Object.entries(call.named).filter(([key]) => !styleKeys.has(key) && !structuralKeys.has(key)));
     const children = expandNestedBindings(binding, values, context, depth, callContext);
     const label = typeof call.positional[0] === "string"
@@ -431,6 +434,9 @@ function expandBinding(
       ...(typeof call.named.columns === "number" ? { columns: call.named.columns } : {}),
       ...(typeof call.named.align === "string" ? { align: call.named.align as Exclude<NonNullable<VisualNode["layout"]>["align"], undefined> } : {}),
       ...(typeof call.named.distribute === "string" ? { distribute: call.named.distribute as Exclude<NonNullable<VisualNode["layout"]>["distribute"], undefined> } : {}),
+      ...(typeof call.named.direction === "string" ? { direction: call.named.direction as Exclude<NonNullable<VisualNode["layout"]>["direction"], undefined> } : {}),
+      ...(call.named.rankGap !== undefined ? { rankGap: call.named.rankGap } : {}),
+      ...(typeof call.named.maxCandidates === "number" ? { maxCandidates: call.named.maxCandidates } : {}),
     } : undefined;
     return { id: binding.id, kind: call.name as VisualNode["kind"], ...(label !== undefined ? { label } : {}), ...(subtitle ? { subtitle } : {}), ...(frameLayout ? { layout: frameLayout } : {}), ...(Object.keys(style).length ? { style } : {}), ...(Object.keys(props).length ? { props } : {}), ...(children.length ? { children } : {}) };
   }
@@ -710,10 +716,19 @@ function connectorFromBinding(binding: Binding, diagnostics: Diagnostic[]): Conn
   if (!from || !to) diagnostics.push(diagnostic("semantic.invalid_connector_anchor", `Connector ${binding.id} requires two node anchors.`, binding.span));
   const tone = binding.call.named.tone;
   const variant = binding.call.named.variant;
+  const role = binding.call.named.role;
   if (variant !== undefined && (typeof variant !== "string" || !["directional", "bidirectional", "async", "data"].includes(variant))) diagnostics.push(diagnostic("semantic.invalid_connector_variant", `Connector ${binding.id} has invalid variant ${String(variant)}.`, binding.span));
+  if (role !== undefined && (typeof role !== "string" || !["auto", "primary", "secondary", "supporting"].includes(role))) diagnostics.push(diagnostic("semantic.invalid_connector_role", `Connector ${binding.id} has invalid role ${String(role)}.`, binding.span));
   const styleKeys = new Set(["fill", "stroke", "strokeWidth", "radius", "opacity", "color"]);
   const style = Object.fromEntries(Object.entries(binding.call.named).filter(([key]) => styleKeys.has(key)));
-  return { id: binding.id, from: from ?? { node: "invalid" }, to: to ?? { node: "invalid" }, ...(typeof binding.call.named.label === "string" ? { label: binding.call.named.label } : {}), ...(typeof tone === "string" && ["neutral", "info", "success", "warning", "danger"].includes(tone) ? { tone: tone as "neutral" | "info" | "success" | "warning" | "danger" } : {}), ...(typeof variant === "string" && ["directional", "bidirectional", "async", "data"].includes(variant) ? { variant: variant as "directional" | "bidirectional" | "async" | "data" } : {}), ...(Object.keys(style).length ? { style } : {}) };
+  return { id: binding.id, from: from ?? { node: "invalid" }, to: to ?? { node: "invalid" }, ...(typeof binding.call.named.label === "string" ? { label: binding.call.named.label } : {}), ...(typeof tone === "string" && ["neutral", "info", "success", "warning", "danger"].includes(tone) ? { tone: tone as "neutral" | "info" | "success" | "warning" | "danger" } : {}), ...(typeof variant === "string" && ["directional", "bidirectional", "async", "data"].includes(variant) ? { variant: variant as "directional" | "bidirectional" | "async" | "data" } : {}), ...(typeof role === "string" && ["auto", "primary", "secondary", "supporting"].includes(role) ? { role: role as "auto" | "primary" | "secondary" | "supporting" } : {}), ...(Object.keys(style).length ? { style } : {}) };
+}
+
+function validateFlowOptions(kind: LayoutKind, named: Record<string, VisualValue>, diagnostics: Diagnostic[], span?: ParsedBinding["span"]) {
+  if (kind !== "flow") return;
+  if (typeof named.maxCandidates === "number" && (!Number.isInteger(named.maxCandidates) || named.maxCandidates < 1 || named.maxCandidates > 12)) {
+    diagnostics.push(diagnostic("semantic.invalid_flow_candidate_limit", "Flow maxCandidates must be an integer from 1 to 12.", span));
+  }
 }
 
 function parseAnchor(value: VisualValue | undefined) {

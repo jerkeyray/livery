@@ -60,7 +60,7 @@ export function parseVisualProgram(source: string): { program?: ParsedVisualProg
 type TokenKind = "identifier" | "string" | "number" | "symbol" | "arrow" | "eof";
 type Token = { kind: TokenKind; value: string; raw: string; span: SourceSpan };
 
-const layoutNames = new Set<LayoutKind>(["row", "column", "stack", "grid", "overlay", "canvas"]);
+const layoutNames = new Set<LayoutKind>(["row", "column", "stack", "grid", "flow", "overlay", "canvas"]);
 
 class VisualParser {
   private index = 0;

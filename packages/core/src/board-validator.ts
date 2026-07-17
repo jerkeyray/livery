@@ -39,6 +39,13 @@ export function validateBoardScene(scene: BoardScene): ValidationReport {
     if (element.labelBounds && !containsRect(element.bounds, element.labelBounds)) {
       diagnostics.push(issue("layout.text_overflow", `Label for ${element.id} does not fit its component.`, [element.id]));
     }
+    if (element.kind === "frame") {
+      const descendantCount = scene.elements.filter(({ id }) => id !== element.id && belongsTo(id, element.id, scene)).length;
+      const aspectRatio = Math.max(element.bounds.width / Math.max(1, element.bounds.height), element.bounds.height / Math.max(1, element.bounds.width));
+      if (descendantCount >= 5 && aspectRatio > 3.2) {
+        diagnostics.push(issue("layout.excessive_aspect_ratio", `Frame ${element.id} is too tall or wide for ${descendantCount} nested elements; split it into compact stages or short rows.`, [element.id]));
+      }
+    }
   }
 
   const componentByOwner = new Map(components.map((envelope) => [envelope.owner, envelope]));
@@ -86,8 +93,17 @@ export function validateBoardScene(scene: BoardScene): ValidationReport {
     return length / Math.max(1, manhattan(connector.points[0]!, connector.points.at(-1)!));
   });
   const contentBounds = unionRects([...components, ...labels.map(({ rect }) => rect)]);
+  const progression = progressionMetrics(scene);
+  const congestionScore = scene.board.channels.length ? Math.max(...scene.board.channels.map(({ used, capacity }) => used / Math.max(1, capacity))) : 0;
+  const occupancyRatio = occupiedArea / Math.max(1, scene.board.width * scene.board.height);
+  const densityPenalty = occupancyRatio < 0.12 ? (0.12 - occupancyRatio) / 0.12 : occupancyRatio > 0.72 ? (occupancyRatio - 0.72) / 0.28 : 0;
+  if (progression.backtrackingCount >= Math.max(2, Math.ceil(scene.connectors.length * 0.4))) diagnostics.push(advisory("layout.excessive_backtracking", "Connector routes repeatedly backtrack against the diagram reading direction.", progression.backtrackingIds));
+  if (progression.rankErrorCount >= Math.max(2, Math.ceil(scene.connectors.length * 0.4))) diagnostics.push(advisory("layout.poor_rank_progression", "Too many connectors oppose the dominant rank progression.", progression.rankErrorIds));
+  if (congestionScore > 0.9) diagnostics.push(advisory("layout.route_congestion", "Routing channels are too congested for a readable diagram.", scene.connectors.map(({ id }) => id)));
+  if (components.length >= 4 && densityPenalty > 0.8) diagnostics.push(advisory("layout.poor_density", "The diagram density is outside the readable target range.", components.map(({ owner }) => owner)));
+  if (progression.primaryCount >= 2 && progression.primaryContinuity < 0.5) diagnostics.push(advisory("layout.broken_primary_continuity", "The primary reading spine is visually discontinuous.", scene.connectors.filter(({ role }) => role === "primary").map(({ id }) => id)));
   return {
-    valid: diagnostics.length === 0,
+    valid: !diagnostics.some(({ severity }) => severity === "error"),
     diagnostics,
     metrics: {
       elementCount: scene.elements.length,
@@ -95,7 +111,7 @@ export function validateBoardScene(scene: BoardScene): ValidationReport {
       crossingCount: routeInteractions.crossingCount,
       overlappingSegmentCount: routeInteractions.overlappingSegmentCount,
       occupiedArea,
-      occupancyRatio: occupiedArea / Math.max(1, scene.board.width * scene.board.height),
+      occupancyRatio,
       routeLength,
       normalizedRouteLength: routeLength / Math.max(1, directRouteLength),
       maximumNormalizedRouteLength: Math.max(1, ...routeRatios),
@@ -103,8 +119,41 @@ export function validateBoardScene(scene: BoardScene): ValidationReport {
       aspectImbalance: contentBounds ? Math.abs(Math.log(Math.max(0.01, contentBounds.width / Math.max(1, contentBounds.height)) / Math.max(0.01, scene.board.width / Math.max(1, scene.board.height)))) : 0,
       whitespaceImbalance: contentBounds ? Math.abs((contentBounds.x + contentBounds.width / 2) - scene.board.width / 2) / scene.board.width + Math.abs((contentBounds.y + contentBounds.height / 2) - scene.board.height / 2) / scene.board.height : 0,
       topologyDeviation: 0,
+      backtrackingCount: progression.backtrackingCount,
+      rankErrorCount: progression.rankErrorCount,
+      congestionScore,
+      densityPenalty,
+      primaryContinuity: progression.primaryContinuity,
     },
   };
+}
+
+function progressionMetrics(scene: BoardScene) {
+  const elements = new Map(scene.elements.map((element) => [element.id, element]));
+  const considered = scene.connectors.filter(({ role }) => role !== "supporting");
+  const deltas = considered.flatMap((connector) => {
+    const from = elements.get(connector.from)?.bounds;
+    const to = elements.get(connector.to)?.bounds;
+    return from && to ? [{ connector, x: to.x + to.width / 2 - from.x - from.width / 2, y: to.y + to.height / 2 - from.y - from.height / 2 }] : [];
+  });
+  const horizontal = deltas.reduce((sum, delta) => sum + Math.abs(delta.x), 0) >= deltas.reduce((sum, delta) => sum + Math.abs(delta.y), 0);
+  const signedTotal = deltas.reduce((sum, delta) => sum + (horizontal ? delta.x : delta.y), 0);
+  const sign = signedTotal < 0 ? -1 : 1;
+  const rankErrors = deltas.filter((delta) => (horizontal ? delta.x : delta.y) * sign < -0.01).map(({ connector }) => connector.id);
+  // Supporting and feedback routes are intentionally allowed to leave the
+  // primary reading axis. Counting those local branches as backtracking makes
+  // a tall, sparse candidate beat a compact primary-spine layout.
+  const backtrackingIds = considered.filter((connector) => !connector.feedback && connector.points.slice(1).some((point, index) => {
+    const previous = connector.points[index]!;
+    return (horizontal ? point.x - previous.x : point.y - previous.y) * sign < -0.01;
+  })).map(({ id }) => id);
+  const primary = scene.connectors.filter(({ role }) => role === "primary");
+  const primaryContinuity = primary.length ? primary.filter((connector) => {
+    const length = connector.points.slice(1).reduce((sum, point, index) => sum + manhattan(connector.points[index]!, point), 0);
+    const direct = manhattan(connector.points[0]!, connector.points.at(-1)!);
+    return length / Math.max(1, direct) <= 1.75 && connector.points.length <= 5;
+  }).length / primary.length : 1;
+  return { backtrackingCount: backtrackingIds.length, backtrackingIds, rankErrorCount: rankErrors.length, rankErrorIds: rankErrors, primaryCount: primary.length, primaryContinuity };
 }
 
 function sharesDeclaredOverlap(first: CollisionEnvelope, second: CollisionEnvelope) {
@@ -126,6 +175,11 @@ function validateConnector(
   const boardBounds = { x: 0, y: 0, width: scene.board.width, height: scene.board.height };
   if (connector.points.some((point) => !containsPoint(boardBounds, point))) diagnostics.push(issue("layout.out_of_bounds", `Connector ${connector.id} leaves the board.`, [connector.id]));
   const segments = connector.points.slice(1).map((point, index) => [connector.points[index]!, point] as const);
+  const routeLength = segments.reduce((total, [from, to]) => total + manhattan(from, to), 0);
+  const directLength = manhattan(connector.points[0]!, connector.points.at(-1)!);
+  if (!connector.feedback && directLength > 0 && routeLength - directLength > 120 && routeLength / directLength > 4) {
+    diagnostics.push(issue("layout.excessive_route_detour", `${connector.id} takes an excessive detour; reflow the endpoints or use responsive anchors.`, [connector.id]));
+  }
   for (const [from, to] of segments) {
     if (Math.abs(from.x - to.x) > EPSILON && Math.abs(from.y - to.y) > EPSILON) {
       diagnostics.push(issue("layout.non_orthogonal_route", `${connector.id} contains a diagonal routing segment.`, [connector.id]));
@@ -139,6 +193,15 @@ function validateConnector(
   if (connector.label) {
     for (const envelope of components.values()) {
       if (intersects(connector.label, envelope)) diagnostics.push(issue("layout.connector_label_collision", `Label for ${connector.id} overlaps ${envelope.owner}.`, [connector.id, envelope.owner]));
+    }
+    for (const frame of scene.elements.filter(({ kind }) => kind === "frame")) {
+      const safeInterior = inset(frame.bounds, 4);
+      if (intersects(connector.label, inflate(frame.bounds, 4)) && !containsRect(safeInterior, connector.label)) {
+        diagnostics.push(issue("layout.connector_label_collision", `Label for ${connector.id} crosses the boundary of frame ${frame.id}.`, [connector.id, frame.id]));
+      }
+      if (frame.labelBounds && intersects(connector.label, inflate(frame.labelBounds, 4))) {
+        diagnostics.push(issue("layout.connector_label_collision", `Label for ${connector.id} overlaps the heading of frame ${frame.id}.`, [connector.id, frame.id]));
+      }
     }
   }
   const target = scene.elements.find(({ id }) => id === connector.to) ?? scene.canvases.flatMap(({ primitives }) => primitives).find(({ id }) => id === connector.to);
@@ -198,10 +261,14 @@ function allRects(scene: BoardScene): Array<[string, BoardRect]> {
 function issue(code: LayoutDiagnostic["code"], message: string, elementIds: string[]): LayoutDiagnostic {
   return { code, message, severity: "error", elementIds };
 }
+function advisory(code: LayoutDiagnostic["code"], message: string, elementIds: string[]): LayoutDiagnostic {
+  return { code, message, severity: "warning", elementIds };
+}
 
 function finitePoint(point: BoardPoint) { return Number.isFinite(point.x) && Number.isFinite(point.y); }
 function finiteRect(rect: BoardRect) { return finitePoint(rect) && Number.isFinite(rect.width) && Number.isFinite(rect.height) && rect.width >= 0 && rect.height >= 0; }
 function containsRect(outer: BoardRect, inner: BoardRect) { return inner.x >= outer.x - EPSILON && inner.y >= outer.y - EPSILON && inner.x + inner.width <= outer.x + outer.width + EPSILON && inner.y + inner.height <= outer.y + outer.height + EPSILON; }
+function inset(rect: BoardRect, amount: number): BoardRect { return { x: rect.x + amount, y: rect.y + amount, width: Math.max(0, rect.width - amount * 2), height: Math.max(0, rect.height - amount * 2) }; }
 function containsPoint(rect: BoardRect, point: BoardPoint) { return point.x >= rect.x - EPSILON && point.x <= rect.x + rect.width + EPSILON && point.y >= rect.y - EPSILON && point.y <= rect.y + rect.height + EPSILON; }
 function intersects(a: BoardRect, b: BoardRect) { return a.x < b.x + b.width - EPSILON && a.x + a.width > b.x + EPSILON && a.y < b.y + b.height - EPSILON && a.y + a.height > b.y + EPSILON; }
 function inflate(rect: BoardRect, amount: number): BoardRect { return { x: rect.x - amount, y: rect.y - amount, width: rect.width + amount * 2, height: rect.height + amount * 2 }; }

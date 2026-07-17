@@ -745,7 +745,12 @@
       "bendCount": 0,
       "aspectImbalance": 0.30290999563823306,
       "whitespaceImbalance": 0.016666666666666757,
-      "topologyDeviation": 0
+      "topologyDeviation": 0,
+      "backtrackingCount": 0,
+      "rankErrorCount": 0,
+      "congestionScore": 0.125,
+      "densityPenalty": 0,
+      "primaryContinuity": 1
     }
   },
   "attempts": [
@@ -769,7 +774,12 @@
         "bendCount": 0,
         "aspectImbalance": 0.30290999563823306,
         "whitespaceImbalance": 0.016666666666666757,
-        "topologyDeviation": 0
+        "topologyDeviation": 0,
+        "backtrackingCount": 0,
+        "rankErrorCount": 0,
+        "congestionScore": 0.125,
+        "densityPenalty": 0,
+        "primaryContinuity": 1
       },
       "selected": true
     }

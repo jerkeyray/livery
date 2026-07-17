@@ -29,11 +29,14 @@ export type LayoutPolicyAdapterOptions = LayoutPolicyOptions & {
   fast?: LayoutAdapter;
 };
 
-export const fastFlowLayoutAdapter: LayoutAdapter = {
+export const nativeFlowLayoutAdapter: LayoutAdapter = {
   id: "livery.fast-flow",
   layout: ({ artifact, options }) =>
     withLayoutMetadata(computeFlowScene(artifact, options), { adapterId: "livery.fast-flow" }),
 };
+
+/** @deprecated Use nativeFlowLayoutAdapter. */
+export const fastFlowLayoutAdapter = nativeFlowLayoutAdapter;
 
 export function analyzeLayoutComplexity(
   artifact: LiveryArtifact,

@@ -19,6 +19,7 @@ import type {
 import type { AnchorName, Connector, LayoutKind, Timeline, VisualConstraint, VisualDocument, VisualNode, VisualValue } from "./visual.js";
 import { canonicalTheme, resolveComponentRecipe, resolveTheme, resolveVisualValue, type LiveryTheme, type TokenOverrides } from "./theme.js";
 import { measureVisualText, measureVisualTextBlock } from "./text-metrics.js";
+import { planFlow } from "./flow-layout.js";
 
 export type PinboardOptions = { width?: number; maxCandidates?: number; maxElements?: number; theme?: LiveryTheme; tokenOverrides?: TokenOverrides };
 
@@ -34,11 +35,14 @@ type PlacementContext = {
   rootColumnGap: number;
   rootRowGap: number;
   canvases: SolvedCanvas[];
+  connectors: Connector[];
+  feedbackConnectorIds: Set<string>;
+  inferredPrimaryConnectorIds: Set<string>;
   theme: LiveryTheme;
   tokens: TokenOverrides;
 };
 
-const STRATEGIES: Strategy[] = ["requested", "expanded_tracks", "alternate_spans", "balanced_grid", "vertical_reflow", "increased_height"];
+const STRATEGIES: Strategy[] = ["requested", "expanded_tracks", "alternate_spans", "balanced_grid", "flow_right", "flow_down", "vertical_reflow", "increased_height"];
 const DEFAULT_WIDTH = 720;
 const MIN_WIDTH = 280;
 const PADDING = 24;
@@ -62,11 +66,14 @@ export function solvePinboard(document: VisualDocument, options: PinboardOptions
   const width = Math.max(MIN_WIDTH, Math.floor(options.width ?? DEFAULT_WIDTH));
   const attempts: LayoutAttempt[] = [];
   const successes: Array<{ scene: BoardScene; report: ReturnType<typeof validateBoardScene>; attempt: LayoutAttempt }> = [];
-  const strategies = STRATEGIES.slice(0, Math.max(1, options.maxCandidates ?? STRATEGIES.length));
+  const requestedCandidates = options.maxCandidates ?? document.root.layout?.maxCandidates ?? STRATEGIES.length;
+  const strategies = STRATEGIES.slice(0, Math.min(12, Math.max(1, Math.floor(requestedCandidates))));
   const nodeCount = countNodes(document.root);
   if (nodeCount > (options.maxElements ?? MAX_ELEMENTS)) {
     return { ok: false, diagnostics: [issue("layout.resource_limit", `Expanded board contains ${nodeCount} elements; limit is ${options.maxElements ?? MAX_ELEMENTS}.`)], attempts };
   }
+  const flowDiagnostic = validateFlowResources(document.root, document.connectors);
+  if (flowDiagnostic) return { ok: false, diagnostics: [flowDiagnostic], attempts };
   const canvasDiagnostic = validateCanvasResources(document.root);
   if (canvasDiagnostic) return { ok: false, diagnostics: [canvasDiagnostic], attempts };
   const solvedIds = collectSolvedIds(document.root);
@@ -92,7 +99,7 @@ export function solvePinboard(document: VisualDocument, options: PinboardOptions
     const attempt: LayoutAttempt = { strategy, width: scene.board.width, height: scene.board.height, diagnostics: report.diagnostics, columns: built.columns, topologyDeviation: built.topologyDeviation, metrics: report.metrics };
     attempts.push(attempt);
     if (report.valid) successes.push({ scene, report, attempt });
-    if (report.valid) break;
+    if (report.valid && !hasFlowLayout(document.root)) break;
   }
   const selected = successes.sort(compareCandidates)[0];
   if (selected) {
@@ -120,8 +127,8 @@ function buildCandidate(document: VisualDocument, width: number, strategy: Strat
     const endpointPadding = Math.max(endpointClearance(document.root, connector.from.node), endpointClearance(document.root, connector.to.node));
     return 18 + 12 + endpointPadding * 2;
   })) + routingGutterExpansion(strategy, document.connectors.length);
-  const context: PlacementContext = { elements: [], envelopes: [], channels: [], bounds: new Map(), minimumGap, rootColumnGap, rootRowGap, canvases: [], theme, tokens };
-  const rootSize = measure(document.root, availableWidth, strategy, minimumGap, true, rootColumnGap, rootRowGap, theme, tokens);
+  const context: PlacementContext = { elements: [], envelopes: [], channels: [], bounds: new Map(), minimumGap, rootColumnGap, rootRowGap, canvases: [], connectors: document.connectors, feedbackConnectorIds: new Set(), inferredPrimaryConnectorIds: new Set(), theme, tokens };
+  const rootSize = measure(document.root, availableWidth, strategy, minimumGap, true, rootColumnGap, rootRowGap, theme, tokens, document.connectors);
   const rootWidth = Math.min(rootSize.width, availableWidth);
   const rootX = padding + (availableWidth - rootWidth) / 2;
   const routeReserve = routingReserve(document.connectors, tokens);
@@ -165,7 +172,7 @@ function buildCandidate(document: VisualDocument, width: number, strategy: Strat
     readingOrder: context.elements.map(({ id }) => id),
   };
   const columns = rootColumnCount(scene);
-  const topologyDeviation = Math.abs(requestedRootColumns(document.root) - columns);
+  const topologyDeviation = document.root.layout?.kind === "flow" ? 0 : Math.abs(requestedRootColumns(document.root) - columns);
   return { scene, routingDiagnostics: routing.ok ? [] : routing.diagnostics, columns, topologyDeviation };
 }
 
@@ -332,6 +339,7 @@ function measure(
   rootRowGap = minimumGap,
   theme: LiveryTheme = canonicalTheme,
   tokens: TokenOverrides = resolveTheme(theme),
+  connectors: Connector[] = [],
 ): Size {
   if (!node.children?.length) {
     const recipe = resolveComponentRecipe(node.kind, node.variant, theme);
@@ -366,14 +374,28 @@ function measure(
   const frameHeader = frame && node.label ? (node.subtitle ? 44 : 30) : 0;
   const innerMaxWidth = Math.max(1, maxWidth - framePadding * 2);
   const declaredGap = gapFor(node.layout?.gap, tokens);
-  const columnGap = Math.max(root ? rootColumnGap : minimumGap, declaredGap);
-  const rowGap = Math.max(root ? rootRowGap : minimumGap, declaredGap);
-  const children = node.children.map((child) => measure(child, innerMaxWidth, strategy, minimumGap, false, rootColumnGap, rootRowGap, theme, tokens));
+  const localMinimumGap = Math.max(minimumGap, requiredLocalConnectorGap(node, connectors, tokens));
+  const columnGap = Math.max(root ? rootColumnGap : localMinimumGap, declaredGap);
+  const rowGap = Math.max(root ? rootRowGap : localMinimumGap, declaredGap);
+  const children = node.children.map((child) => measure(child, innerMaxWidth, strategy, minimumGap, false, rootColumnGap, rootRowGap, theme, tokens, connectors));
   const kind = effectiveLayout(node.layout?.kind ?? "row", strategy, root, children, innerMaxWidth, columnGap);
   const withFrame = (size: Size): Size => frame ? {
     width: Math.min(maxWidth, visualNumber(node.props?.width, tokens, size.width + framePadding * 2)),
     height: visualNumber(node.props?.height, tokens, size.height + framePadding * 2 + frameHeader),
   } : size;
+  if (node.layout?.kind === "flow") {
+    const plan = planFlow(node.children.map((child, index) => ({ node: child, ...children[index]! })), connectors, {
+      direction: flowDirection(node, strategy),
+      gap: rowGap,
+      rankGap: rankGapFor(node, tokens, columnGap),
+      maxWidth: innerMaxWidth,
+      forceDown: strategy === "vertical_reflow" || strategy === "increased_height" || strategy === "flow_down",
+    });
+    return withFrame({
+      width: Math.min(maxWidth, visualNumber(node.layout.width ?? node.props?.width, tokens, plan.width)),
+      height: visualNumber(node.layout.height ?? node.props?.height, tokens, plan.height),
+    });
+  }
   if (kind === "column") {
     const intrinsicWidth = Math.min(maxWidth, Math.max(...children.map(({ width }) => width), 0));
     const intrinsicHeight = sum(children.map(({ height }) => height)) + rowGap * Math.max(0, children.length - 1);
@@ -451,14 +473,36 @@ function place(node: VisualNode, x: number, y: number, width: number, height: nu
   const contentWidth = Math.max(1, width - framePadding * 2);
   const contentHeight = Math.max(1, height - framePadding * 2 - frameHeader);
   const declaredGap = gapFor(node.layout?.gap, context.tokens);
-  const columnGap = Math.max(root ? context.rootColumnGap : context.minimumGap, declaredGap);
-  const rowGap = Math.max(root ? context.rootRowGap : context.minimumGap, declaredGap);
-  const sizes = node.children.map((child) => measure(child, contentWidth, strategy, context.minimumGap, false, context.rootColumnGap, context.rootRowGap, context.theme, context.tokens));
+  const localMinimumGap = Math.max(context.minimumGap, requiredLocalConnectorGap(node, context.connectors, context.tokens));
+  const columnGap = Math.max(root ? context.rootColumnGap : localMinimumGap, declaredGap);
+  const rowGap = Math.max(root ? context.rootRowGap : localMinimumGap, declaredGap);
+  const sizes = node.children.map((child) => measure(child, contentWidth, strategy, context.minimumGap, false, context.rootColumnGap, context.rootRowGap, context.theme, context.tokens, context.connectors));
+  if (node.layout?.kind === "flow") {
+    const plan = planFlow(node.children.map((child, index) => ({ node: child, ...sizes[index]! })), context.connectors, {
+      direction: flowDirection(node, strategy),
+      gap: rowGap,
+      rankGap: rankGapFor(node, context.tokens, columnGap),
+      maxWidth: contentWidth,
+      forceDown: strategy === "vertical_reflow" || strategy === "increased_height" || strategy === "flow_down",
+    });
+    const offsetX = contentX + Math.max(0, (contentWidth - plan.width) / 2);
+    const offsetY = contentY + Math.max(0, (contentHeight - plan.height) / 2);
+    plan.feedbackConnectorIds.forEach((id) => context.feedbackConnectorIds.add(id));
+    plan.primaryConnectorIds.forEach((id) => context.inferredPrimaryConnectorIds.add(id));
+    for (const placement of plan.placements) {
+      const child = node.children[placement.index]!;
+      const size = sizes[placement.index]!;
+      place(child, offsetX + placement.x, offsetY + placement.y, size.width, size.height, node.id, context, strategy);
+    }
+    return;
+  }
   const kind = effectiveLayout(node.layout?.kind ?? "row", strategy, root, sizes, contentWidth, columnGap);
   const cellWidth = kind === "grid" ? Math.max(...sizes.map(({ width }) => width), 0) : 0;
   const columns = kind === "grid" ? gridColumns(node, strategy, contentWidth, sizes.length, cellWidth, columnGap) : 1;
   const rowHeights = kind === "grid" ? gridRowHeights(sizes, columns) : [];
   const layoutAlign = node.layout?.align ?? "center";
+  const gridHorizontalAlign = node.layout?.align ?? "center";
+  const gridVerticalAlign = node.layout?.align ?? "start";
   const layoutDistribute = node.layout?.distribute ?? "start";
   const rowDistribution = distribution(contentWidth, sizes.map(({ width: childWidth }) => childWidth), columnGap, layoutDistribute);
   const columnDistribution = distribution(contentHeight, sizes.map(({ height: childHeight }) => childHeight), rowGap, layoutDistribute);
@@ -483,8 +527,8 @@ function place(node: VisualNode, x: number, y: number, width: number, height: nu
       const rowOffset = layoutDistribute === "start" ? unusedColumns * (cellWidth + gridDistribution.gap) / 2 : 0;
       const cellX = contentX + gridDistribution.offset + rowOffset + (index % columns) * (cellWidth + gridDistribution.gap);
       const cellY = contentY + sum(rowHeights.slice(0, row)) + row * rowGap;
-      const horizontal = alignedPlacement(cellX, cellWidth, size.width, layoutAlign);
-      const vertical = alignedPlacement(cellY, rowHeights[row]!, size.height, layoutAlign);
+      const horizontal = alignedPlacement(cellX, cellWidth, size.width, gridHorizontalAlign);
+      const vertical = alignedPlacement(cellY, rowHeights[row]!, size.height, gridVerticalAlign);
       childX = horizontal.position;
       childY = vertical.position;
       if (layoutAlign === "stretch") { size.width = horizontal.size; size.height = vertical.size; }
@@ -595,6 +639,7 @@ function routeLookahead(routes: Map<string, RouteOption>, labels: BoardRect[], r
 function routeTask(connector: Connector, context: PlacementContext, board: BoardRect, padding: number, endpointDemand: number, sourceDemand: number, optionLimit: number): RouteTask {
   const from = context.bounds.get(connector.from.node)!;
   const to = context.bounds.get(connector.to.node)!;
+  const sharedFrame = innermostSharedFrame(connector.from.node, connector.to.node, context.elements);
   const deltaX = Math.abs(center(to).x - center(from).x);
   const deltaY = Math.abs(center(to).y - center(from).y);
   const vertical = deltaY > deltaX;
@@ -607,23 +652,29 @@ function routeTask(connector: Connector, context: PlacementContext, board: Board
   const directLength = distance(start, end);
   const candidates = routeCandidates(start, end, fromSide, toSide, board.width, board.height, padding, stableRouteSeed(connector.id), context.channels);
   const options = candidates.flatMap((points): RouteOption[] => {
+    if (sharedFrame && points.some((point) => !containsPoint(sharedFrame.bounds, point))) return [];
     if (!routeClear(points, context, connector.from.node, connector.to.node)) return [];
     const channels = channelsForRoute(points, context.channels);
     if (!routeCovered(points, channels)) return [];
-    const labels = connector.label ? connectorLabelCandidates(connector.label, points, context.envelopes, board, context.tokens).slice(0, MAX_LABEL_OPTIONS) : [undefined];
+    const labels = connector.label ? connectorLabelCandidates(connector.label, points, context.envelopes, context.elements, sharedFrame?.bounds ?? board, context.tokens).slice(0, MAX_LABEL_OPTIONS) : [undefined];
     if (!labels.length) return [];
     const length = routeLength(points);
     const bends = Math.max(0, points.length - 2);
     return labels.map((label, labelIndex) => {
+      const effectiveRole = connector.role && connector.role !== "auto" ? connector.role : context.inferredPrimaryConnectorIds.has(connector.id) ? "primary" : connector.role;
       const solved: BoardConnector = {
         id: connector.id, from: connector.from.node, to: connector.to.node,
         fromPin: `${connector.from.node}.${fromSide}`, toPin: `${connector.to.node}.${toSide}`, points,
         ...(label ? { label } : {}), ...(connector.variant ? { variant: connector.variant } : {}),
         ...(connector.tone ? { tone: connector.tone } : {}), ...(connector.style ? { style: connector.style } : {}),
+        ...(effectiveRole ? { role: effectiveRole } : {}),
+        ...(context.feedbackConnectorIds.has(connector.id) ? { feedback: true } : {}),
         channelIds: [...new Set(channels.map(({ id }) => id))],
       };
       const pathSignature = pointsKey(points);
-      return { connector: solved, channels, cost: length + bends * 18 + Math.max(0, length / Math.max(1, directLength) - 1) * 90 + labelIndex * 2, pathSignature, signature: `${pathSignature}:${label ? `${label.x},${label.y}` : "none"}` };
+      const roleMultiplier = effectiveRole === "primary" ? 1.6 : effectiveRole === "supporting" ? 0.8 : 1;
+      const feedbackPenalty = context.feedbackConnectorIds.has(connector.id) && !channels.some(({ id }) => id.startsWith("channel.outer.")) ? 1_000 : 0;
+      return { connector: solved, channels, cost: length + bends * 18 * roleMultiplier + Math.max(0, length / Math.max(1, directLength) - 1) * 90 * roleMultiplier + labelIndex * 2 + feedbackPenalty, pathSignature, signature: `${pathSignature}:${label ? `${label.x},${label.y}` : "none"}` };
     });
   });
   const deduped = dedupeRouteOptions(options);
@@ -926,7 +977,37 @@ function directionFor(side: AnchorName): BoardPoint {
 }
 
 function responsiveAnchor(anchor: AnchorName | undefined, fallback: AnchorName) {
-  return !anchor || anchor === "center" ? fallback : anchor;
+  if (!anchor || anchor === "center") return fallback;
+  return anchorAxis(anchor) === anchorAxis(fallback) ? anchor : fallback;
+}
+
+function anchorAxis(anchor: AnchorName) {
+  return anchor === "left" || anchor === "right" ? "horizontal" : "vertical";
+}
+
+function requiredLocalConnectorGap(node: VisualNode, connectors: Connector[], tokens: TokenOverrides) {
+  if (!node.children?.length) return 0;
+  const directOwner = (endpoint: string) => node.children!.find((child) => containsVisualNode(child, endpoint))?.id;
+  return connectors.reduce((required, connector) => {
+    if (!connector.label || !directOwner(connector.from.node) || directOwner(connector.from.node) === directOwner(connector.to.node)) return required;
+    const fontSize = tokenNumber(tokens, "type.caption", 10);
+    const labelWidth = measureVisualText(connector.label, { fontSize, fontWeight: 600 }) + 8;
+    const labelHeight = Math.max(16, Math.ceil(fontSize * 1.2) + 4);
+    return Math.max(required, labelWidth + CLEARANCE * 2 + 4, labelHeight + CLEARANCE * 2 + 4);
+  }, 0);
+}
+
+function containsVisualNode(node: VisualNode, id: string): boolean {
+  return node.id === id || Boolean(node.children?.some((child) => containsVisualNode(child, id)));
+}
+
+function innermostSharedFrame(from: string, to: string, elements: SolvedElement[]) {
+  let current = elements.find(({ id }) => id === from);
+  while (current) {
+    if (current.kind === "frame" && belongsTo(to, current.id, elements)) return current;
+    current = current.parent ? elements.find(({ id }) => id === current!.parent) : undefined;
+  }
+  return undefined;
 }
 
 function validateSolvedConstraints(
@@ -1010,11 +1091,20 @@ function labelBounds(node: VisualNode, bounds: BoardRect, theme: LiveryTheme, to
   return { x, y: bounds.y + (bounds.height - totalHeight) / 2, width, height: totalHeight };
 }
 
-function connectorLabelCandidates(text: string, points: BoardPoint[], envelopes: CollisionEnvelope[], board: BoardRect, tokens: TokenOverrides) {
+function connectorLabelCandidates(text: string, points: BoardPoint[], envelopes: CollisionEnvelope[], elements: SolvedElement[], board: BoardRect, tokens: TokenOverrides) {
   const fontSize = tokenNumber(tokens, "type.caption", 10);
   const width = measureVisualText(text, { fontSize, fontWeight: 600 }) + 8;
   const height = Math.max(16, Math.ceil(fontSize * 1.2) + 4);
-  const segments = points.slice(1).map((point, index) => ({ a: points[index]!, b: point })).sort((a, b) => distance(b.a, b.b) - distance(a.a, a.b));
+  const start = points[0]!;
+  const end = points.at(-1)!;
+  const preferredHorizontal = Math.abs(end.x - start.x) >= Math.abs(end.y - start.y);
+  const segments = points.slice(1).map((point, index) => ({ a: points[index]!, b: point })).sort((a, b) => {
+    const aHorizontal = Math.abs(a.a.x - a.b.x) >= Math.abs(a.a.y - a.b.y);
+    const bHorizontal = Math.abs(b.a.x - b.b.x) >= Math.abs(b.a.y - b.b.y);
+    const aPreferred = aHorizontal === preferredHorizontal ? 0 : 1;
+    const bPreferred = bHorizontal === preferredHorizontal ? 0 : 1;
+    return aPreferred - bPreferred || distance(b.a, b.b) - distance(a.a, a.b);
+  });
   const available: Array<BoardRect & { text: string }> = [];
   for (const segment of segments) {
     const horizontal = Math.abs(segment.a.x - segment.b.x) >= Math.abs(segment.a.y - segment.b.y);
@@ -1048,10 +1138,32 @@ function connectorLabelCandidates(text: string, points: BoardPoint[], envelopes:
     const attached = candidates.filter((rect) => horizontal
       ? rect.x + rect.width / 2 >= Math.min(segment.a.x, segment.b.x) && rect.x + rect.width / 2 <= Math.max(segment.a.x, segment.b.x)
       : rect.y + rect.height / 2 >= Math.min(segment.a.y, segment.b.y) && rect.y + rect.height / 2 <= Math.max(segment.a.y, segment.b.y));
-    for (const candidate of attached) if (containsRect(board, candidate) && envelopes.every((envelope) => !intersects(candidate, envelope))) available.push(candidate);
+    for (const candidate of attached) if (
+      containsRect(board, candidate)
+      && envelopes.every((envelope) => !intersects(candidate, envelope))
+      && connectorLabelClearsFrames(candidate, elements)
+    ) available.push(candidate);
   }
   const seen = new Set<string>();
   return available.filter(({ x, y }) => { const key = `${x},${y}`; return !seen.has(key) && !!seen.add(key); });
+}
+
+function connectorLabelClearsFrames(label: BoardRect, elements: SolvedElement[]) {
+  return elements.filter(({ kind }) => kind === "frame").every((frame) => {
+    const safeInterior = inset(frame.bounds, 4);
+    const nearBoundary = intersects(label, inflate(frame.bounds, 4));
+    if (nearBoundary && !containsRect(safeInterior, label)) return false;
+    return !frame.labelBounds || !intersects(label, inflate(frame.labelBounds, 4));
+  });
+}
+
+function inset(rect: BoardRect, amount: number): BoardRect {
+  return {
+    x: rect.x + amount,
+    y: rect.y + amount,
+    width: Math.max(0, rect.width - amount * 2),
+    height: Math.max(0, rect.height - amount * 2),
+  };
 }
 
 function tracksFor(envelopes: CollisionEnvelope[], axis: "x" | "y"): BoardTrack[] {
@@ -1079,6 +1191,7 @@ function gapFor(value: VisualValue | undefined, tokens: TokenOverrides) { return
 function countNodes(node: VisualNode): number { return 1 + (node.children?.reduce((total, child) => total + countNodes(child), 0) ?? 0); }
 function inflate(rect: BoardRect, amount: number): BoardRect { return { x: rect.x - amount, y: rect.y - amount, width: rect.width + amount * 2, height: rect.height + amount * 2 }; }
 function containsRect(outer: BoardRect, inner: BoardRect) { return inner.x >= outer.x && inner.y >= outer.y && inner.x + inner.width <= outer.x + outer.width && inner.y + inner.height <= outer.y + outer.height; }
+function containsPoint(outer: BoardRect, point: BoardPoint) { return point.x >= outer.x && point.y >= outer.y && point.x <= outer.x + outer.width && point.y <= outer.y + outer.height; }
 function intersects(a: BoardRect, b: BoardRect) { return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y; }
 function segmentIntersects(a: BoardPoint, b: BoardPoint, rect: BoardRect) { return intersects({ x: Math.min(a.x, b.x) - 0.5, y: Math.min(a.y, b.y) - 0.5, width: Math.abs(a.x - b.x) + 1, height: Math.abs(a.y - b.y) + 1 }, rect); }
 function channel(id: string, axis: RouteChannel["axis"], x: number, y: number, width: number, height: number): RouteChannel { return { id, axis, x, y, width, height, capacity: 16, used: 0 }; }
@@ -1097,7 +1210,13 @@ function compareCandidates(
   const a = first.report.metrics;
   const b = second.report.metrics;
   return compareNumbers(first.attempt.topologyDeviation ?? 0, second.attempt.topologyDeviation ?? 0)
-    || compareNumbers(-(first.attempt.columns ?? 1), -(second.attempt.columns ?? 1))
+    || compareNumbers(a.crossingCount, b.crossingCount)
+    || compareNumbers(a.overlappingSegmentCount, b.overlappingSegmentCount)
+    || compareNumbers(a.backtrackingCount, b.backtrackingCount)
+    || compareNumbers(a.rankErrorCount, b.rankErrorCount)
+    || compareNumbers(-a.primaryContinuity, -b.primaryContinuity)
+    || compareNumbers(a.congestionScore, b.congestionScore)
+    || compareNumbers(a.densityPenalty, b.densityPenalty)
     || compareNumbers(a.maximumNormalizedRouteLength, b.maximumNormalizedRouteLength)
     || compareNumbers(a.normalizedRouteLength, b.normalizedRouteLength)
     || compareNumbers(a.bendCount, b.bendCount)
@@ -1113,6 +1232,7 @@ function requestedRootColumns(root: VisualNode) {
   const count = root.children?.length ?? 0;
   if (root.layout?.kind === "column") return 1;
   if (root.layout?.kind === "grid") return Math.min(count, Math.max(1, root.layout.columns ?? Math.ceil(Math.sqrt(count))));
+  if (root.layout?.kind === "flow" && root.layout.direction === "down") return 1;
   return Math.max(1, count);
 }
 
@@ -1129,19 +1249,56 @@ function rootColumnCount(scene: BoardScene) {
 }
 
 function strategyFits(document: VisualDocument, width: number, strategy: Strategy, theme: LiveryTheme, tokens: TokenOverrides) {
+  const containsFlow = hasFlowLayout(document.root);
+  if ((strategy === "flow_right" || strategy === "flow_down") && !containsFlow) return false;
+  if (document.root.layout?.kind === "flow") return true;
   if (strategy !== "requested" && strategy !== "expanded_tracks") return true;
   const root = document.root;
   if (!root.children?.length || root.layout?.kind === "column" || root.layout?.kind === "stack" || root.layout?.kind === "overlay" || root.layout?.kind === "canvas") return true;
   const padding = width <= 480 ? COMPACT_PADDING : PADDING;
   const available = width - padding * 2;
   const gap = gapFor(root.layout?.gap, tokens);
-  const sizes = root.children.map((child) => measure(child, available, strategy, MIN_GAP, false, gap, gap, theme, tokens));
+  const sizes = root.children.map((child) => measure(child, available, strategy, MIN_GAP, false, gap, gap, theme, tokens, document.connectors));
   const columns = root.layout?.kind === "grid" ? requestedRootColumns(root) : sizes.length;
   const cellWidth = root.layout?.kind === "grid" ? Math.max(...sizes.map(({ width: childWidth }) => childWidth), 0) : 0;
   const required = root.layout?.kind === "grid"
     ? columns * cellWidth + gap * Math.max(0, columns - 1)
     : sum(sizes.map(({ width: childWidth }) => childWidth)) + gap * Math.max(0, columns - 1);
   return required <= available + 0.01;
+}
+
+function flowDirection(node: VisualNode, strategy: Strategy) {
+  const requested = node.layout?.direction ?? "auto";
+  if (requested !== "auto") return requested;
+  if (strategy === "flow_right") return "right" as const;
+  if (strategy === "flow_down") return "down" as const;
+  return "auto" as const;
+}
+
+function rankGapFor(node: VisualNode, tokens: TokenOverrides, fallback: number) {
+  return Math.max(fallback, visualNumber(node.layout?.rankGap, tokens, tokenNumber(tokens, "space.xl", 48)));
+}
+
+function hasFlowLayout(node: VisualNode): boolean {
+  return node.layout?.kind === "flow" || Boolean(node.children?.some(hasFlowLayout));
+}
+
+function validateFlowResources(root: VisualNode, connectors: Connector[]): LayoutDiagnostic | undefined {
+  const visit = (node: VisualNode): LayoutDiagnostic | undefined => {
+    if (node.layout?.kind === "flow") {
+      const childCount = node.children?.length ?? 0;
+      if (childCount > 64) return issue("layout.resource_limit", `Flow ${node.id} contains ${childCount} direct children; limit is 64.`, [node.id]);
+      const ids = collectSolvedIds(node);
+      const edgeCount = connectors.filter(({ from, to }) => ids.has(from.node) && ids.has(to.node)).length;
+      if (edgeCount > 128) return issue("layout.resource_limit", `Flow ${node.id} contains ${edgeCount} connectors; limit is 128.`, [node.id]);
+    }
+    for (const child of node.children ?? []) {
+      const diagnostic = visit(child);
+      if (diagnostic) return diagnostic;
+    }
+    return undefined;
+  };
+  return visit(root);
 }
 
 function routingReserve(connectors: Connector[], tokens: TokenOverrides) {

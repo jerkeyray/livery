@@ -44,6 +44,7 @@ export const TONE_VALUES = ["neutral", "info", "success", "warning", "danger"] a
 export const ALIGN_VALUES = ["start", "center", "end", "stretch"] as const;
 export const DISTRIBUTE_VALUES = ["start", "center", "end", "between", "around"] as const;
 export const CONNECTOR_VARIANTS = ["directional", "bidirectional", "async", "data"] as const;
+export const CONNECTOR_ROLES = ["auto", "primary", "secondary", "supporting"] as const;
 export const TIMELINE_DURATIONS = ["fast", "normal", "slow"] as const;
 export const ICON_NAMES = Object.freeze(Object.keys(canonicalGlyphs).sort());
 
@@ -168,9 +169,12 @@ export const CORE_LANGUAGE_CALLS: readonly LanguageCallContract[] = [
   primitive("frame", "Create a labeled visual boundary with an internal layout.", [{ name: "label", type: "string" }], [
     { name: "label", type: "string" },
     { name: "subtitle", type: "string" },
-    { name: "layout", type: "identifier", values: ["row", "column", "grid", "stack", "overlay"] },
+    { name: "layout", type: "identifier", values: ["row", "column", "grid", "flow", "stack", "overlay"] },
     { name: "columns", type: "number" },
     { name: "gap", type: "length" },
+    { name: "rankGap", type: "length" },
+    { name: "direction", type: "string", values: ["auto", "right", "down"] },
+    { name: "maxCandidates", type: "number" },
     { name: "padding", type: "length" },
     { name: "align", type: "string", values: ALIGN_VALUES },
     { name: "distribute", type: "string", values: DISTRIBUTE_VALUES },
@@ -212,6 +216,12 @@ export const CORE_LANGUAGE_CALLS: readonly LanguageCallContract[] = [
     { name: "align", type: "string", values: ALIGN_VALUES },
     { name: "distribute", type: "string", values: DISTRIBUTE_VALUES },
   ]),
+  layout("flow", "Arrange a connected compound graph by its reading direction.", [
+    ...layoutSizeParameters,
+    { name: "direction", type: "string", values: ["auto", "right", "down"] },
+    { name: "rankGap", type: "length" },
+    { name: "maxCandidates", type: "number" },
+  ]),
   layout("stack", "Stack children in one aligned region.", [
     { name: "width", type: "length" },
     { name: "height", type: "length" },
@@ -251,6 +261,7 @@ export const CORE_LANGUAGE_CALLS: readonly LanguageCallContract[] = [
       { name: "label", type: "string" },
       { name: "variant", type: "string", values: CONNECTOR_VARIANTS },
       { name: "tone", type: "tone", values: TONE_VALUES },
+      { name: "role", type: "identifier", values: CONNECTOR_ROLES },
       { name: "stroke", type: "paint" },
       { name: "strokeWidth", type: "length" },
       { name: "opacity", type: "number" },

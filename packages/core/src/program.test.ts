@@ -81,6 +81,23 @@ describe("programmable language", () => {
     });
   });
 
+  it("compiles flow layouts and connector roles", () => {
+    const result = compileVisual(`figure native_flow {
+ a = service("Client")
+ b = service("API")
+ request = connect(a.right, b.left, label: "request", role: primary)
+ flow(a, b, direction: auto, gap: lg, rankGap: xl, maxCandidates: 8)
+}`);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.document?.root.layout).toMatchObject({ kind: "flow", direction: "auto", gap: "$space.lg", rankGap: "$space.xl", maxCandidates: 8 });
+    expect(result.document?.connectors[0]).toMatchObject({ id: "request", role: "primary" });
+  });
+
+  it("rejects unbounded flow candidate counts", () => {
+    const result = compileVisual(`figure invalid_flow { a = service("A") flow(a, maxCandidates: 13) }`);
+    expect(result.diagnostics.map(({ code }) => code)).toContain("semantic.invalid_flow_candidate_limit");
+  });
+
   it("assigns deterministic IDs to anonymous connectors", () => {
     const result = compileVisual(`figure compact {\n a = service("API")\n b = database("DB")\n a.right -> b.left("read")\n}`);
     expect(result.diagnostics).toEqual([]);

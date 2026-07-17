@@ -17,7 +17,6 @@
     "paths": {
       "@jerkeyray/core": ["packages/core/src/index.ts"],
       "@jerkeyray/export-node": ["packages/export-node/src/index.ts"],
-      "@jerkeyray/layout-elk": ["packages/layout-elk/src/index.ts"],
       "@jerkeyray/react": ["packages/react/src/index.ts"],
       "@jerkeyray/web": ["packages/web/src/index.ts"],
       "@jerkeyray/web/*": ["packages/web/src/*.ts"]

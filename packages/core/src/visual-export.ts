@@ -8,6 +8,7 @@ export type VisualSvgOptions = { theme?: LiveryTheme; tokenOverrides?: TokenOver
 export function visualSceneToSvg(scene: VisualScene, options: VisualSvgOptions = {}) {
   const tokens = resolveTheme(options.theme ?? canonicalTheme, options.tokenOverrides);
   const markerId = `${safeId(scene.id)}-arrow`;
+  const gridId = `${safeId(scene.id)}-grid`;
   const titleHeight = scene.title ? 42 : 0;
   const height = scene.height + titleHeight;
   const lines = [
@@ -18,10 +19,13 @@ export function visualSceneToSvg(scene: VisualScene, options: VisualSvgOptions =
     `  <defs>`,
     `    <marker id="${markerId}" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M 0 0 L 7 3.5 L 0 7 z" fill="context-stroke"/></marker>`,
     `    <filter id="${safeId(scene.id)}-shadow" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#101828" flood-opacity="0.08"/></filter>`,
+    ...(tokens["color.grid"] ? [`    <pattern id="${gridId}" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M 24 0 L 0 0 0 24" fill="none" stroke="${tokens["color.grid"]}" stroke-width="1"/></pattern>`] : []),
     `  </defs>`,
   ];
+  if (tokens["color.grid"]) lines.push(`  <rect width="${scene.width}" height="${height}" fill="url(#${gridId})"/>`);
   if (scene.title) lines.push(`  <text x="20" y="27" font-family="${escapeXml(String(tokens["type.fontFamily"]))}" font-size="${tokens["type.label"]}" font-weight="${tokens["type.titleWeight"]}" fill="${tokens["color.text"]}">${escapeXml(scene.title)}</text>`);
   lines.push(`  <g transform="translate(0 ${titleHeight})">`);
+  for (const node of scene.nodes.filter(({ kind }) => kind === "frame")) lines.push(...renderNode(node, tokens, options.theme ?? canonicalTheme, `${safeId(scene.id)}-shadow`, options.state, options.icons));
   for (const connector of scene.connectors) {
     const stateTone = options.state?.properties.get(connector.id)?.tone;
     const stroke = connector.style?.stroke ? resolveVisualValue(connector.style.stroke, tokens) : toneColor(typeof stateTone === "string" ? stateTone as typeof connector.tone : connector.tone, tokens);
@@ -33,7 +37,7 @@ export function visualSceneToSvg(scene: VisualScene, options: VisualSvgOptions =
       lines.push(`    <text x="${connector.labelX}" y="${connector.labelY + 1}" text-anchor="middle" font-family="${escapeXml(String(tokens["type.fontFamily"]))}" font-size="${tokens["type.caption"]}" font-weight="650" fill="${tokens["color.muted"]}">${escapeXml(connector.label)}</text>`);
     }
   }
-  for (const node of scene.nodes) lines.push(...renderNode(node, tokens, options.theme ?? canonicalTheme, `${safeId(scene.id)}-shadow`, options.state, options.icons));
+  for (const node of scene.nodes.filter(({ kind }) => kind !== "frame")) lines.push(...renderNode(node, tokens, options.theme ?? canonicalTheme, `${safeId(scene.id)}-shadow`, options.state, options.icons));
   lines.push("  </g>", "</svg>");
   return lines.join("\n");
 }

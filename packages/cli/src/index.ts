@@ -2,6 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 
 import {
   exportVisual,
+  builtInThemes,
   getBuiltInTheme,
   migrateLegacySource,
   type BuiltInThemeName,
@@ -37,7 +38,7 @@ Options:
   -o, --output <path>          Write to a file instead of stdout
       --layout <auto|fast>     Deprecated compatibility option
       --migrate                Translate legacy flow source to the programmable language
-      --theme <name>           Visual theme: editorial, paper, or midnight
+      --theme <name>           Visual theme: editorial, paper, midnight, blackout, blueprint, or monochrome
       --width <pixels>         Diagram layout width (default: 960)
       --scale <number>         PNG scale from 0.1 to 8
       --output-width <pixels>  PNG output width independent of layout width
@@ -194,7 +195,7 @@ function formatValue(value: string): CliOptions["format"] {
 }
 
 function themeValue(value: string): BuiltInThemeName {
-  if (value === "editorial" || value === "paper" || value === "midnight") return value;
+  if (value in builtInThemes) return value as BuiltInThemeName;
   throw new Error(`Invalid theme ${value}.`);
 }
 

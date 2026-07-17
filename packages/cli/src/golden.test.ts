@@ -22,7 +22,7 @@ describe("CLI golden exports", () => {
     const status = await runCli([fixture.pathname, "--format", "json", "--layout", "fast", "--width", "640", "--pretty"], io);
 
     expect(status).toBe(0);
-    expect(output()).toBe(await readFile(expectedJson, "utf8"));
+    expect(output()).toBe((await readFile(expectedJson, "utf8")).trimEnd());
   });
 
   it("produces structurally valid PNG bytes", async () => {

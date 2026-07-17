@@ -170,7 +170,6 @@ Node and Bun PNG export is available through `@jerkeyray/export-node`. The CLI c
 | `@jerkeyray/react` | React renderer and chat-oriented streaming component |
 | `@jerkeyray/export-node` | Optional Node and Bun PNG export adapter |
 | `@jerkeyray/cli` | Command-line validation and export |
-| `@jerkeyray/layout-elk` | Optional compatibility adapter for complex legacy graph placement |
 
 All public packages are versioned together.
 
