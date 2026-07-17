@@ -29,13 +29,13 @@ describe("Livery CLI", () => {
     const status = await runCli(["-", "--format", "svg", "--theme", "midnight"], io);
 
     expect(status).toBe(0);
-    expect(io.stdout).toHaveBeenCalledWith(expect.stringContaining("#0f1629"));
-    expect(io.stdout).toHaveBeenCalledWith(expect.stringContaining("#eef2ff"));
+    expect(io.stdout).toHaveBeenCalledWith(expect.stringContaining("#101827"));
+    expect(io.stdout).toHaveBeenCalledWith(expect.stringContaining("#f1f5f9"));
   });
 
   it.each([
-    ["blackout", "#050505"],
-    ["blueprint", "#091a2d"],
+    ["blackout", "#080809"],
+    ["blueprint", "#0a1b2e"],
     ["monochrome", "#fafafa"],
   ])("renders the %s built-in theme", async (theme, canvas) => {
     const io = fakeIo(`figure cli("Theme") {\n a = service("API")\n}`);

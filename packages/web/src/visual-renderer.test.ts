@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 
 import { describe, expect, it, vi } from "vitest";
+import { canonicalTheme, midnightTheme } from "@jerkeyray/core";
 import { mountLiveryVisual } from "./visual-renderer.js";
 
 const source = (label = "API") => `figure demo("Demo") {
@@ -40,6 +41,27 @@ describe("retained visual runtime", () => {
     const instance = mountLiveryVisual(invalidHost, "figure", { width: 320 });
     expect(instance.revision.status).toBe("invalid");
     expect(invalidHost.querySelector('[role="alert"]')).not.toBeNull();
+  });
+
+  it("repaints layout-compatible themes without recompiling or replacing the scene", () => {
+    const host = document.createElement("div");
+    const onRevision = vi.fn();
+    const instance = mountLiveryVisual(host, source(), {
+      theme: canonicalTheme,
+      width: 480,
+      onRevision,
+    });
+    const revision = instance.revision;
+    const svg = host.querySelector("svg");
+    expect(host.innerHTML).toContain(canonicalTheme.tokens.color.canvas);
+
+    instance.setTheme(midnightTheme);
+
+    expect(instance.revision).toBe(revision);
+    expect(host.querySelector("svg")).toBe(svg);
+    expect(host.innerHTML).toContain(midnightTheme.tokens.color.canvas);
+    expect(host.innerHTML).not.toContain(canonicalTheme.tokens.color.canvas);
+    expect(onRevision).toHaveBeenCalledTimes(1);
   });
 
   it("re-solves responsive instances when observed width changes", () => {

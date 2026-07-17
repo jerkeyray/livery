@@ -61,7 +61,7 @@ describe("canonical visual runtime", () => {
     expect(result.svg).toContain('fill="#4c1d95"');
     expect(result.svg).toContain('data-livery-glyph="credit-card"');
     expect(result.svg).toContain("Payment provider");
-    expect(result.svg).toContain('fill="#fffbeb"');
+    expect(result.svg).toContain('fill="#faf5e9"');
   });
 
   it("renders a labeled frame behind its nested children", () => {
@@ -85,11 +85,11 @@ describe("canonical visual runtime", () => {
   });
 
   it.each([
-    ["editorial", editorialTheme, "#f8fafc", "#172033"],
-    ["paper", paperTheme, "#f8f5ee", "#24211d"],
-    ["midnight", midnightTheme, "#0f1629", "#eef2ff"],
-    ["blackout", blackoutTheme, "#050505", "#fafafa"],
-    ["blueprint", blueprintTheme, "#091a2d", "#e8f5ff"],
+    ["editorial", editorialTheme, "#f8f9fa", "#1b2430"],
+    ["paper", paperTheme, "#faf7f0", "#29251f"],
+    ["midnight", midnightTheme, "#101827", "#f1f5f9"],
+    ["blackout", blackoutTheme, "#080809", "#f4f4f5"],
+    ["blueprint", blueprintTheme, "#0a1b2e", "#e5f4ff"],
     ["monochrome", monochromeTheme, "#fafafa", "#0a0a0a"],
   ])("renders the %s theme with accessible title metadata", (_name, theme, canvas, text) => {
     const result = render(`figure themed("Theme preview") { api = service("API", subtitle: "Public endpoint") row(api) }`, { theme, width: 360 });

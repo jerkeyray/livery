@@ -4,6 +4,7 @@ import { act, createElement, StrictMode } from "react";
 import { createRoot, hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { canonicalTheme, midnightTheme } from "@jerkeyray/core";
 import { LiveryChatVisual } from "./chat-visual.js";
 
 const validSource = `figure demo("Demo") {
@@ -52,6 +53,24 @@ describe("LiveryChatVisual", () => {
       root.render(createElement(LiveryChatVisual, { compileDelay: 0, fallback: createElement("span", null, "Unavailable"), source: "figure", streaming: false }));
     });
     expect(host.textContent).toContain("Unavailable");
+    await act(async () => root.unmount());
+  });
+
+  it("repaints a theme change without replacing the retained visual", async () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    await act(async () => {
+      root.render(createElement(LiveryChatVisual, { compileDelay: 0, source: validSource, streaming: false, theme: canonicalTheme }));
+    });
+    const svg = host.querySelector("svg");
+
+    await act(async () => {
+      root.render(createElement(LiveryChatVisual, { compileDelay: 0, source: validSource, streaming: false, theme: midnightTheme }));
+    });
+
+    expect(host.querySelector("svg")).toBe(svg);
+    expect(host.innerHTML).toContain(midnightTheme.tokens.color.canvas);
     await act(async () => root.unmount());
   });
 

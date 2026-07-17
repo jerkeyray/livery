@@ -110,7 +110,7 @@
         {
           "id": "column.0",
           "index": 0,
-          "position": 31.190909500000032,
+          "position": 25.52739250000002,
           "size": 144
         },
         {
@@ -122,7 +122,7 @@
         {
           "id": "column.2",
           "index": 2,
-          "position": 472.80909049999997,
+          "position": 478.4726075,
           "size": 136
         }
       ],
@@ -178,9 +178,9 @@
         {
           "id": "channel.free.right",
           "axis": "vertical",
-          "x": 608.8090904999999,
+          "x": 614.4726075,
           "y": 0,
-          "width": 7.190909500000089,
+          "width": 1.527392500000019,
           "height": 120,
           "capacity": 16,
           "used": 0
@@ -190,7 +190,7 @@
           "axis": "vertical",
           "x": 24,
           "y": 18,
-          "width": 7.190909500000032,
+          "width": 1.527392500000019,
           "height": 80,
           "capacity": 16,
           "used": 0
@@ -198,9 +198,9 @@
         {
           "id": "channel.access.right.customer",
           "axis": "vertical",
-          "x": 175.19090950000003,
+          "x": 169.52739250000002,
           "y": 18,
-          "width": 440.80909049999997,
+          "width": 446.4726075,
           "height": 80,
           "capacity": 16,
           "used": 2
@@ -208,7 +208,7 @@
         {
           "id": "channel.access.bottom.customer",
           "axis": "horizontal",
-          "x": 31.190909500000032,
+          "x": 25.52739250000002,
           "y": 98,
           "width": 144,
           "height": 22,
@@ -250,7 +250,7 @@
           "axis": "vertical",
           "x": 24,
           "y": 18,
-          "width": 448.80909049999997,
+          "width": 454.4726075,
           "height": 80,
           "capacity": 16,
           "used": 2
@@ -258,9 +258,9 @@
         {
           "id": "channel.access.right.orders",
           "axis": "vertical",
-          "x": 608.8090904999999,
+          "x": 614.4726075,
           "y": 18,
-          "width": 7.190909500000089,
+          "width": 1.527392500000019,
           "height": 80,
           "capacity": 16,
           "used": 0
@@ -268,9 +268,9 @@
         {
           "id": "channel.access.bottom.orders",
           "axis": "horizontal",
-          "x": 472.80909049999997,
+          "x": 478.4726075,
           "y": 98,
-          "width": 135.99999999999994,
+          "width": 136,
           "height": 22,
           "capacity": 16,
           "used": 0
@@ -278,9 +278,9 @@
         {
           "id": "channel.v.customer.api",
           "axis": "vertical",
-          "x": 175.19090950000003,
+          "x": 169.52739250000002,
           "y": 18,
-          "width": 70.63516999999999,
+          "width": 76.298687,
           "height": 80,
           "capacity": 16,
           "used": 1
@@ -288,9 +288,9 @@
         {
           "id": "channel.v.customer.orders",
           "axis": "vertical",
-          "x": 175.19090950000003,
+          "x": 169.52739250000002,
           "y": 18,
-          "width": 297.61818099999994,
+          "width": 308.94521499999996,
           "height": 80,
           "capacity": 16,
           "used": 2
@@ -300,7 +300,7 @@
           "axis": "vertical",
           "x": 402.1739205,
           "y": 18,
-          "width": 70.63517000000002,
+          "width": 76.29868699999997,
           "height": 80,
           "capacity": 16,
           "used": 1
@@ -312,15 +312,15 @@
         "id": "root",
         "kind": "group",
         "bounds": {
-          "x": 37.19090950000003,
+          "x": 31.52739250000002,
           "y": 24,
-          "width": 565.6181809999999,
+          "width": 576.945215,
           "height": 68
         },
         "visualBounds": {
-          "x": 37.19090950000003,
+          "x": 31.52739250000002,
           "y": 24,
-          "width": 565.6181809999999,
+          "width": 576.945215,
           "height": 68
         },
         "layer": 0,
@@ -343,7 +343,7 @@
             "owner": "root",
             "side": "right",
             "point": {
-              "x": 602.8090904999999,
+              "x": 608.4726075,
               "y": 58
             },
             "direction": {
@@ -369,7 +369,7 @@
             "owner": "root",
             "side": "left",
             "point": {
-              "x": 37.19090950000003,
+              "x": 31.52739250000002,
               "y": 58
             },
             "direction": {
@@ -383,20 +383,20 @@
         "id": "customer",
         "kind": "lib.person",
         "bounds": {
-          "x": 37.19090950000003,
+          "x": 31.52739250000002,
           "y": 24,
           "width": 132,
           "height": 68
         },
         "visualBounds": {
-          "x": 37.19090950000003,
+          "x": 31.52739250000002,
           "y": 24,
           "width": 132,
           "height": 68
         },
         "label": "Customer",
         "labelBounds": {
-          "x": 91.19090950000003,
+          "x": 85.52739250000002,
           "y": 49,
           "width": 62,
           "height": 18
@@ -409,7 +409,7 @@
             "owner": "customer",
             "side": "top",
             "point": {
-              "x": 103.19090950000003,
+              "x": 97.52739250000002,
               "y": 24
             },
             "direction": {
@@ -422,7 +422,7 @@
             "owner": "customer",
             "side": "right",
             "point": {
-              "x": 169.19090950000003,
+              "x": 163.52739250000002,
               "y": 58
             },
             "direction": {
@@ -435,7 +435,7 @@
             "owner": "customer",
             "side": "bottom",
             "point": {
-              "x": 103.19090950000003,
+              "x": 97.52739250000002,
               "y": 92
             },
             "direction": {
@@ -448,7 +448,7 @@
             "owner": "customer",
             "side": "left",
             "point": {
-              "x": 37.19090950000003,
+              "x": 31.52739250000002,
               "y": 58
             },
             "direction": {
@@ -547,22 +547,22 @@
         "id": "orders",
         "kind": "lib.database",
         "bounds": {
-          "x": 478.80909049999997,
+          "x": 484.4726075,
           "y": 24,
           "width": 124,
           "height": 68
         },
         "visualBounds": {
-          "x": 478.80909049999997,
+          "x": 484.4726075,
           "y": 24,
           "width": 124,
           "height": 68
         },
         "label": "Orders",
         "labelBounds": {
-          "x": 494.80909049999997,
+          "x": 500.4726075,
           "y": 49,
-          "width": 91.99999999999994,
+          "width": 92,
           "height": 18
         },
         "parent": "root",
@@ -573,7 +573,7 @@
             "owner": "orders",
             "side": "top",
             "point": {
-              "x": 540.8090904999999,
+              "x": 546.4726075,
               "y": 24
             },
             "direction": {
@@ -586,7 +586,7 @@
             "owner": "orders",
             "side": "right",
             "point": {
-              "x": 602.8090904999999,
+              "x": 608.4726075,
               "y": 58
             },
             "direction": {
@@ -599,7 +599,7 @@
             "owner": "orders",
             "side": "bottom",
             "point": {
-              "x": 540.8090904999999,
+              "x": 546.4726075,
               "y": 92
             },
             "direction": {
@@ -612,7 +612,7 @@
             "owner": "orders",
             "side": "left",
             "point": {
-              "x": 478.80909049999997,
+              "x": 484.4726075,
               "y": 58
             },
             "direction": {
@@ -635,7 +635,7 @@
         "toPin": "api.left",
         "points": [
           {
-            "x": 169.19090950000003,
+            "x": 163.52739250000002,
             "y": 58
           },
           {
@@ -645,10 +645,10 @@
         ],
         "label": {
           "text": "submit order",
-          "x": 178.19090950000003,
-          "y": 40,
-          "width": 64.63516999999999,
-          "height": 16
+          "x": 172.52739250000002,
+          "y": 39,
+          "width": 70.298687,
+          "height": 18
         },
         "channelIds": [
           "channel.access.right.customer",
@@ -670,16 +670,16 @@
             "y": 58
           },
           {
-            "x": 478.80909049999997,
+            "x": 484.4726075,
             "y": 58
           }
         ],
         "label": {
           "text": "persist",
-          "x": 417.82678050000004,
-          "y": 40,
-          "width": 39.32945,
-          "height": 16
+          "x": 419.0920665,
+          "y": 39,
+          "width": 42.462395,
+          "height": 18
         },
         "tone": "success",
         "channelIds": [
@@ -697,7 +697,7 @@
         "id": "customer.collision",
         "owner": "customer",
         "kind": "component",
-        "x": 31.190909500000032,
+        "x": 25.52739250000002,
         "y": 18,
         "width": 144,
         "height": 80
@@ -715,7 +715,7 @@
         "id": "orders.collision",
         "owner": "orders",
         "kind": "component",
-        "x": 472.80909049999997,
+        "x": 478.4726075,
         "y": 18,
         "width": 136,
         "height": 80
@@ -739,12 +739,12 @@
       "overlappingSegmentCount": 0,
       "occupiedArea": 34907.82728,
       "occupancyRatio": 0.45452900104166666,
-      "routeLength": 165.27033999999995,
+      "routeLength": 176.59737399999997,
       "normalizedRouteLength": 1,
       "maximumNormalizedRouteLength": 1,
       "bendCount": 0,
-      "aspectImbalance": 0.30290999563823306,
-      "whitespaceImbalance": 0.016666666666666757,
+      "aspectImbalance": 0.322330097497659,
+      "whitespaceImbalance": 0.016666666666666666,
       "topologyDeviation": 0,
       "backtrackingCount": 0,
       "rankErrorCount": 0,
@@ -768,12 +768,12 @@
         "overlappingSegmentCount": 0,
         "occupiedArea": 34907.82728,
         "occupancyRatio": 0.45452900104166666,
-        "routeLength": 165.27033999999995,
+        "routeLength": 176.59737399999997,
         "normalizedRouteLength": 1,
         "maximumNormalizedRouteLength": 1,
         "bendCount": 0,
-        "aspectImbalance": 0.30290999563823306,
-        "whitespaceImbalance": 0.016666666666666757,
+        "aspectImbalance": 0.322330097497659,
+        "whitespaceImbalance": 0.016666666666666666,
         "topologyDeviation": 0,
         "backtrackingCount": 0,
         "rankErrorCount": 0,

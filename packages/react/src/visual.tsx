@@ -35,13 +35,14 @@ export function LiveryVisual({ className, compileDelay = 0, source, onDiagnostic
     instanceRef.current = instance;
     onRenderRef.current?.(instance);
     return () => { instanceRef.current = undefined; instance.destroy(); };
-  }, [options.theme, options.tokenOverrides, options.icons, options.resourcePolicy, options.width, options.timeline, options.debug, options.retainLastValid, options.responsive]);
+  }, [options.tokenOverrides, options.icons, options.resourcePolicy, options.width, options.timeline, options.debug, options.retainLastValid, options.responsive]);
   useEffect(() => {
     const instance = instanceRef.current;
     if (!instance || instance.revision.source === source) return;
     const timeout = setTimeout(() => instance.update(source), Math.max(0, compileDelay));
     return () => clearTimeout(timeout);
   }, [compileDelay, source]);
+  useEffect(() => instanceRef.current?.setTheme(options.theme), [options.theme]);
   useEffect(() => instanceRef.current?.setState(options.state ?? ""), [options.state]);
   return <div className={className ? `livery livery-visual ${className}` : "livery livery-visual"} ref={ref} />;
 }

@@ -1,6 +1,7 @@
 import {
   computeTimelineState,
   boardSceneToSvg,
+  canonicalTheme,
   render as renderProgram,
   type BoardScene,
   type Diagnostic,
@@ -45,6 +46,7 @@ export interface LiveryVisualInstance {
   /** @deprecated Read revision.scene. */
   readonly scene: BoardScene | undefined;
   update(source: string): LiveryVisualRevision;
+  setTheme(theme?: LiveryTheme): void;
   setState(stateId: string): void;
   destroy(): void;
 }
@@ -53,6 +55,7 @@ export function mountLiveryVisual(container: HTMLElement, source: string, option
   let currentSource = source;
   let currentWidth = normalizedWidth(options.width ?? (container.clientWidth || 720));
   let currentStateId = options.state;
+  let currentTheme = options.theme ?? canonicalTheme;
   let rendered: SVGSVGElement | undefined;
   let identity: string | undefined;
   let revision: LiveryVisualRevision = { status: "empty", source, diagnostics: [] };
@@ -81,6 +84,7 @@ export function mountLiveryVisual(container: HTMLElement, source: string, option
     }
     const result = renderProgram(nextSource, {
       ...options,
+      theme: currentTheme,
       width: currentWidth,
       ...(currentStateId ? { state: currentStateId } : {}),
     });
@@ -112,18 +116,41 @@ export function mountLiveryVisual(container: HTMLElement, source: string, option
     const timeline = revision.document.timelines.find(({ id }) => id === options.timeline) ?? revision.document.timelines[0];
     const state = timeline && nextStateId ? computeTimelineState(timeline, nextStateId, revision.scene) : undefined;
     const next = parseSvg(boardSceneToSvg(revision.scene, {
-      ...(options.theme ? { theme: options.theme } : {}),
+      theme: currentTheme,
       ...(options.tokenOverrides ? { tokenOverrides: options.tokenOverrides } : {}),
       ...(options.icons ? { icons: options.icons } : {}),
       ...(options.resourcePolicy ? { resourcePolicy: options.resourcePolicy } : {}),
       ...(state ? { state } : {}),
       ...(options.debug ? { debug: true } : {}),
     }));
-    const duration = transitionDuration(timeline, currentStateId, nextStateId, options.theme);
+    const duration = transitionDuration(timeline, currentStateId, nextStateId, currentTheme);
     const before = capturePresentation(rendered);
     syncElementTree(rendered, next);
     animatePresentation(rendered, before, duration);
     currentStateId = nextStateId;
+  };
+
+  const applyTheme = (theme: LiveryTheme | undefined) => {
+    const nextTheme = theme ?? canonicalTheme;
+    if (nextTheme === currentTheme) return;
+    const canRepaint = layoutThemeSignature(currentTheme) === layoutThemeSignature(nextTheme);
+    currentTheme = nextTheme;
+    if (!rendered || !revision.scene || !revision.document) return;
+    if (!canRepaint) {
+      renderRevision(currentSource);
+      return;
+    }
+    const timeline = revision.document.timelines.find(({ id }) => id === options.timeline) ?? revision.document.timelines[0];
+    const state = timeline && currentStateId ? computeTimelineState(timeline, currentStateId, revision.scene) : undefined;
+    const next = parseSvg(boardSceneToSvg(revision.scene, {
+      theme: currentTheme,
+      ...(options.tokenOverrides ? { tokenOverrides: options.tokenOverrides } : {}),
+      ...(options.icons ? { icons: options.icons } : {}),
+      ...(options.resourcePolicy ? { resourcePolicy: options.resourcePolicy } : {}),
+      ...(state ? { state } : {}),
+      ...(options.debug ? { debug: true } : {}),
+    }));
+    syncElementTree(rendered, next);
   };
 
   const ResizeObserverConstructor = container.ownerDocument.defaultView?.ResizeObserver;
@@ -146,6 +173,7 @@ export function mountLiveryVisual(container: HTMLElement, source: string, option
     get diagnostics() { return revision.diagnostics; },
     get scene() { return revision.scene; },
     update(nextSource) { return destroyed ? revision : renderRevision(nextSource); },
+    setTheme(theme) { if (!destroyed) applyTheme(theme); },
     setState,
     destroy() {
       destroyed = true;
@@ -155,6 +183,14 @@ export function mountLiveryVisual(container: HTMLElement, source: string, option
   };
   if (initial.status === "ready" && currentStateId) setState(currentStateId);
   return instance;
+}
+
+function layoutThemeSignature(theme: LiveryTheme) {
+  return JSON.stringify({
+    space: theme.tokens.space,
+    type: theme.tokens.type,
+    components: Object.entries(theme.components).map(([kind, recipe]) => [kind, recipe.geometry, recipe.typography, recipe.shape]),
+  });
 }
 
 function normalizedWidth(width: number) {

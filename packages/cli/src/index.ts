@@ -195,7 +195,7 @@ function formatValue(value: string): CliOptions["format"] {
 }
 
 function themeValue(value: string): BuiltInThemeName {
-  if (value in builtInThemes) return value as BuiltInThemeName;
+  if (Object.hasOwn(builtInThemes, value)) return value as BuiltInThemeName;
   throw new Error(`Invalid theme ${value}.`);
 }
 

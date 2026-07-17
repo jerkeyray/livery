@@ -59,9 +59,9 @@ figure export_test {
     expect(svg).toContain('data-livery-focused="true"');
     expect(svg).toContain('data-livery-traced="true"');
     expect(svg).toContain('data-livery-id="a" opacity="0.62"');
-    expect(svg).toContain('stroke="#15803d"');
+    expect(svg).toContain('stroke="#49755c"');
     expect(svg).toContain('<marker id="states-arrow-edge"');
-    expect(svg).toContain('fill="#15803d"');
+    expect(svg).toContain('fill="#49755c"');
     expect(svg).toContain('marker-end="url(#states-arrow-edge)"');
     expect(svg.match(/stroke="#c0264f"/g)).toHaveLength(1);
   });
