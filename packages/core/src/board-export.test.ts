@@ -66,6 +66,26 @@ figure export_test {
     expect(svg.match(/stroke="#c0264f"/g)).toHaveLength(1);
   });
 
+  it("keeps short orthogonal jogs crisp instead of rendering wavy curves", () => {
+    const compiled = compileVisual(`figure crisp {
+ a = service("A")
+ b = service("B")
+ edge = a.bottom -> b.top("send")
+ column(a, b)
+}`);
+    const result = solvePinboard(compiled.document!, { width: 480 });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const connector = result.scene.connectors[0]!;
+    const scene = {
+      ...result.scene,
+      connectors: [{ ...connector, points: [{ x: 100, y: 100 }, { x: 100, y: 112 }, { x: 106, y: 112 }, { x: 106, y: 200 }] }],
+    };
+    const svg = boardSceneToSvg(scene);
+    const path = svg.match(/data-livery-id="edge" d="([^"]+)"/)?.[1];
+    expect(path).toBe("M 100 100 L 100 112 L 106 112 L 106 200");
+  });
+
   it("applies timeline transforms to stable canvas primitives", () => {
     const compiled = compileVisual(`component Plot() {
  dot = circle(x: 80, y: 40, width: 12, height: 12)

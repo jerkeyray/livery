@@ -273,7 +273,13 @@ function pathData(points: Array<{ x: number; y: number }>) {
     const next = points[index + 1]!;
     const incoming = Math.abs(corner.x - previous.x) + Math.abs(corner.y - previous.y);
     const outgoing = Math.abs(next.x - corner.x) + Math.abs(next.y - corner.y);
-    const radius = Math.min(8, incoming / 2, outgoing / 2);
+    // Rounding both ends of a tiny orthogonal jog consumes the entire segment
+    // and turns a deliberate right-angle route into a visible S-curve.
+    const radius = incoming < 16 || outgoing < 16 ? 0 : Math.min(8, incoming / 2, outgoing / 2);
+    if (radius === 0) {
+      commands.push(`L ${corner.x} ${corner.y}`);
+      continue;
+    }
     const before = moveToward(corner, previous, radius);
     const after = moveToward(corner, next, radius);
     commands.push(`L ${before.x} ${before.y}`, `Q ${corner.x} ${corner.y} ${after.x} ${after.y}`);
