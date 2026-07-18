@@ -1,11 +1,20 @@
 import { z } from "zod";
 
 const visualScalarSchema = z.union([z.string(), z.number(), z.boolean()]);
-const visualValueSchema = z.union([visualScalarSchema, z.array(visualScalarSchema).max(12)]);
+const visualValueSchemaAt = (depth: number): z.ZodTypeAny => depth >= 3
+  ? visualScalarSchema
+  : z.lazy(() => z.union([
+    visualScalarSchema,
+    z.array(visualValueSchemaAt(depth + 1)).max(256),
+    z.record(z.string(), visualValueSchemaAt(depth + 1)).superRefine((value, context) => {
+      if (Object.keys(value).length > 32) context.addIssue({ code: "custom", message: "Structured visual records support at most 32 fields." });
+    }),
+  ]));
+const visualValueSchema = visualValueSchemaAt(0);
 const styleValueSchema = visualScalarSchema;
 const styleSchema = z.record(z.string(), styleValueSchema);
 const layoutSchema = z.object({
-  kind: z.enum(["free", "row", "column", "stack", "grid", "flow", "hierarchy", "overlay", "canvas"]),
+  kind: z.enum(["free", "row", "column", "stack", "grid", "flow", "hierarchy", "interaction", "overlay", "canvas"]),
   gap: visualValueSchema.optional(),
   columns: z.number().int().positive().optional(),
   align: z.enum(["start", "center", "end", "stretch"]).optional(),
@@ -62,6 +71,11 @@ export const visualDocumentSchema = z.object({
     tone: z.enum(["neutral", "info", "success", "warning", "danger"]).optional(),
     role: z.enum(["auto", "primary", "secondary", "supporting"]).optional(),
     bundleId: z.string().min(1).optional(),
+    semantic: z.enum(["message", "transition", "association", "inheritance", "composition", "aggregation", "dependency", "trace", "verify", "satisfy"]).optional(),
+    messageKind: z.enum(["sync", "async", "return"]).optional(),
+    fromCardinality: z.string().min(1).optional(),
+    toCardinality: z.string().min(1).optional(),
+    order: z.number().int().nonnegative().optional(),
     style: styleSchema.optional(),
   })).default([]),
   timelines: z.array(z.object({

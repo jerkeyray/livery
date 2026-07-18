@@ -169,12 +169,81 @@ figure arithmetic {
   it("exposes the complete visual parameter contract on every standard component", () => {
     const expected = ["label", "subtitle", "icon", "variant", "tone", "fill", "stroke", "strokeWidth", "color", "iconColor", "radius", "opacity", "fontSize", "fontWeight", "width", "height"];
     for (const component of Object.values(standardLibrary)) {
-      expect(component.parameters.map(({ name }) => name), component.name).toEqual([
-        ...expected,
-        ...(["list", "legend"].includes(component.name) ? ["items"] : []),
-      ]);
+      expect(component.parameters.map(({ name }) => name), component.name).toEqual(expect.arrayContaining(expected));
       expect(component.variants, component.name).toEqual(["default", "muted", "emphasis", "soft", "solid", "ghost"]);
     }
+  });
+
+  it("round-trips bounded structured schema data and renders it as visible detail rows", () => {
+    const source = `figure catalog {
+      account = entity("Account", fields: [
+        { name: "id", type: "uuid", key: true },
+        { name: "email", type: "string" }
+      ])
+      policy = classCard("Policy", fields: [{ name: "status", type: "Status" }], methods: [{ name: "evaluate", signature: "(input)", returns: "Decision" }])
+      requirement = requirement("Encrypted storage", risk: high, verification: "security review", reference: "SEC-12")
+      row(account, policy, requirement)
+    }`;
+    const result = compileVisual(source);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.document?.root.children?.[0]?.props?.fields).toEqual([
+      { name: "id", type: "uuid", key: true },
+      { name: "email", type: "string" },
+    ]);
+    expect(result.document?.root.children?.[1]?.description).toContain("evaluate(input): Decision");
+    const formatted = formatVisualDocument(result.document!);
+    expect(formatted).toContain('{ name: "id", type: "uuid", key: true }');
+    expect(compileVisual(formatted).diagnostics).toEqual([]);
+  });
+
+  it("rejects malformed structured component data with typed diagnostics", () => {
+    const wrongItem = compileVisual(`figure bad { entity = entity("User", fields: ["id"]) row(entity) }`);
+    expect(wrongItem.diagnostics.map(({ code }) => code)).toContain("semantic.invalid_argument_value");
+    const duplicate = compileVisual(`figure bad { entity = entity("User", fields: [{ name: "id", name: "other" }]) row(entity) }`);
+    expect(duplicate.diagnostics.map(({ code }) => code)).toContain("semantic.duplicate_record_key");
+  });
+
+  it("preserves typed interaction and schema relationship semantics", () => {
+    const source = `figure domain {
+      client = participant("Client")
+      api = participant("API")
+      account = entity("Account", fields: [{ name: "id", type: "uuid", key: true }])
+      request = connect(client.right, api.left, label: "create", semantic: message, messageKind: sync, order: 0)
+      owns = connect(api.right, account.left, semantic: association, fromCardinality: "1", toCardinality: "0..*")
+      flow(client, api, account, direction: right)
+    }`;
+    const result = compileVisual(source);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.document?.connectors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "request", semantic: "message", messageKind: "sync", order: 0 }),
+      expect.objectContaining({ id: "owns", semantic: "association", fromCardinality: "1", toCardinality: "0..*" }),
+    ]));
+    const formatted = formatVisualDocument(result.document!);
+    expect(formatted).toContain('semantic: "message", messageKind: "sync", order: 0');
+    expect(compileVisual(formatted).diagnostics).toEqual([]);
+  });
+
+  it("rejects incompatible connector semantic metadata", () => {
+    const result = compileVisual(`figure bad { a = card("A") b = card("B") edge = connect(a.right, b.left, messageKind: async, fromCardinality: "1", order: -1) row(a, b) }`);
+    expect(result.diagnostics.map(({ code }) => code)).toEqual(expect.arrayContaining([
+      "semantic.message_kind_without_message",
+      "semantic.cardinality_without_schema_relationship",
+      "semantic.invalid_connector_order",
+    ]));
+  });
+
+  it("rejects missing, duplicate, and non-contiguous interaction message order", () => {
+    const result = compileVisual(`figure bad {
+      a = participant("A") b = participant("B")
+      first = connect(a.right, b.left, semantic: message, order: 1)
+      second = connect(b.left, a.right, semantic: message, order: 1)
+      third = connect(a.right, b.left, semantic: message)
+      interaction(a, b)
+    }`);
+    expect(result.diagnostics.map(({ code }) => code)).toEqual(expect.arrayContaining([
+      "semantic.interaction_message_order_missing",
+      "semantic.duplicate_interaction_message_order",
+    ]));
   });
 
   it("compiles hierarchy layouts, advisory connectors, and bounded editorial lists", () => {

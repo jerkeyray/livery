@@ -1,4 +1,5 @@
 import { standardLibrary } from "./stdlib.js";
+import { getDiagramFamilyCatalog, type DiagramFamilyContract } from "./diagram-family.js";
 import { canonicalTheme } from "./theme.js";
 import type { AnchorName, ComponentDefinition, PrimitiveKind } from "./visual.js";
 import {
@@ -31,6 +32,7 @@ export type LanguageCatalog = {
   anchors: readonly AnchorName[];
   icons: readonly string[];
   components: readonly ComponentDefinition[];
+  families: readonly DiagramFamilyContract[];
 };
 
 const keywords = ["component", "figure", "return", "timeline", "state", "transition"] as const;
@@ -82,5 +84,6 @@ export function getLanguageCatalog(): LanguageCatalog {
     anchors,
     icons: ICON_NAMES,
     components: Object.values(standardLibrary),
+    families: getDiagramFamilyCatalog(),
   };
 }

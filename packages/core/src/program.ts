@@ -109,7 +109,7 @@ export function formatVisualDocument(document: VisualDocument) {
   for (const connector of document.connectors) {
     const from = `${connector.from.node}.${connector.from.anchor ?? "right"}`;
     const to = `${connector.to.node}.${connector.to.anchor ?? "left"}`;
-    const properties = [...(connector.label ? [`label: \"${escapeString(connector.label)}\"`] : []), ...(connector.variant ? [`variant: ${formatValue(connector.variant)}`] : []), ...(connector.role && connector.role !== "auto" ? [`role: ${formatValue(connector.role)}`] : []), ...(connector.bundleId ? [`bundleId: ${formatValue(connector.bundleId)}`] : []), ...(connector.tone && connector.tone !== "neutral" ? [`tone: ${formatValue(connector.tone)}`] : []), ...formatProperties(connector.style)];
+    const properties = [...(connector.label ? [`label: \"${escapeString(connector.label)}\"`] : []), ...(connector.variant ? [`variant: ${formatValue(connector.variant)}`] : []), ...(connector.role && connector.role !== "auto" ? [`role: ${formatValue(connector.role)}`] : []), ...(connector.bundleId ? [`bundleId: ${formatValue(connector.bundleId)}`] : []), ...(connector.semantic ? [`semantic: ${formatValue(connector.semantic)}`] : []), ...(connector.messageKind ? [`messageKind: ${formatValue(connector.messageKind)}`] : []), ...(connector.fromCardinality ? [`fromCardinality: ${formatValue(connector.fromCardinality)}`] : []), ...(connector.toCardinality ? [`toCardinality: ${formatValue(connector.toCardinality)}`] : []), ...(connector.order !== undefined ? [`order: ${formatValue(connector.order)}`] : []), ...(connector.tone && connector.tone !== "neutral" ? [`tone: ${formatValue(connector.tone)}`] : []), ...formatProperties(connector.style)];
     lines.push(`  ${connector.id} = connect(${from}, ${to}${properties.length ? `, ${properties.join(", ")}` : ""})`);
   }
   lines.push("", `  ${formatLayout(document.root.layout, (document.root.children ?? []).map(({ id }) => id))}`);
@@ -270,7 +270,26 @@ function compileFigure(
     layout: rootLayout ? { kind: rootLayout.kind, ...rootLayout.named } : { kind: "row", gap: "$space.lg" },
     children,
   };
+  validateInteractionSemantics(root, connectors, context.diagnostics);
   return { type: "livery.visual", version: "0.2", id: figure.id, ...(figure.title ? { title: figure.title } : {}), root, connectors, constraints, timelines };
+}
+
+function validateInteractionSemantics(root: VisualNode, connectors: Connector[], diagnostics: Diagnostic[]) {
+  const visit = (node: VisualNode) => {
+    if (node.layout?.kind === "interaction") {
+      const children = new Set((node.children ?? []).map(({ id }) => id));
+      const messages = connectors.filter(({ from, to, semantic }) => semantic === "message" && children.has(from.node) && children.has(to.node));
+      if (children.size > 32) diagnostics.push(diagnostic("resource.max_interaction_participants", `Interaction ${node.id} contains ${children.size} participants; limit is 32.`));
+      if (messages.length > 96) diagnostics.push(diagnostic("resource.max_interaction_messages", `Interaction ${node.id} contains ${messages.length} messages; limit is 96.`));
+      const orders = messages.map(({ order }) => order);
+      if (orders.some((order) => order === undefined)) diagnostics.push(diagnostic("semantic.interaction_message_order_missing", `Every message in interaction ${node.id} requires an explicit order.`));
+      const definedOrders = orders.filter((order): order is number => order !== undefined).sort((a, b) => a - b);
+      if (new Set(definedOrders).size !== definedOrders.length) diagnostics.push(diagnostic("semantic.duplicate_interaction_message_order", `Interaction ${node.id} contains duplicate message order values.`));
+      if (definedOrders.length === messages.length && definedOrders.some((order, index) => order !== index)) diagnostics.push(diagnostic("semantic.non_contiguous_interaction_message_order", `Interaction ${node.id} message order must be contiguous from zero.`));
+    }
+    for (const child of node.children ?? []) visit(child);
+  };
+  visit(root);
 }
 
 function validateComponentDeclaration(component: ComponentSource, diagnostics: Diagnostic[]) {
@@ -515,7 +534,7 @@ function validateStandardComponentCall(
   callContext: LanguageCallContext,
   diagnostics: Diagnostic[],
 ) {
-  const definition = standardLibrary[name];
+  const definition = standardLibrary[name]!;
   const contract = standardComponentCallContract(definition, call.name);
   validateContractCall(call, contract, callContext, diagnostics);
   if ((name === "list" || name === "legend") && Array.isArray(call.named.items)) {
@@ -525,6 +544,17 @@ function validateStandardComponentCall(
       diagnostics.push(diagnostic(name === "legend" ? "semantic.invalid_legend_items" : "semantic.invalid_list_items", `${name} items must contain 1–${maximum} strings.`, call.span));
     }
   }
+  if ((name === "entity" || name === "classCard") && Array.isArray(call.named.fields)) validateStructuredRows(name, "fields", call.named.fields, call.span, diagnostics, true);
+  if (name === "classCard" && Array.isArray(call.named.methods)) validateStructuredRows(name, "methods", call.named.methods, call.span, diagnostics, false);
+}
+
+function validateStructuredRows(name: string, property: string, values: readonly VisualValue[], span: Call["span"], diagnostics: Diagnostic[], requireType: boolean) {
+  const invalid = values.some((value) => {
+    if (!isVisualRecord(value)) return true;
+    if (typeof value.name !== "string" || !value.name.trim()) return true;
+    return requireType && (typeof value.type !== "string" || !value.type.trim());
+  });
+  if (invalid) diagnostics.push(diagnostic("semantic.invalid_structured_member", `${name} ${property} require records with a non-empty name${requireType ? " and type" : ""}.`, span));
 }
 
 function validateRepeatTemplate(id: string, call: Call, diagnostics: Diagnostic[]) {
@@ -686,8 +716,10 @@ function expandNestedBindings(binding: Binding, values: Record<string, VisualVal
 }
 
 function matchesParameterType(value: VisualValue, type: ComponentParameter["type"]) {
-  if (type === "list") return Array.isArray(value) && value.length > 0 && value.length <= 12 && value.every((item) => typeof item === "string");
+  if (type === "list") return Array.isArray(value) && value.length > 0 && value.length <= 256;
+  if (type === "record") return isVisualRecord(value);
   if (Array.isArray(value)) return false;
+  if (isVisualRecord(value)) return false;
   if (type === "tone") return typeof value === "string" && ["neutral", "info", "success", "warning", "danger"].includes(value);
   if (type === "paint") return typeof value === "string" && isSafePaint(value);
   if (type === "length") return (typeof value === "number" && Number.isFinite(value) && value >= 0) || (typeof value === "string" && value.startsWith("$"));
@@ -728,10 +760,15 @@ function connectorFromBinding(binding: Binding, diagnostics: Diagnostic[]): Conn
   const role = binding.call.named.role;
   if (variant !== undefined && (typeof variant !== "string" || !["directional", "bidirectional", "async", "data", "advisory"].includes(variant))) diagnostics.push(diagnostic("semantic.invalid_connector_variant", `Connector ${binding.id} has invalid variant ${String(variant)}.`, binding.span));
   if (role !== undefined && (typeof role !== "string" || !["auto", "primary", "secondary", "supporting"].includes(role))) diagnostics.push(diagnostic("semantic.invalid_connector_role", `Connector ${binding.id} has invalid role ${String(role)}.`, binding.span));
+  if (binding.call.named.messageKind !== undefined && binding.call.named.semantic !== "message") diagnostics.push(diagnostic("semantic.message_kind_without_message", `Connector ${binding.id} can use messageKind only with semantic: message.`, binding.span));
+  if (binding.call.named.order !== undefined && (typeof binding.call.named.order !== "number" || !Number.isInteger(binding.call.named.order) || binding.call.named.order < 0)) diagnostics.push(diagnostic("semantic.invalid_connector_order", `Connector ${binding.id} order must be a non-negative integer.`, binding.span));
+  if ((binding.call.named.fromCardinality !== undefined || binding.call.named.toCardinality !== undefined) && !["association", "aggregation", "composition"].includes(String(binding.call.named.semantic))) diagnostics.push(diagnostic("semantic.cardinality_without_schema_relationship", `Connector ${binding.id} cardinality requires association, aggregation, or composition semantics.`, binding.span));
   const styleKeys = new Set(["fill", "stroke", "strokeWidth", "radius", "opacity", "color"]);
   const style = Object.fromEntries(Object.entries(binding.call.named).filter(([key]) => styleKeys.has(key)));
   const resolvedRole = variant === "advisory" && role === undefined ? "supporting" : role;
-  return { id: binding.id, from: from ?? { node: "invalid" }, to: to ?? { node: "invalid" }, ...(typeof binding.call.named.label === "string" ? { label: binding.call.named.label } : {}), ...(typeof tone === "string" && ["neutral", "info", "success", "warning", "danger"].includes(tone) ? { tone: tone as "neutral" | "info" | "success" | "warning" | "danger" } : {}), ...(typeof variant === "string" && ["directional", "bidirectional", "async", "data", "advisory"].includes(variant) ? { variant: variant as "directional" | "bidirectional" | "async" | "data" | "advisory" } : {}), ...(typeof resolvedRole === "string" && ["auto", "primary", "secondary", "supporting"].includes(resolvedRole) ? { role: resolvedRole as "auto" | "primary" | "secondary" | "supporting" } : {}), ...(typeof binding.call.named.bundleId === "string" ? { bundleId: binding.call.named.bundleId } : {}), ...(Object.keys(style).length ? { style } : {}) };
+  const semantic = binding.call.named.semantic;
+  const messageKind = binding.call.named.messageKind;
+  return { id: binding.id, from: from ?? { node: "invalid" }, to: to ?? { node: "invalid" }, ...(typeof binding.call.named.label === "string" ? { label: binding.call.named.label } : {}), ...(typeof tone === "string" && ["neutral", "info", "success", "warning", "danger"].includes(tone) ? { tone: tone as "neutral" | "info" | "success" | "warning" | "danger" } : {}), ...(typeof variant === "string" && ["directional", "bidirectional", "async", "data", "advisory"].includes(variant) ? { variant: variant as "directional" | "bidirectional" | "async" | "data" | "advisory" } : {}), ...(typeof resolvedRole === "string" && ["auto", "primary", "secondary", "supporting"].includes(resolvedRole) ? { role: resolvedRole as "auto" | "primary" | "secondary" | "supporting" } : {}), ...(typeof binding.call.named.bundleId === "string" ? { bundleId: binding.call.named.bundleId } : {}), ...(typeof semantic === "string" ? { semantic: semantic as NonNullable<Connector["semantic"]> } : {}), ...(typeof messageKind === "string" ? { messageKind: messageKind as NonNullable<Connector["messageKind"]> } : {}), ...(typeof binding.call.named.fromCardinality === "string" ? { fromCardinality: binding.call.named.fromCardinality } : {}), ...(typeof binding.call.named.toCardinality === "string" ? { toCardinality: binding.call.named.toCardinality } : {}), ...(typeof binding.call.named.order === "number" ? { order: binding.call.named.order } : {}), ...(Object.keys(style).length ? { style } : {}) };
 }
 
 function validateFlowOptions(kind: LayoutKind, named: Record<string, VisualValue>, diagnostics: Diagnostic[], span?: ParsedBinding["span"]) {
@@ -755,6 +792,8 @@ function substituteCall(call: Call, values: Record<string, VisualValue>): Call {
 }
 
 function substituteValue(value: VisualValue, values: Record<string, VisualValue>): VisualValue {
+  if (Array.isArray(value)) return value.map((item) => substituteValue(item, values));
+  if (isVisualRecord(value)) return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, substituteValue(item, values)]));
   if (typeof value !== "string") return value;
   if (value in values) return values[value]!;
   if (value.length > 128 || !/[+*/()-]/.test(value)) return value;
@@ -812,8 +851,17 @@ function legacyAction(action: string): "show" | "hide" | "focus" | "trace" {
 
 function formatValue(value: VisualValue): string {
   if (Array.isArray(value)) return `[${value.map((item) => formatValue(item)).join(", ")}]`;
+  if (isVisualRecord(value)) return `{ ${Object.entries(value).map(([key, item]) => `${safeRecordKey(key)}: ${formatValue(item)}`).join(", ")} }`;
   if (typeof value === "string" && value.startsWith("$space.")) return value.slice(7);
   return typeof value === "string" ? `\"${escapeString(value)}\"` : String(value);
+}
+
+function isVisualRecord(value: VisualValue): value is Readonly<Record<string, VisualValue>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function safeRecordKey(value: string) {
+  return /^[A-Za-z_$][A-Za-z0-9_$-]*$/.test(value) ? value : `\"${escapeString(value)}\"`;
 }
 
 function formatConstraint(constraint: VisualConstraint) {

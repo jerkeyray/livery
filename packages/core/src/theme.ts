@@ -1,9 +1,9 @@
 import type { SemanticTone } from "./artifact.js";
-import type { VisualStyle, VisualValue } from "./visual.js";
+import type { VisualScalar, VisualStyle, VisualValue } from "./visual.js";
 
 export type ScaleTokens = Record<string, string | number>;
 export type ComponentGeometry = { minWidth: number; maxWidth: number; minHeight: number; paddingX: number; paddingY: number; detailWidth: number; labelGap: number };
-export type ComponentTypography = { color?: VisualValue; fontSize?: VisualValue; fontWeight?: VisualValue; lineHeight?: VisualValue; align?: "start" | "center" | "end" };
+export type ComponentTypography = { color?: VisualScalar; fontSize?: VisualScalar; fontWeight?: VisualScalar; lineHeight?: VisualScalar; align?: "start" | "center" | "end" };
 export type ComponentDetail = { glyph: string; size: number; strokeWidth: number };
 export type ComponentRecipe = {
   /** @deprecated Use surface. */
@@ -129,6 +129,14 @@ export const canonicalTheme: LiveryTheme = {
     "lib.lineChart": nodeRecipe("lineChart", { minWidth: 180, minHeight: 104 }),
     "lib.areaChart": nodeRecipe("areaChart", { minWidth: 180, minHeight: 104 }),
     "lib.progress": nodeRecipe("progress", { minWidth: 140 }),
+    "lib.participant": nodeRecipe("person", { minWidth: 96, minHeight: 64, paddingX: 10, detailWidth: 20, labelGap: 6 }),
+    "lib.interactionFragment": nodeRecipe("boundary", { minWidth: 176, minHeight: 88, detailWidth: 0 }, "boundary"),
+    "lib.classCard": nodeRecipe("code", { minWidth: 184, minHeight: 88, detailWidth: 24 }),
+    "lib.entity": nodeRecipe("table", { minWidth: 184, minHeight: 88, detailWidth: 24 }),
+    "lib.stateNode": nodeRecipe("badge", { minWidth: 144, detailWidth: 0 }),
+    "lib.choice": nodeRecipe("badge", { minWidth: 96, minHeight: 56, detailWidth: 0 }),
+    "lib.requirement": nodeRecipe("document", { minWidth: 184, minHeight: 88 }),
+    "lib.evidence": nodeRecipe("document", { minWidth: 160, minHeight: 72 }),
   },
 };
 
@@ -137,7 +145,8 @@ export function resolveTheme(theme: LiveryTheme = canonicalTheme, overrides: Tok
   return { ...flattened, ...overrides };
 }
 
-export function resolveVisualValue(value: VisualValue | undefined, tokens: TokenOverrides) {
+export function resolveVisualValue(value: VisualValue | undefined, tokens: TokenOverrides): VisualScalar | undefined {
+  if (Array.isArray(value) || (typeof value === "object" && value !== null)) return undefined;
   if (typeof value !== "string" || !value.startsWith("$")) return value;
   return tokens[value.slice(1)] ?? value;
 }

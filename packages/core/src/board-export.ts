@@ -5,6 +5,7 @@ import { wrapVisualText } from "./text-metrics.js";
 import type { VisualTimelineState } from "./timeline.js";
 import type { VisualStyle } from "./visual.js";
 import { isImageSourceAllowed, type ResourcePolicy } from "./resources.js";
+import { componentDetailRows } from "./component-details.js";
 
 export type BoardSvgOptions = {
   debug?: boolean;
@@ -146,14 +147,14 @@ function renderElement(element: SolvedElement, tokens: TokenOverrides, shadowId:
       subtitleLines.forEach((line, index) => lines.push(`        <tspan x="${labelX}" dy="${index === 0 ? 0 : subtitleLineHeight}">${escapeXml(line)}</tspan>`));
       lines.push("      </text>");
     }
-    const items = Array.isArray(element.props?.items) ? element.props.items.filter((item): item is string => typeof item === "string") : [];
-    if (items.length) {
+    const detailRows = componentDetailRows(element.kind, element.props);
+    if (detailRows.length) {
       const itemFontSize = Number(tokens["type.caption"] ?? 10);
       const itemLineHeight = Math.max(14, Math.ceil(itemFontSize * 1.45));
       const itemY = labelBounds.y + textLines.length * lineHeight + (element.subtitle ? itemLineHeight : 0) + 10;
       const itemColor = resolveVisualValue(surfaceStyle.color, tokens) ?? tokens["color.muted"];
       lines.push(`      <text x="${labelBounds.x}" y="${itemY}" font-family="${escapeXml(String(tokens["type.fontFamily"]))}" font-size="${itemFontSize}" font-weight="500" fill="${itemColor}">`);
-      items.forEach((item, index) => lines.push(`        <tspan x="${labelBounds.x}" dy="${index === 0 ? 0 : itemLineHeight}">• ${escapeXml(item)}</tspan>`));
+      detailRows.forEach((item, index) => lines.push(`        <tspan x="${labelBounds.x}" dy="${index === 0 ? 0 : itemLineHeight}">${item.bullet ? "• " : ""}${escapeXml(item.text)}</tspan>`));
       lines.push("      </text>");
     }
   }

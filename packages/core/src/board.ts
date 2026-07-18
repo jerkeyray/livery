@@ -1,6 +1,6 @@
 import type { Diagnostic } from "./diagnostics.js";
 import type { SemanticTone } from "./artifact.js";
-import type { ConnectorRole, LayoutKind, VisualStyle, VisualValue } from "./visual.js";
+import type { Connector, ConnectorRole, LayoutKind, VisualStyle, VisualValue } from "./visual.js";
 
 export type BoardPoint = { x: number; y: number };
 export type BoardRect = { x: number; y: number; width: number; height: number };
@@ -79,6 +79,11 @@ export type BoardConnector = {
   tone?: SemanticTone;
   role?: ConnectorRole;
   bundleId?: string;
+  semantic?: Connector["semantic"];
+  messageKind?: Connector["messageKind"];
+  fromCardinality?: string;
+  toCardinality?: string;
+  order?: number;
   feedback?: boolean;
   style?: VisualStyle;
   channelIds: string[];
@@ -161,7 +166,8 @@ export type LayoutViolationCode =
   | "layout.invalid_reading_order"
   | "layout.hierarchy_frame_descendant_edge"
   | "layout.hierarchy_cycle"
-  | "layout.hierarchy_multiple_parents";
+  | "layout.hierarchy_multiple_parents"
+  | "layout.interaction_resource_limit";
 
 export type LayoutDiagnostic = Diagnostic & {
   code: LayoutViolationCode | "layout.no_valid_candidate" | "layout.resource_limit" | "layout.routing_exhausted";

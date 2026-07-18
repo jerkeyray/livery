@@ -1,6 +1,7 @@
 import { validateBoardScene } from "./board-validator.js";
 import type {
   BoardConnector,
+  ConnectorLabel,
   BoardPoint,
   BoardRect,
   BoardScene,
@@ -17,6 +18,7 @@ import type {
   SolvedPin,
 } from "./board.js";
 import type { AnchorName, Connector, LayoutKind, Timeline, VisualConstraint, VisualDocument, VisualNode, VisualValue } from "./visual.js";
+import { componentDetailRows } from "./component-details.js";
 import { canonicalTheme, resolveComponentRecipe, resolveTheme, resolveVisualValue, type LiveryTheme, type TokenOverrides } from "./theme.js";
 import { measureVisualText, measureVisualTextBlock } from "./text-metrics.js";
 import { planFlow } from "./flow-layout.js";
@@ -78,6 +80,8 @@ export function solvePinboard(document: VisualDocument, options: PinboardOptions
   if (flowDiagnostic) return { ok: false, diagnostics: [flowDiagnostic], attempts };
   const hierarchyDiagnostic = validateHierarchyResources(document.root, document.connectors);
   if (hierarchyDiagnostic) return { ok: false, diagnostics: [hierarchyDiagnostic], attempts };
+  const interactionDiagnostic = validateInteractionResources(document.root, document.connectors);
+  if (interactionDiagnostic) return { ok: false, diagnostics: [interactionDiagnostic], attempts };
   const canvasDiagnostic = validateCanvasResources(document.root);
   if (canvasDiagnostic) return { ok: false, diagnostics: [canvasDiagnostic], attempts };
   const solvedIds = collectSolvedIds(document.root);
@@ -355,8 +359,8 @@ function measure(
     const fontSize = visualNumber(node.style?.fontSize ?? recipe.typography?.fontSize, tokens, tokenNumber(tokens, "type.body", 13));
     const lineHeight = Math.max(visualNumber(recipe.typography?.lineHeight, tokens, Math.ceil(fontSize * 1.38)), Math.ceil(fontSize * 1.1));
     const fontWeight = Number(resolveVisualValue(node.style?.fontWeight ?? recipe.typography?.fontWeight, tokens) ?? 650);
-    const items = stringItems(node.props?.items);
-    const measuredLabelWidth = Math.max(measureVisualText(label, { fontSize, fontWeight }), ...items.map((item) => measureVisualText(item, { fontSize: tokenNumber(tokens, "type.caption", 10), fontWeight: 500 })), 0);
+    const detailRows = componentDetailRows(node.kind, node.props);
+    const measuredLabelWidth = Math.max(measureVisualText(label, { fontSize, fontWeight }), ...detailRows.map(({ text }) => measureVisualText(text, { fontSize: tokenNumber(tokens, "type.caption", 10), fontWeight: 500 })), 0);
     const subtitleFontSize = tokenNumber(tokens, "type.caption", 10);
     const subtitleWeight = 500;
     const subtitleWidth = node.subtitle ? measureVisualText(node.subtitle, { fontSize: subtitleFontSize, fontWeight: subtitleWeight }) : 0;
@@ -369,8 +373,8 @@ function measure(
     const labelHeight = measureVisualTextBlock(label, textWidth, { fontSize, fontWeight, lineHeight }).height;
     const subtitleLineHeight = Math.max(Math.ceil(subtitleFontSize * 1.35), 14);
     const subtitleHeight = node.subtitle ? measureVisualTextBlock(node.subtitle, textWidth, { fontSize: subtitleFontSize, fontWeight: subtitleWeight, lineHeight: subtitleLineHeight }).height + 4 : 0;
-    const itemHeight = items.length ? items.length * Math.max(14, Math.ceil(tokenNumber(tokens, "type.caption", 10) * 1.45)) + 8 : 0;
-    const contentHeight = labelHeight + subtitleHeight + itemHeight + (geometry?.paddingY ?? 14) * 2;
+    const detailHeight = detailRows.length ? detailRows.length * Math.max(14, Math.ceil(tokenNumber(tokens, "type.caption", 10) * 1.45)) + 8 : 0;
+    const contentHeight = labelHeight + subtitleHeight + detailHeight + (geometry?.paddingY ?? 14) * 2;
     return { width, height: node.layout?.height ?? authoredHeight ?? Math.max(geometry?.minHeight ?? NODE_HEIGHT, contentHeight) };
   }
   if (node.kind === "canvas" || node.layout?.kind === "canvas") {
@@ -444,6 +448,16 @@ function measure(
     const intrinsicHeight = Math.max(...children.map(({ height }) => height), 0);
     return withFrame({ width: Math.min(maxWidth, visualNumber(node.layout?.width ?? node.props?.width, tokens, intrinsicWidth)), height: visualNumber(node.layout?.height ?? node.props?.height, tokens, intrinsicHeight) });
   }
+  if (kind === "interaction") {
+    const participantWidth = sum(children.map(({ width }) => width)) + columnGap * Math.max(0, children.length - 1);
+    const childIds = new Set((node.children ?? []).map(({ id }) => id));
+    const messages = connectors.filter(({ from, to, semantic }) => semantic === "message" && childIds.has(from.node) && childIds.has(to.node));
+    const messageRows = Math.max(messages.length, ...messages.map(({ order }) => (order ?? 0) + 1), 1);
+    return withFrame({
+      width: Math.min(maxWidth, visualNumber(node.layout?.width ?? node.props?.width, tokens, participantWidth)),
+      height: visualNumber(node.layout?.height ?? node.props?.height, tokens, Math.max(...children.map(({ height }) => height), 0) + 56 + messageRows * 40),
+    });
+  }
   const intrinsicWidth = sum(children.map(({ width }) => width)) + columnGap * Math.max(0, children.length - 1);
   const distributedWidth = root && node.layout?.distribute && node.layout.distribute !== "start" ? maxWidth : intrinsicWidth;
   return withFrame({
@@ -453,6 +467,7 @@ function measure(
 }
 
 function effectiveLayout(kind: LayoutKind, strategy: Strategy, root: boolean, sizes: Size[], maxWidth: number, gap: number): LayoutKind {
+  if (kind === "interaction") return kind;
   const rowWidth = sum(sizes.map(({ width }) => width)) + gap * Math.max(0, sizes.length - 1);
   if ((strategy === "vertical_reflow" || strategy === "increased_height") && (root || rowWidth > maxWidth)) return "column";
   if ((strategy === "alternate_spans" || strategy === "balanced_grid") && root && (kind === "row" || kind === "grid")) return "grid";
@@ -478,7 +493,7 @@ function place(node: VisualNode, x: number, y: number, width: number, height: nu
     ...(node.style ? { style: node.style } : {}),
     pins: pinsFor(node.id, own),
     ...(node.props ? { props: node.props } : {}),
-    ...(node.layout?.kind === "hierarchy" ? { layoutKind: node.layout.kind } : {}),
+    ...(node.layout?.kind === "hierarchy" || node.layout?.kind === "interaction" ? { layoutKind: node.layout.kind } : {}),
   });
   if (!node.children?.length) {
     context.envelopes.push({ id: `${node.id}.collision`, owner: node.id, kind: "component", ...inflate(own, CLEARANCE) });
@@ -537,6 +552,38 @@ function place(node: VisualNode, x: number, y: number, width: number, height: nu
       const size = sizes[placement.index]!;
       place(child, offsetX + placement.x, offsetY + placement.y, size.width, size.height, node.id, context, strategy);
     }
+    return;
+  }
+  if (node.layout?.kind === "interaction") {
+    const interactionGap = contentWidth <= 480 ? Math.min(columnGap, 12) : columnGap;
+    const totalGap = interactionGap * Math.max(0, sizes.length - 1);
+    const availableForParticipants = Math.max(1, contentWidth - totalGap);
+    const naturalWidth = sum(sizes.map(({ width: childWidth }) => childWidth));
+    const scale = naturalWidth > availableForParticipants ? availableForParticipants / naturalWidth : 1;
+    const scaledWidths = sizes.map(({ width: childWidth }) => Math.max(64, childWidth * scale));
+    const occupied = sum(scaledWidths) + totalGap;
+    let participantX = contentX + Math.max(0, (contentWidth - occupied) / 2);
+    const lifelines: CanvasPrimitive[] = [];
+    node.children.forEach((child, index) => {
+      const size = sizes[index]!;
+      const childWidth = scaledWidths[index]!;
+      place(child, participantX, contentY, childWidth, size.height, node.id, context, strategy);
+      const centerX = participantX + childWidth / 2;
+      const startY = contentY + size.height;
+      const endY = contentY + contentHeight;
+      lifelines.push({
+        id: `${node.id}.lifeline.${child.id}`,
+        kind: "path",
+        bounds: { x: centerX, y: startY, width: 1, height: Math.max(1, endY - startY) },
+        visualBounds: { x: centerX, y: startY, width: 1, height: Math.max(1, endY - startY) },
+        style: { stroke: "$color.connector", strokeWidth: 1, opacity: 0.42 },
+        layer: 0,
+        pins: [],
+        props: { d: `M 0 0 L 0 ${Math.max(1, endY - startY)}` },
+      });
+      participantX += childWidth + interactionGap;
+    });
+    context.canvases.push({ id: `${node.id}.interaction-lanes`, owner: node.id, bounds: own, clip: true, bleed: 0, primitives: lifelines });
     return;
   }
   const kind = effectiveLayout(node.layout?.kind ?? "row", strategy, root, sizes, contentWidth, columnGap);
@@ -598,6 +645,13 @@ type RoutingResult = { ok: true; connectors: BoardConnector[] } | { ok: false; d
 
 function routeConnectors(connectors: Connector[], context: PlacementContext, width: number, height: number, padding: number): RoutingResult {
   if (!connectors.length) return { ok: true, connectors: [] };
+  const allConnectors = connectors;
+  const interactionRoutes = new Map(connectors.flatMap((connector, index) => {
+    const routed = interactionRoute(connector, context, index);
+    return routed ? [[connector.id, routed] as const] : [];
+  }));
+  connectors = connectors.filter(({ id }) => !interactionRoutes.has(id));
+  if (!connectors.length) return { ok: true, connectors: allConnectors.map(({ id }) => interactionRoutes.get(id)!) };
   const board = { x: 0, y: 0, width, height };
   const endpointDemand = new Map<string, number>();
   for (const connector of connectors) for (const endpoint of [connector.from.node, connector.to.node]) endpointDemand.set(endpoint, (endpointDemand.get(endpoint) ?? 0) + 1);
@@ -648,7 +702,51 @@ function routeConnectors(connectors: Connector[], context: PlacementContext, wid
   }
   const selected = beam[0]!;
   for (const channel of context.channels) channel.used = selected.channelUse.get(channel.id) ?? 0;
-  return { ok: true, connectors: connectors.map(({ id }) => selected.routes.get(id)!.connector) };
+  return { ok: true, connectors: allConnectors.map(({ id }) => interactionRoutes.get(id) ?? selected.routes.get(id)!.connector) };
+}
+
+function interactionRoute(connector: Connector, context: PlacementContext, fallbackOrder: number): BoardConnector | undefined {
+  if (connector.semantic !== "message") return undefined;
+  const from = context.elements.find(({ id }) => id === connector.from.node);
+  const to = context.elements.find(({ id }) => id === connector.to.node);
+  if (!from || !to || !from.parent || from.parent !== to.parent) return undefined;
+  const owner = context.elements.find(({ id }) => id === from.parent);
+  if (owner?.layoutKind !== "interaction") return undefined;
+  const order = connector.order ?? fallbackOrder;
+  const firstMessageY = Math.max(from.bounds.y + from.bounds.height, to.bounds.y + to.bounds.height) + 36;
+  const y = firstMessageY + order * 40;
+  const start = { x: from.bounds.x + from.bounds.width / 2, y };
+  const end = { x: to.bounds.x + to.bounds.width / 2, y };
+  const points = start.x === end.x
+    ? [start, { x: start.x + 36, y }, { x: start.x + 36, y: y + 24 }, { x: start.x, y: y + 24 }]
+    : [start, end];
+  const label = connector.label ? interactionLabel(connector.label, points, context.tokens) : undefined;
+  return {
+    id: connector.id,
+    from: connector.from.node,
+    to: connector.to.node,
+    fromPin: `${connector.from.node}.lifeline`,
+    toPin: `${connector.to.node}.lifeline`,
+    points,
+    ...(label ? { label } : {}),
+    variant: connector.messageKind === "async" || connector.messageKind === "return" ? "async" : connector.variant ?? "directional",
+    ...(connector.tone ? { tone: connector.tone } : {}),
+    ...(connector.role ? { role: connector.role } : {}),
+    semantic: "message",
+    ...(connector.messageKind ? { messageKind: connector.messageKind } : {}),
+    order,
+    ...(connector.style ? { style: connector.style } : {}),
+    channelIds: [],
+  };
+}
+
+function interactionLabel(text: string, points: BoardPoint[], tokens: TokenOverrides): ConnectorLabel {
+  const fontSize = tokenNumber(tokens, "type.caption", 10);
+  const width = measureVisualText(text, { fontSize, fontWeight: 600 }) + 8;
+  const height = Math.max(16, Math.ceil(fontSize * 1.2) + 4);
+  const first = points[0]!;
+  const last = points.at(-1)!;
+  return { text, x: (first.x + last.x) / 2 - width / 2, y: Math.min(first.y, last.y) - height - 3, width, height };
 }
 
 function retainRoutingStateDiversity(states: RoutingState[], limit: number) {
@@ -740,6 +838,11 @@ function routeTask(connector: Connector, context: PlacementContext, board: Board
         ...(connector.tone ? { tone: connector.tone } : {}), ...(connector.style ? { style: connector.style } : {}),
         ...(effectiveRole ? { role: effectiveRole } : {}),
         ...(bundleId ? { bundleId } : {}),
+        ...(connector.semantic ? { semantic: connector.semantic } : {}),
+        ...(connector.messageKind ? { messageKind: connector.messageKind } : {}),
+        ...(connector.fromCardinality ? { fromCardinality: connector.fromCardinality } : {}),
+        ...(connector.toCardinality ? { toCardinality: connector.toCardinality } : {}),
+        ...(connector.order !== undefined ? { order: connector.order } : {}),
         ...(context.feedbackConnectorIds.has(connector.id) ? { feedback: true } : {}),
         channelIds: [...new Set(channels.map(({ id }) => id))],
       };
@@ -1169,12 +1272,8 @@ function labelBounds(node: VisualNode, bounds: BoardRect, theme: LiveryTheme, to
   const subtitleLineHeight = Math.max(Math.ceil(subtitleFontSize * 1.35), 14);
   const subtitleHeight = node.subtitle ? measureVisualTextBlock(node.subtitle, width, { fontSize: subtitleFontSize, fontWeight: 500, lineHeight: subtitleLineHeight }).height + 4 : 0;
   const totalHeight = height + subtitleHeight;
-  if (stringItems(node.props?.items).length) return { x, y: bounds.y + (geometry?.paddingY ?? 14), width, height: totalHeight };
+  if (componentDetailRows(node.kind, node.props).length) return { x, y: bounds.y + (geometry?.paddingY ?? 14), width, height: totalHeight };
   return { x, y: bounds.y + (bounds.height - totalHeight) / 2, width, height: totalHeight };
-}
-
-function stringItems(value: VisualValue | undefined): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
 function connectorLabelCandidates(text: string, points: BoardPoint[], envelopes: CollisionEnvelope[], elements: SolvedElement[], board: BoardRect, tokens: TokenOverrides) {
@@ -1434,6 +1533,18 @@ function validateHierarchyResources(root: VisualNode, connectors: Connector[]): 
     return undefined;
   };
   return visit(root);
+}
+
+function validateInteractionResources(root: VisualNode, connectors: Connector[]): LayoutDiagnostic | undefined {
+  const flatten = (node: VisualNode): VisualNode[] => [node, ...(node.children?.flatMap(flatten) ?? [])];
+  const interactions = flatten(root).filter(({ layout }) => layout?.kind === "interaction");
+  for (const interaction of interactions) {
+    const childIds = new Set((interaction.children ?? []).map(({ id }) => id));
+    const messages = connectors.filter(({ from, to, semantic }) => semantic === "message" && childIds.has(from.node) && childIds.has(to.node));
+    if (childIds.size > 32) return issue("layout.interaction_resource_limit", `Interaction ${interaction.id} has ${childIds.size} participants; limit is 32.`, [interaction.id]);
+    if (messages.length > 96) return issue("layout.interaction_resource_limit", `Interaction ${interaction.id} has ${messages.length} messages; limit is 96.`, [interaction.id]);
+  }
+  return undefined;
 }
 
 function findVisualNode(node: VisualNode, id: string): VisualNode | undefined {

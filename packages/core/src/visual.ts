@@ -1,13 +1,16 @@
 import type { SemanticTone } from "./artifact.js";
 
 export type PrimitiveKind = "text" | "box" | "circle" | "line" | "path" | "image" | "icon" | "group" | "frame" | "canvas" | "repeat";
-export type LayoutKind = "free" | "row" | "column" | "stack" | "grid" | "flow" | "hierarchy" | "overlay" | "canvas";
+export type LayoutKind = "free" | "row" | "column" | "stack" | "grid" | "flow" | "hierarchy" | "interaction" | "overlay" | "canvas";
 export type FlowDirection = "auto" | "right" | "down";
 export type ConnectorRole = "auto" | "primary" | "secondary" | "supporting";
 export type AnchorName = "top" | "right" | "bottom" | "left" | "center";
 export type TokenReference = `$${string}`;
 export type VisualScalar = string | number | boolean | TokenReference;
-export type VisualValue = VisualScalar | readonly VisualScalar[];
+export interface VisualRecord { readonly [key: string]: VisualValue }
+export type VisualValue = VisualScalar | readonly VisualValue[] | VisualRecord;
+
+export const VISUAL_VALUE_LIMITS = Object.freeze({ maxDepth: 3, maxListItems: 256, maxRecordEntries: 32 });
 
 export type VisualStyle = {
   fill?: VisualValue;
@@ -60,6 +63,11 @@ export type Connector = {
   tone?: SemanticTone;
   role?: ConnectorRole;
   bundleId?: string;
+  semantic?: "message" | "transition" | "association" | "inheritance" | "composition" | "aggregation" | "dependency" | "trace" | "verify" | "satisfy";
+  messageKind?: "sync" | "async" | "return";
+  fromCardinality?: string;
+  toCardinality?: string;
+  order?: number;
   style?: VisualStyle;
 };
 
@@ -91,14 +99,17 @@ export type VisualDocument = {
 
 export type ComponentParameter = {
   name: string;
-  type: "string" | "number" | "boolean" | "tone" | "paint" | "length" | "identifier" | "list";
+  type: "string" | "number" | "boolean" | "tone" | "paint" | "length" | "identifier" | "list" | "record";
   required: boolean;
   default?: VisualValue;
+  itemType?: "string" | "number" | "boolean" | "identifier" | "record";
+  minItems?: number;
+  maxItems?: number;
 };
 
 export type ComponentDefinition = {
   name: string;
-  category: "people" | "compute" | "storage" | "messaging" | "device" | "ai" | "content" | "chart";
+  category: "people" | "compute" | "storage" | "messaging" | "device" | "ai" | "content" | "chart" | "interaction" | "schema" | "state" | "time" | "strategy";
   description: string;
   status: "supported" | "experimental";
   parameters: ComponentParameter[];

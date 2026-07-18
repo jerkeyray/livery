@@ -9,7 +9,7 @@ export function createAgentGuide({ mode }: AgentGuideOptions): string {
   const supportedTimelines = catalog.timelineOperations.filter(({ status }) => status === "supported");
   const compact = [
     "Generate only Livery visual source: one figure, without Markdown or prose.",
-    `Bind primitives or library components (${supported.join(", ")}).`,
+    "Bind primitives or standard components such as person, service, api, database, queue, card, participant, entity, classCard, stateNode, and requirement.",
     `Compose with ${catalog.layouts.map(({ name }) => name).join(", ")}; prefer spacing tokens and constraints over macro coordinates.`,
     `Connect stable ${catalog.anchors.join("/")} anchors: read = api.right -> db.left("read").`,
     "Style sparingly with tone/variant or fill/stroke/color/iconColor; subtitle and icon are optional.",
@@ -26,6 +26,9 @@ export function createAgentGuide({ mode }: AgentGuideOptions): string {
     `- Supported components: ${supported.join(", ")}.`,
     "- Component form: id = service(\"Label\", subtitle: \"Optional detail\", icon: \"server\", variant: soft, tone: info).",
     "- Component style fields: fill, stroke, strokeWidth, color, iconColor, radius, opacity, fontSize, fontWeight, width, height.",
+    "- Structured schema cards: entity(\"Account\", fields: [{ name: \"id\", type: \"uuid\", key: true }]) and classCard(\"Policy\", fields: [...], methods: [{ name: \"evaluate\", signature: \"(input)\", returns: \"Decision\" }]). Data is bounded and typed; do not encode fields as prose.",
+    "- Interaction participants use participant(...). Ordered interaction connectors use semantic: message, messageKind: sync|async|return, and an integer order.",
+    "- State, schema, and trace relationships stay unified connect(...) calls. Set semantic to transition, association, inheritance, composition, aggregation, dependency, trace, verify, or satisfy. Cardinalities are valid only on association/aggregation/composition.",
     "- Variants: default, muted, emphasis, soft, solid, ghost. Tones: neutral, info, success, warning, danger.",
     `- Canonical icons: ${catalog.icons.join(", ")}. Never invent an icon name or SVG path.`,
     "- Connectors: id = connect(api.right, database.left, label: \"read\", variant: data, role: primary, tone: info).",
@@ -93,6 +96,8 @@ export function createAgentGuide({ mode }: AgentGuideOptions): string {
     `Primitives: ${catalog.primitives.join(", ")}.`,
     `Constraints: ${catalog.constraints.map(({ name }) => name).join(", ")}.`,
     `Tokens: ${catalog.tokens.join(", ")}.`,
+    "Visual families (kernel and delivery status):",
+    ...catalog.families.map((family) => `- ${family.title} [${family.status}, ${family.kernel}]: ${family.description}`),
     "Standard library:",
     ...componentReference,
   ].join("\n");

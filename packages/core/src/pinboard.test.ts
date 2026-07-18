@@ -75,6 +75,28 @@ figure lunar_autonomy("Autonomous lunar landing") {
 }`;
 
 describe("solvePinboard", () => {
+  it.each([360, 900])("solves native interaction lanes with ordered message rows at %ipx", (width) => {
+    const compiled = compileVisual(`figure request("Request interaction") {
+      client = participant("Client")
+      api = participant("API")
+      store = participant("Store")
+      request = connect(client.right, api.left, label: "request", semantic: message, messageKind: sync, order: 0)
+      read = connect(api.right, store.left, label: "read", semantic: message, messageKind: sync, order: 1)
+      result = connect(store.left, api.right, label: "result", semantic: message, messageKind: return, order: 2)
+      response = connect(api.left, client.right, label: "response", semantic: message, messageKind: return, order: 3)
+      interaction(client, api, store, gap: lg)
+    }`);
+    expect(compiled.diagnostics).toEqual([]);
+    const result = solvePinboard(compiled.document!, { width });
+    expect(result.ok, result.ok ? undefined : result.diagnostics.map(({ code }) => code).join(", ")).toBe(true);
+    if (!result.ok) return;
+    expect(result.scene.canvases.find(({ id }) => id === "root.interaction-lanes")?.primitives).toHaveLength(3);
+    expect(result.scene.connectors.map(({ order }) => order)).toEqual([0, 1, 2, 3]);
+    const messageRows = result.scene.connectors.map(({ points }) => points[0]!.y);
+    expect(messageRows).toEqual([...messageRows].sort((a, b) => a - b));
+    expect(result.scene.connectors.filter(({ messageKind }) => messageKind === "return").every(({ variant }) => variant === "async")).toBe(true);
+  });
+
   it.each([[360, "down"], [900, "right"]] as const)("solves native compound flow at %ipx in the expected direction", (width, direction) => {
     const compiled = compileVisual(`figure checkout("Checkout") {
       client = frame("Client", layout: column) { browser = browser("Browser") }

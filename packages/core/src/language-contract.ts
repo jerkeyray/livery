@@ -20,7 +20,8 @@ export type LanguageValueType =
   | "paint"
   | "tone"
   | "identifier"
-  | "list";
+  | "list"
+  | "record";
 
 export type LanguageParameterContract = {
   name: string;
@@ -28,6 +29,9 @@ export type LanguageParameterContract = {
   required?: boolean;
   values?: readonly string[];
   description?: string;
+  itemType?: "string" | "number" | "boolean" | "identifier" | "record";
+  minItems?: number;
+  maxItems?: number;
 };
 
 export type LanguageCallContract = {
@@ -170,7 +174,7 @@ export const CORE_LANGUAGE_CALLS: readonly LanguageCallContract[] = [
   primitive("frame", "Create a labeled visual boundary with an internal layout.", [{ name: "label", type: "string" }], [
     { name: "label", type: "string" },
     { name: "subtitle", type: "string" },
-    { name: "layout", type: "identifier", values: ["row", "column", "grid", "flow", "hierarchy", "stack", "overlay"] },
+    { name: "layout", type: "identifier", values: ["row", "column", "grid", "flow", "hierarchy", "interaction", "stack", "overlay"] },
     { name: "columns", type: "number" },
     { name: "gap", type: "length" },
     { name: "rankGap", type: "length" },
@@ -229,6 +233,10 @@ export const CORE_LANGUAGE_CALLS: readonly LanguageCallContract[] = [
     { name: "rankGap", type: "length" },
     { name: "maxCandidates", type: "number" },
   ]),
+  layout("interaction", "Arrange stable participants in lanes and ordered messages in time.", [
+    ...layoutSizeParameters,
+    { name: "maxCandidates", type: "number" },
+  ]),
   layout("stack", "Stack children in one aligned region.", [
     { name: "width", type: "length" },
     { name: "height", type: "length" },
@@ -270,6 +278,11 @@ export const CORE_LANGUAGE_CALLS: readonly LanguageCallContract[] = [
       { name: "tone", type: "tone", values: TONE_VALUES },
       { name: "role", type: "identifier", values: CONNECTOR_ROLES },
       { name: "bundleId", type: "identifier" },
+      { name: "semantic", type: "identifier", values: ["message", "transition", "association", "inheritance", "composition", "aggregation", "dependency", "trace", "verify", "satisfy"] },
+      { name: "messageKind", type: "identifier", values: ["sync", "async", "return"] },
+      { name: "fromCardinality", type: "string" },
+      { name: "toCardinality", type: "string" },
+      { name: "order", type: "number" },
       { name: "stroke", type: "paint" },
       { name: "strokeWidth", type: "length" },
       { name: "opacity", type: "number" },
@@ -395,6 +408,9 @@ export function standardComponentCallContract(component: ComponentDefinition, na
       name: parameter.name,
       type: parameter.type,
       required: parameter.required,
+      ...(parameter.itemType ? { itemType: parameter.itemType } : {}),
+      ...(parameter.minItems !== undefined ? { minItems: parameter.minItems } : {}),
+      ...(parameter.maxItems !== undefined ? { maxItems: parameter.maxItems } : {}),
       ...(parameter.name === "variant" ? { values: component.variants } : {}),
       ...(parameter.name === "tone" ? { values: TONE_VALUES } : {}),
     })),
@@ -402,8 +418,13 @@ export function standardComponentCallContract(component: ComponentDefinition, na
 }
 
 export function isLanguageValue(value: VisualValue, parameter: LanguageParameterContract): boolean {
-  if (parameter.type === "list") return Array.isArray(value) && value.every((item) => typeof item === "string");
+  if (parameter.type === "list") {
+    if (!Array.isArray(value) || value.length < (parameter.minItems ?? 0) || value.length > (parameter.maxItems ?? 256)) return false;
+    return !parameter.itemType || value.every((item) => languageItemMatches(item, parameter.itemType!));
+  }
+  if (parameter.type === "record") return isVisualRecord(value);
   if (Array.isArray(value)) return false;
+  if (isVisualRecord(value)) return false;
   if (parameter.values && !parameter.values.includes(String(value))) return false;
   switch (parameter.type) {
     case "number":
@@ -420,6 +441,16 @@ export function isLanguageValue(value: VisualValue, parameter: LanguageParameter
     case "paint":
       return typeof value === "string" && isSafePaint(value);
   }
+}
+
+function languageItemMatches(value: VisualValue, type: NonNullable<LanguageParameterContract["itemType"]>) {
+  if (type === "record") return isVisualRecord(value);
+  if (type === "identifier") return typeof value === "string" && value.length > 0;
+  return typeof value === type;
+}
+
+function isVisualRecord(value: VisualValue): value is Readonly<Record<string, VisualValue>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export function isSafePaint(value: string) {

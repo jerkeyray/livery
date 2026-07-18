@@ -6,6 +6,32 @@ import { compileVisual } from "./program.js";
 import { canonicalTheme } from "./theme.js";
 
 describe("board SVG export", () => {
+  it("renders structured schema rows and native interaction lifelines", () => {
+    const interaction = compileVisual(`figure interaction_demo("Account lookup") {
+      client = participant("Client")
+      api = participant("API")
+      request = connect(client.right, api.left, label: "lookup", semantic: message, messageKind: sync, order: 0)
+      response = connect(api.left, client.right, label: "account", semantic: message, messageKind: return, order: 1)
+      interaction(client, api)
+    }`);
+    const interactionResult = solvePinboard(interaction.document!, { width: 720 });
+    expect(interactionResult.ok).toBe(true);
+    if (!interactionResult.ok) return;
+    const interactionSvg = boardSceneToSvg(interactionResult.scene);
+    expect(interactionSvg).toContain('data-livery-canvas="root.interaction-lanes"');
+    expect(interactionSvg).toContain('data-livery-id="root.lifeline.client"');
+    expect(interactionSvg).toContain('data-livery-connector="response"');
+    expect(interactionSvg).toContain('stroke-dasharray="5 4"');
+
+    const schema = compileVisual(`figure schema { account = entity("Account", fields: [{ name: "id", type: "uuid", key: true }, { name: "email", type: "string" }]) row(account) }`);
+    const schemaResult = solvePinboard(schema.document!, { width: 480 });
+    expect(schemaResult.ok).toBe(true);
+    if (!schemaResult.ok) return;
+    const schemaSvg = boardSceneToSvg(schemaResult.scene);
+    expect(schemaSvg).toContain("key id: uuid");
+    expect(schemaSvg).toContain("email: string");
+  });
+
   it("uses solved connector, canvas, transform, mask, and debug geometry", () => {
     const compiled = compileVisual(`component Art() {
  mask_shape = circle(x: 20, y: 20, width: 60, height: 60)

@@ -1,14 +1,15 @@
 import type { ComponentDefinition, VisualNode, VisualValue } from "./visual.js";
 import { canonicalTheme, resolveComponentRecipe } from "./theme.js";
 
-export type StandardComponentName = keyof typeof standardLibrary;
-
 const technicalComponents = [
   "person", "team", "service", "api", "database", "cache", "objectStore", "warehouse",
   "queue", "topic", "stream", "event", "browser", "mobile", "terminal", "server",
   "agent", "model", "tool", "worker", "file", "document", "code", "table", "note",
   "callout", "badge", "card", "list", "legend", "boundary", "barChart", "lineChart", "areaChart", "progress",
+  "participant", "interactionFragment", "classCard", "entity", "stateNode", "choice", "requirement", "evidence",
 ] as const;
+
+export type StandardComponentName = (typeof technicalComponents)[number];
 
 const componentMetadata: Record<(typeof technicalComponents)[number], {
   category: ComponentDefinition["category"];
@@ -50,11 +51,20 @@ const componentMetadata: Record<(typeof technicalComponents)[number], {
   lineChart: { category: "chart", description: "A basic line chart.", status: "experimental" },
   areaChart: { category: "chart", description: "A basic area chart.", status: "experimental" },
   progress: { category: "chart", description: "A quantitative progress indicator.", status: "experimental" },
+  participant: { category: "interaction", description: "A participant in an ordered interaction narrative." },
+  interactionFragment: { category: "interaction", description: "A bounded alternative, loop, or parallel interaction fragment." },
+  classCard: { category: "schema", description: "A structured class with typed fields and methods." },
+  entity: { category: "schema", description: "A structured data entity with keys and typed fields." },
+  stateNode: { category: "state", description: "A state with optional entry and exit behavior." },
+  choice: { category: "state", description: "A validated decision point in a state machine." },
+  requirement: { category: "schema", description: "A typed requirement with risk and verification metadata." },
+  evidence: { category: "schema", description: "Evidence linked to a requirement or verification outcome." },
 };
 
-export const standardLibrary = Object.fromEntries(
-  technicalComponents.map((name) => [name, component(name)]),
-) as Record<(typeof technicalComponents)[number], ComponentDefinition>;
+export const standardLibrary = Object.assign(
+  Object.create(null) as Record<(typeof technicalComponents)[number], ComponentDefinition>,
+  Object.fromEntries(technicalComponents.map((name) => [name, component(name)])),
+);
 
 export function instantiateStandardComponent(
   name: StandardComponentName,
@@ -66,13 +76,13 @@ export function instantiateStandardComponent(
   const styleKeys = new Set(["fill", "stroke", "strokeWidth", "color", "iconColor", "radius", "opacity", "fontSize", "fontWeight"]);
   const style = Object.fromEntries(Object.entries(props).filter(([key]) => styleKeys.has(key)));
   const componentProps = Object.fromEntries(Object.entries(props).filter(([key]) => !styleKeys.has(key) && !["subtitle", "variant", "tone"].includes(key)));
-  const items = Array.isArray(props.items) ? props.items.filter((item): item is string => typeof item === "string") : undefined;
+  const details = componentDetailRows(props);
   return {
     id,
     kind: `lib.${name}`,
     label: typeof props.label === "string" ? props.label : humanize(name),
     ...(typeof props.subtitle === "string" ? { subtitle: props.subtitle } : {}),
-    ...(items?.length ? { description: items.join(", ") } : {}),
+    ...(details.length ? { description: details.join(", ") } : {}),
     ...(typeof props.variant === "string" ? { variant: props.variant } : {}),
     ...(typeof props.tone === "string" && ["neutral", "info", "success", "warning", "danger"].includes(props.tone) ? { tone: props.tone as "neutral" | "info" | "success" | "warning" | "danger" } : {}),
     ...(Object.keys(style).length ? { style } : {}),
@@ -107,7 +117,7 @@ function component(name: string): ComponentDefinition {
       { name: "fontWeight", type: "number", required: false },
       { name: "width", type: "length", required: false },
       { name: "height", type: "length", required: false },
-      ...(["list", "legend"].includes(name) ? [{ name: "items", type: "list" as const, required: true }] : []),
+      ...componentParameters(name),
     ],
     root: {
       id: "root",
@@ -124,6 +134,60 @@ function component(name: string): ComponentDefinition {
     example,
     examples: [example],
   };
+}
+
+function componentParameters(name: string): ComponentDefinition["parameters"] {
+  if (["list", "legend"].includes(name)) return [{ name: "items", type: "list", required: true, itemType: "string", minItems: 1, maxItems: name === "list" ? 12 : 8 }];
+  if (name === "classCard") return [
+    { name: "fields", type: "list", required: false, itemType: "record", maxItems: 16 },
+    { name: "methods", type: "list", required: false, itemType: "record", maxItems: 16 },
+  ];
+  if (name === "entity") return [{ name: "fields", type: "list", required: true, itemType: "record", minItems: 1, maxItems: 24 }];
+  if (name === "stateNode") return [
+    { name: "entry", type: "string", required: false },
+    { name: "exit", type: "string", required: false },
+  ];
+  if (name === "interactionFragment") return [
+    { name: "fragmentType", type: "identifier", required: true },
+    { name: "members", type: "list", required: true, itemType: "identifier", minItems: 1, maxItems: 16 },
+  ];
+  if (name === "participant") return [{ name: "participantType", type: "identifier", required: false }];
+  if (name === "requirement") return [
+    { name: "requirementType", type: "identifier", required: false },
+    { name: "risk", type: "identifier", required: false },
+    { name: "verification", type: "string", required: false },
+    { name: "reference", type: "string", required: false },
+  ];
+  if (name === "evidence") return [
+    { name: "status", type: "identifier", required: false },
+    { name: "reference", type: "string", required: false },
+  ];
+  return [];
+}
+
+function componentDetailRows(props: Record<string, VisualValue>): string[] {
+  const scalar = (key: string) => typeof props[key] === "string" ? `${humanize(key)}: ${props[key]}` : undefined;
+  const records = (key: string) => Array.isArray(props[key])
+    ? props[key].flatMap((value) => isRecord(value) ? [formatRecord(value)] : typeof value === "string" ? [value] : [])
+    : [];
+  return [
+    ...records("items"),
+    ...records("fields"),
+    ...records("methods"),
+    ...["entry", "exit", "risk", "verification", "reference", "status"].map(scalar).filter((value): value is string => Boolean(value)),
+  ];
+}
+
+function isRecord(value: VisualValue): value is Readonly<Record<string, VisualValue>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function formatRecord(value: Readonly<Record<string, VisualValue>>) {
+  const marker = value.key === true ? "key " : typeof value.key === "string" ? `${value.key} ` : "";
+  const name = typeof value.name === "string" ? value.name : "field";
+  const signature = typeof value.signature === "string" ? value.signature : "";
+  const type = typeof value.type === "string" ? `: ${value.type}` : typeof value.returns === "string" ? `: ${value.returns}` : "";
+  return `${marker}${name}${signature}${type}`;
 }
 
 function humanize(value: string) {

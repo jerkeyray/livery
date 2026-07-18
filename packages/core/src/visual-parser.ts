@@ -1,6 +1,6 @@
 import { diagnostic, type Diagnostic, type SourceSpan } from "./diagnostics.js";
 import { TIMELINE_DURATIONS } from "./language-contract.js";
-import type { ComponentParameter, LayoutKind, Timeline, VisualValue } from "./visual.js";
+import { VISUAL_VALUE_LIMITS, type ComponentParameter, type LayoutKind, type Timeline, type VisualValue } from "./visual.js";
 
 export type ParsedCall = {
   name: string;
@@ -60,7 +60,7 @@ export function parseVisualProgram(source: string): { program?: ParsedVisualProg
 type TokenKind = "identifier" | "string" | "number" | "symbol" | "arrow" | "eof";
 type Token = { kind: TokenKind; value: string; raw: string; span: SourceSpan };
 
-const layoutNames = new Set<LayoutKind>(["row", "column", "stack", "grid", "flow", "hierarchy", "overlay", "canvas"]);
+const layoutNames = new Set<LayoutKind>(["row", "column", "stack", "grid", "flow", "hierarchy", "interaction", "overlay", "canvas"]);
 
 class VisualParser {
   private index = 0;
@@ -177,14 +177,14 @@ class VisualParser {
       this.expectSymbol(":", "Expected : after the parameter name.");
       const type = this.expectIdentifier("Expected a parameter type.");
       if (!name || !type) break;
-      if (!(["string", "number", "boolean", "tone", "paint", "length", "identifier"] as string[]).includes(type)) {
+      if (!(["string", "number", "boolean", "tone", "paint", "length", "identifier", "list", "record"] as string[]).includes(type)) {
         this.error("syntax.invalid_component_parameter", `Unsupported component parameter type ${type}.`);
       }
       const hasDefault = this.matchSymbol("=");
       const defaultValue = hasDefault ? this.parseValueUntil(new Set([",", ")"])) : undefined;
       parameters.push({
         name,
-        type: (["string", "number", "boolean", "tone", "paint", "length", "identifier"] as string[]).includes(type) ? type as ComponentParameter["type"] : "string",
+        type: (["string", "number", "boolean", "tone", "paint", "length", "identifier", "list", "record"] as string[]).includes(type) ? type as ComponentParameter["type"] : "string",
         required: !hasDefault,
         ...(hasDefault && defaultValue !== undefined ? { default: defaultValue } : {}),
       });
@@ -361,26 +361,47 @@ class VisualParser {
     return { name: "connect", positional: [from, to], named, span: this.spanFrom(start) };
   }
 
-  private parseValueUntil(stops: Set<string>): VisualValue {
+  private parseValueUntil(stops: Set<string>, depth = 0): VisualValue {
     if (this.atSymbol("[")) {
+      if (depth >= VISUAL_VALUE_LIMITS.maxDepth) this.error("syntax.structured_value_too_deep", `Structured values support at most ${VISUAL_VALUE_LIMITS.maxDepth} nested levels.`);
       this.advance();
-      const values: Array<string | number | boolean> = [];
+      const values: VisualValue[] = [];
       while (!this.at("eof") && !this.atSymbol("]")) {
-        const value = this.parseValueUntil(new Set([",", "]"]));
-        if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") values.push(value);
-        else this.error("syntax.nested_list", "Nested list values are not supported.");
+        values.push(this.parseValueUntil(new Set([",", "]"]), depth + 1));
+        if (values.length > VISUAL_VALUE_LIMITS.maxListItems) this.error("syntax.structured_list_too_large", `Structured lists support at most ${VISUAL_VALUE_LIMITS.maxListItems} items.`);
         if (!this.matchSymbol(",")) break;
       }
       this.expectSymbol("]", "Expected ] after list values.");
       return values;
     }
+    if (this.atSymbol("{")) {
+      if (depth >= VISUAL_VALUE_LIMITS.maxDepth) this.error("syntax.structured_value_too_deep", `Structured values support at most ${VISUAL_VALUE_LIMITS.maxDepth} nested levels.`);
+      this.advance();
+      const values = Object.create(null) as Record<string, VisualValue>;
+      while (!this.at("eof") && !this.atSymbol("}")) {
+        const keyToken = this.current();
+        const key = keyToken.kind === "identifier" || keyToken.kind === "string" ? this.advance().value : undefined;
+        if (!key) {
+          this.error("syntax.invalid_record_key", "Structured record keys must be identifiers or strings.");
+          this.advance();
+          continue;
+        }
+        this.expectSymbol(":", `Expected : after record key ${key}.`);
+        if (Object.hasOwn(values, key)) this.diagnostics.push(diagnostic("semantic.duplicate_record_key", `Structured record key ${key} is provided more than once.`, keyToken.span));
+        values[key] = this.parseValueUntil(new Set([",", "}"]), depth + 1);
+        if (Object.keys(values).length > VISUAL_VALUE_LIMITS.maxRecordEntries) this.error("syntax.structured_record_too_large", `Structured records support at most ${VISUAL_VALUE_LIMITS.maxRecordEntries} fields.`);
+        if (!this.matchSymbol(",")) break;
+      }
+      this.expectSymbol("}", "Expected } after record value.");
+      return values;
+    }
     const start = this.index;
-    let depth = 0;
+    let expressionDepth = 0;
     while (!this.at("eof")) {
       const token = this.current();
-      if (depth === 0 && stops.has(token.value)) break;
-      if (token.value === "(" || token.value === "[") depth += 1;
-      if (token.value === ")" || token.value === "]") depth -= 1;
+      if (expressionDepth === 0 && stops.has(token.value)) break;
+      if (token.value === "(" || token.value === "[" || token.value === "{") expressionDepth += 1;
+      if (token.value === ")" || token.value === "]" || token.value === "}") expressionDepth -= 1;
       this.advance();
     }
     const tokens = this.tokens.slice(start, this.index);

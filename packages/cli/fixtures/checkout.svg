@@ -21,7 +21,7 @@
     </g>
     <g data-livery-id="customer">
       <rect x="31.52739250000002" y="24" width="132" height="68" rx="6" fill="#ffffff" stroke="#d5dbe2" stroke-width="1"/>
-      <g data-livery-glyph="person" transform="translate(50.52739250000002 49) scale(0.75)" fill="none" stroke="#687482" stroke-width="1.8666666666666665" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">
+      <g data-livery-glyph="person" transform="translate(52.52739250000002 49) scale(0.75)" fill="none" stroke="#687482" stroke-width="1.8666666666666665" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">
         <path d="M20 21a8 8 0 0 0-16 0"/>
         <path d="M12 13a4 4 0 1 0 0-8 4 4 0 0 0 0 8"/>
       </g>
@@ -31,7 +31,7 @@
     </g>
     <g data-livery-id="api">
       <rect x="251.82607950000002" y="24" width="144.34784099999996" height="68" rx="6" fill="#ffffff" stroke="#d5dbe2" stroke-width="1"/>
-      <g data-livery-glyph="service" transform="translate(268.8260795 49) scale(0.75)" fill="none" stroke="#687482" stroke-width="1.8666666666666665" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">
+      <g data-livery-glyph="service" transform="translate(270.8260795 49) scale(0.75)" fill="none" stroke="#687482" stroke-width="1.8666666666666665" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">
         <path d="M4 5h16v14H4z"/>
         <path d="M8 9h8"/>
         <path d="M8 13h5"/>

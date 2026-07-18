@@ -26,6 +26,20 @@ describe("language intelligence", () => {
     expect(catalog.icons).toContain("credit-card");
     expect(catalog.components.find(({ name }) => name === "database")).toMatchObject({ category: "storage", status: "supported", sizing: { minWidth: expect.any(Number) }, examples: [expect.any(String)] });
     expect(catalog.components.find(({ name }) => name === "barChart")).toMatchObject({ category: "chart", status: "experimental" });
+    expect(catalog.components.find(({ name }) => name === "entity")).toMatchObject({
+      category: "schema",
+      parameters: expect.arrayContaining([expect.objectContaining({ name: "fields", type: "list", itemType: "record", maxItems: 24 })]),
+    });
+    expect(catalog.families).toHaveLength(30);
+    expect(new Set(catalog.families.map(({ id }) => id)).size).toBe(catalog.families.length);
+    expect(new Set(catalog.families.map(({ kernel }) => kernel))).toEqual(new Set([
+      "ranked-graph", "interaction-lanes", "temporal-schedule", "hierarchy-tree", "quantitative-plot", "spatial-editorial",
+    ]));
+    expect(catalog.families.find(({ id }) => id === "sequence")).toMatchObject({
+      kernel: "interaction-lanes",
+      status: "foundation",
+      capabilities: expect.arrayContaining(["participants", "messages", "fragments"]),
+    });
     expect(getLanguageCatalog()).toEqual(catalog);
   });
 
