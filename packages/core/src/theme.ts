@@ -122,6 +122,8 @@ export const canonicalTheme: LiveryTheme = {
     "lib.callout": raisedRecipe("callout", { minWidth: 196, maxWidth: 232 }, "callout"),
     "lib.boundary": nodeRecipe("boundary", { minWidth: 160, minHeight: 96 }, "boundary"),
     "lib.badge": nodeRecipe("badge", { minWidth: 96, minHeight: 40, detailWidth: 0 }),
+    "lib.card": nodeRecipe("none", { minWidth: 132, minHeight: 64, detailWidth: 0 }),
+    "lib.list": nodeRecipe("none", { minWidth: 168, minHeight: 84, detailWidth: 0 }),
     "lib.legend": nodeRecipe("legend", { minWidth: 144 }),
     "lib.barChart": nodeRecipe("barChart", { minWidth: 180, minHeight: 104 }),
     "lib.lineChart": nodeRecipe("lineChart", { minWidth: 180, minHeight: 104 }),

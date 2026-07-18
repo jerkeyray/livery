@@ -1,0 +1,52 @@
+figure university_governance("University governance") {
+  board = card("Board of Trustees", subtitle: "Governing body")
+  president = card("President", subtitle: "Executive leader", variant: emphasis)
+
+  academic = frame("Academic Affairs", layout: hierarchy, gap: md, rankGap: lg) {
+    provost = card("Provost")
+    science = frame("School of Science", layout: column, gap: sm) {
+      biology = card("Biology")
+      chemistry = card("Chemistry")
+    }
+    arts = frame("School of Arts", layout: column, gap: sm) {
+      history = card("History")
+      literature = card("Literature")
+    }
+    business = frame("School of Business", layout: column, gap: sm) {
+      finance = card("Finance")
+      management = card("Management")
+    }
+  }
+
+  operations = frame("Operations", layout: column, gap: sm) {
+    op_finance = card("Finance")
+    facilities = card("Facilities")
+    hr = card("Human Resources")
+  }
+
+  student_life = frame("Student Life", layout: column, gap: sm) {
+    housing = card("Housing")
+    wellness = card("Wellness")
+    organizations = card("Student Organizations")
+  }
+
+  senate = card("Faculty Senate", subtitle: "Academic advice", variant: muted)
+  council = card("Student Council", subtitle: "Student advice", variant: muted)
+
+  appoints = connect(board.bottom, president.top, label: "appoints", role: primary)
+  leads_academic = connect(president.bottom, academic.top, label: "leads", role: primary)
+  leads_operations = connect(president.bottom, operations.top, label: "leads", role: primary)
+  leads_life = connect(president.bottom, student_life.top, label: "leads", role: primary)
+  science_report = connect(academic.provost.bottom, academic.science.top, role: primary)
+  arts_report = connect(academic.provost.bottom, academic.arts.top, role: primary)
+  business_report = connect(academic.provost.bottom, academic.business.top, role: primary)
+  senate_president = connect(senate.right, president.left, label: "advises", variant: advisory)
+  senate_provost = connect(senate.right, academic.provost.left, label: "advises", variant: advisory)
+  council_life = connect(council.right, student_life.left, label: "advises", variant: advisory)
+
+  hierarchy(board, president, academic, operations, student_life, senate, council,
+    direction: down,
+    gap: lg,
+    rankGap: xl
+  )
+}

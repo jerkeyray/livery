@@ -1,0 +1,14 @@
+figure taxonomy("Biological taxonomy") {
+  life = card("Life")
+  animals = card("Animals")
+  plants = card("Plants")
+  mammals = list("Mammals", items: ["Primates", "Cetaceans"])
+  birds = list("Birds", items: ["Raptors", "Songbirds"])
+  flowering = list("Flowering plants", items: ["Monocots", "Eudicots"])
+  a = connect(life.bottom, animals.top, role: primary)
+  p = connect(life.bottom, plants.top, role: primary)
+  m = connect(animals.bottom, mammals.top, role: secondary)
+  b = connect(animals.bottom, birds.top, role: secondary)
+  f = connect(plants.bottom, flowering.top, role: secondary)
+  hierarchy(life, animals, plants, mammals, birds, flowering, direction: down)
+}

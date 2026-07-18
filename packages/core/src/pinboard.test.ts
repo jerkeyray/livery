@@ -4,6 +4,28 @@ import { compileVisual } from "./program.js";
 import { canonicalTheme } from "./theme.js";
 import type { VisualDocument } from "./visual.js";
 
+it("solves a deterministic compound hierarchy with shared reporting bundles", () => {
+  const source = `figure governance("University governance") {
+    board = card("Board of Trustees")
+    president = card("President")
+    academic = frame("Academic Affairs", layout: column) { provost = card("Provost") schools = list("Schools", items: ["Science", "Arts", "Business"]) }
+    operations = frame("Operations", layout: column) { finance = card("Finance") facilities = card("Facilities") }
+    appoint = connect(board.bottom, president.top, role: primary)
+    academic_report = connect(president.bottom, academic.top, role: primary)
+    operations_report = connect(president.bottom, operations.top, role: primary)
+    hierarchy(board, president, academic, operations, direction: down, gap: lg, rankGap: xl)
+  }`;
+  const document = compileVisual(source).document!;
+  const first = solvePinboard(document, { width: 900 });
+  const second = solvePinboard(document, { width: 900 });
+  expect(first.ok).toBe(true);
+  expect(second.ok).toBe(true);
+  if (!first.ok || !second.ok) return;
+  expect(first.scene).toEqual(second.scene);
+  expect(first.scene.connectors.filter(({ bundleId }) => bundleId === "hierarchy.president")).toHaveLength(2);
+  expect(first.report.metrics.crossingCount).toBe(0);
+});
+
 const document: VisualDocument = {
   type: "livery.visual",
   version: "0.2",

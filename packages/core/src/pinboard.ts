@@ -20,6 +20,7 @@ import type { AnchorName, Connector, LayoutKind, Timeline, VisualConstraint, Vis
 import { canonicalTheme, resolveComponentRecipe, resolveTheme, resolveVisualValue, type LiveryTheme, type TokenOverrides } from "./theme.js";
 import { measureVisualText, measureVisualTextBlock } from "./text-metrics.js";
 import { planFlow } from "./flow-layout.js";
+import { hierarchyTopology, planHierarchy } from "./hierarchy-layout.js";
 
 export type PinboardOptions = { width?: number; maxCandidates?: number; maxElements?: number; theme?: LiveryTheme; tokenOverrides?: TokenOverrides };
 
@@ -38,6 +39,7 @@ type PlacementContext = {
   connectors: Connector[];
   feedbackConnectorIds: Set<string>;
   inferredPrimaryConnectorIds: Set<string>;
+  inferredBundleIds: Map<string, string>;
   theme: LiveryTheme;
   tokens: TokenOverrides;
 };
@@ -74,6 +76,8 @@ export function solvePinboard(document: VisualDocument, options: PinboardOptions
   }
   const flowDiagnostic = validateFlowResources(document.root, document.connectors);
   if (flowDiagnostic) return { ok: false, diagnostics: [flowDiagnostic], attempts };
+  const hierarchyDiagnostic = validateHierarchyResources(document.root, document.connectors);
+  if (hierarchyDiagnostic) return { ok: false, diagnostics: [hierarchyDiagnostic], attempts };
   const canvasDiagnostic = validateCanvasResources(document.root);
   if (canvasDiagnostic) return { ok: false, diagnostics: [canvasDiagnostic], attempts };
   const solvedIds = collectSolvedIds(document.root);
@@ -127,7 +131,7 @@ function buildCandidate(document: VisualDocument, width: number, strategy: Strat
     const endpointPadding = Math.max(endpointClearance(document.root, connector.from.node), endpointClearance(document.root, connector.to.node));
     return 18 + 12 + endpointPadding * 2;
   })) + routingGutterExpansion(strategy, document.connectors.length);
-  const context: PlacementContext = { elements: [], envelopes: [], channels: [], bounds: new Map(), minimumGap, rootColumnGap, rootRowGap, canvases: [], connectors: document.connectors, feedbackConnectorIds: new Set(), inferredPrimaryConnectorIds: new Set(), theme, tokens };
+  const context: PlacementContext = { elements: [], envelopes: [], channels: [], bounds: new Map(), minimumGap, rootColumnGap, rootRowGap, canvases: [], connectors: document.connectors, feedbackConnectorIds: new Set(), inferredPrimaryConnectorIds: new Set(), inferredBundleIds: new Map(), theme, tokens };
   const rootSize = measure(document.root, availableWidth, strategy, minimumGap, true, rootColumnGap, rootRowGap, theme, tokens, document.connectors);
   const rootWidth = Math.min(rootSize.width, availableWidth);
   const rootX = padding + (availableWidth - rootWidth) / 2;
@@ -172,7 +176,7 @@ function buildCandidate(document: VisualDocument, width: number, strategy: Strat
     readingOrder: context.elements.map(({ id }) => id),
   };
   const columns = rootColumnCount(scene);
-  const topologyDeviation = document.root.layout?.kind === "flow" ? 0 : Math.abs(requestedRootColumns(document.root) - columns);
+  const topologyDeviation = document.root.layout?.kind === "flow" || document.root.layout?.kind === "hierarchy" ? 0 : Math.abs(requestedRootColumns(document.root) - columns);
   return { scene, routingDiagnostics: routing.ok ? [] : routing.diagnostics, columns, topologyDeviation };
 }
 
@@ -344,13 +348,15 @@ function measure(
   if (!node.children?.length) {
     const recipe = resolveComponentRecipe(node.kind, node.variant, theme);
     const geometry = recipe.geometry;
-    const horizontalSpace = (geometry?.paddingX ?? 16) * 2 + (hasComponentDetail(recipe) ? (geometry?.detailWidth ?? 24) + (geometry?.labelGap ?? 10) : 0);
+    const detailWidth = componentDetailWidth(node, recipe);
+    const horizontalSpace = (geometry?.paddingX ?? 16) * 2 + (detailWidth ? detailWidth + (geometry?.labelGap ?? 10) : 0);
     const minimumWidth = geometry?.minWidth ?? 120;
     const label = node.label ?? node.id;
     const fontSize = visualNumber(node.style?.fontSize ?? recipe.typography?.fontSize, tokens, tokenNumber(tokens, "type.body", 13));
     const lineHeight = Math.max(visualNumber(recipe.typography?.lineHeight, tokens, Math.ceil(fontSize * 1.38)), Math.ceil(fontSize * 1.1));
     const fontWeight = Number(resolveVisualValue(node.style?.fontWeight ?? recipe.typography?.fontWeight, tokens) ?? 650);
-    const measuredLabelWidth = measureVisualText(label, { fontSize, fontWeight });
+    const items = stringItems(node.props?.items);
+    const measuredLabelWidth = Math.max(measureVisualText(label, { fontSize, fontWeight }), ...items.map((item) => measureVisualText(item, { fontSize: tokenNumber(tokens, "type.caption", 10), fontWeight: 500 })), 0);
     const subtitleFontSize = tokenNumber(tokens, "type.caption", 10);
     const subtitleWeight = 500;
     const subtitleWidth = node.subtitle ? measureVisualText(node.subtitle, { fontSize: subtitleFontSize, fontWeight: subtitleWeight }) : 0;
@@ -363,7 +369,8 @@ function measure(
     const labelHeight = measureVisualTextBlock(label, textWidth, { fontSize, fontWeight, lineHeight }).height;
     const subtitleLineHeight = Math.max(Math.ceil(subtitleFontSize * 1.35), 14);
     const subtitleHeight = node.subtitle ? measureVisualTextBlock(node.subtitle, textWidth, { fontSize: subtitleFontSize, fontWeight: subtitleWeight, lineHeight: subtitleLineHeight }).height + 4 : 0;
-    const contentHeight = labelHeight + subtitleHeight + (geometry?.paddingY ?? 14) * 2;
+    const itemHeight = items.length ? items.length * Math.max(14, Math.ceil(tokenNumber(tokens, "type.caption", 10) * 1.45)) + 8 : 0;
+    const contentHeight = labelHeight + subtitleHeight + itemHeight + (geometry?.paddingY ?? 14) * 2;
     return { width, height: node.layout?.height ?? authoredHeight ?? Math.max(geometry?.minHeight ?? NODE_HEIGHT, contentHeight) };
   }
   if (node.kind === "canvas" || node.layout?.kind === "canvas") {
@@ -371,7 +378,6 @@ function measure(
   }
   const frame = node.kind === "frame";
   const framePadding = frame ? visualNumber(node.props?.padding, tokens, tokenNumber(tokens, "space.lg", 24)) : 0;
-  const frameHeader = frame && node.label ? (node.subtitle ? 44 : 30) : 0;
   const innerMaxWidth = Math.max(1, maxWidth - framePadding * 2);
   const declaredGap = gapFor(node.layout?.gap, tokens);
   const localMinimumGap = Math.max(minimumGap, requiredLocalConnectorGap(node, connectors, tokens));
@@ -379,16 +385,34 @@ function measure(
   const rowGap = Math.max(root ? rootRowGap : localMinimumGap, declaredGap);
   const children = node.children.map((child) => measure(child, innerMaxWidth, strategy, minimumGap, false, rootColumnGap, rootRowGap, theme, tokens, connectors));
   const kind = effectiveLayout(node.layout?.kind ?? "row", strategy, root, children, innerMaxWidth, columnGap);
-  const withFrame = (size: Size): Size => frame ? {
-    width: Math.min(maxWidth, visualNumber(node.props?.width, tokens, size.width + framePadding * 2)),
-    height: visualNumber(node.props?.height, tokens, size.height + framePadding * 2 + frameHeader),
-  } : size;
+  const withFrame = (size: Size): Size => {
+    if (!frame) return size;
+    const width = Math.min(maxWidth, visualNumber(node.props?.width, tokens, size.width + framePadding * 2));
+    const header = frameHeaderHeight(node, width, theme, tokens);
+    return { width, height: visualNumber(node.props?.height, tokens, size.height + framePadding * 2 + header) };
+  };
   if (node.layout?.kind === "flow") {
     const plan = planFlow(node.children.map((child, index) => ({ node: child, ...children[index]! })), connectors, {
       direction: flowDirection(node, strategy),
       gap: rowGap,
       rankGap: rankGapFor(node, tokens, columnGap),
       maxWidth: innerMaxWidth,
+      forceDown: strategy === "vertical_reflow" || strategy === "increased_height" || strategy === "flow_down",
+    });
+    return withFrame({
+      width: Math.min(maxWidth, visualNumber(node.layout.width ?? node.props?.width, tokens, plan.width)),
+      height: visualNumber(node.layout.height ?? node.props?.height, tokens, plan.height),
+    });
+  }
+  if (node.layout?.kind === "hierarchy") {
+    const hierarchyWidth = !root && node.kind === "frame" && maxWidth >= 600
+      ? Math.min(innerMaxWidth, Math.max(240, maxWidth * 0.42))
+      : innerMaxWidth;
+    const plan = planHierarchy(node.children.map((child, index) => ({ node: child, ...children[index]! })), connectors, {
+      direction: hierarchyDirection(node, strategy),
+      gap: rowGap,
+      rankGap: rankGapFor(node, tokens, columnGap),
+      maxWidth: hierarchyWidth,
       forceDown: strategy === "vertical_reflow" || strategy === "increased_height" || strategy === "flow_down",
     });
     return withFrame({
@@ -454,6 +478,7 @@ function place(node: VisualNode, x: number, y: number, width: number, height: nu
     ...(node.style ? { style: node.style } : {}),
     pins: pinsFor(node.id, own),
     ...(node.props ? { props: node.props } : {}),
+    ...(node.layout?.kind === "hierarchy" ? { layoutKind: node.layout.kind } : {}),
   });
   if (!node.children?.length) {
     context.envelopes.push({ id: `${node.id}.collision`, owner: node.id, kind: "component", ...inflate(own, CLEARANCE) });
@@ -467,7 +492,7 @@ function place(node: VisualNode, x: number, y: number, width: number, height: nu
     return;
   }
   const framePadding = node.kind === "frame" ? visualNumber(node.props?.padding, context.tokens, tokenNumber(context.tokens, "space.lg", 24)) : 0;
-  const frameHeader = node.kind === "frame" && node.label ? (node.subtitle ? 44 : 30) : 0;
+  const frameHeader = frameHeaderHeight(node, width, context.theme, context.tokens);
   const contentX = x + framePadding;
   const contentY = y + framePadding + frameHeader;
   const contentWidth = Math.max(1, width - framePadding * 2);
@@ -489,6 +514,24 @@ function place(node: VisualNode, x: number, y: number, width: number, height: nu
     const offsetY = contentY + Math.max(0, (contentHeight - plan.height) / 2);
     plan.feedbackConnectorIds.forEach((id) => context.feedbackConnectorIds.add(id));
     plan.primaryConnectorIds.forEach((id) => context.inferredPrimaryConnectorIds.add(id));
+    for (const placement of plan.placements) {
+      const child = node.children[placement.index]!;
+      const size = sizes[placement.index]!;
+      place(child, offsetX + placement.x, offsetY + placement.y, size.width, size.height, node.id, context, strategy);
+    }
+    return;
+  }
+  if (node.layout?.kind === "hierarchy") {
+    const plan = planHierarchy(node.children.map((child, index) => ({ node: child, ...sizes[index]! })), context.connectors, {
+      direction: hierarchyDirection(node, strategy),
+      gap: rowGap,
+      rankGap: rankGapFor(node, context.tokens, columnGap),
+      maxWidth: contentWidth,
+      forceDown: strategy === "vertical_reflow" || strategy === "increased_height" || strategy === "flow_down",
+    });
+    const offsetX = contentX + Math.max(0, (contentWidth - plan.width) / 2);
+    const offsetY = contentY + Math.max(0, (contentHeight - plan.height) / 2);
+    plan.bundleIds.forEach((bundleId, connectorId) => context.inferredBundleIds.set(connectorId, bundleId));
     for (const placement of plan.placements) {
       const child = node.children[placement.index]!;
       const size = sizes[placement.index]!;
@@ -645,18 +688,46 @@ function routeTask(connector: Connector, context: PlacementContext, board: Board
   const vertical = deltaY > deltaX;
   const automaticFrom = vertical ? (to.y >= from.y ? "bottom" : "top") : (to.x >= from.x ? "right" : "left");
   const automaticTo = vertical ? (to.y >= from.y ? "top" : "bottom") : (to.x >= from.x ? "left" : "right");
-  const fromSide = responsiveAnchor(connector.from.anchor, automaticFrom);
-  const toSide = responsiveAnchor(connector.to.anchor, automaticTo);
+  const compactAdvisoryRail = connector.variant === "advisory" && board.width <= 480;
+  const fromSide = compactAdvisoryRail ? "right" : responsiveAnchor(connector.from.anchor, automaticFrom);
+  const toSide = compactAdvisoryRail ? "right" : responsiveAnchor(connector.to.anchor, automaticTo);
   const start = pointFor(from, fromSide);
   const end = pointFor(to, toSide);
   const directLength = distance(start, end);
-  const candidates = routeCandidates(start, end, fromSide, toSide, board.width, board.height, padding, stableRouteSeed(connector.id), context.channels);
+  const bundleId = connector.bundleId ?? context.inferredBundleIds.get(connector.id) ?? (connector.variant === "advisory" ? board.width <= 480 ? "advisory.outer" : `advisory.${connector.from.node}` : undefined);
+  const hierarchyRoutes = bundleId?.startsWith("hierarchy.") && fromSide === "bottom" && toSide === "top" && (Boolean(sharedFrame) || board.width <= 480)
+    ? [compactPoints([
+      start,
+      lead(start, fromSide, ENDPOINT_LEAD),
+      { x: sharedFrame ? sharedFrame.bounds.x + 8 : board.width <= 480 ? padding + 8 : start.x, y: start.y + ENDPOINT_LEAD },
+      { x: sharedFrame ? sharedFrame.bounds.x + 8 : board.width <= 480 ? padding + 8 : start.x, y: end.y - ENDPOINT_LEAD },
+      { x: end.x, y: end.y - ENDPOINT_LEAD },
+      end,
+    ])]
+    : [];
+  const startLead = lead(start, fromSide, ENDPOINT_LEAD);
+  const endLead = lead(end, toSide, ENDPOINT_LEAD);
+  const advisoryLaneOffset = 4 + stableRouteSeed(connector.id) * 3;
+  const advisoryRail = board.width - advisoryLaneOffset;
+  const advisoryRoutes = connector.variant === "advisory" ? [
+    compactPoints([start, startLead, { x: startLead.x, y: endLead.y }, endLead, end]),
+    compactPoints([start, startLead, { x: endLead.x, y: startLead.y }, endLead, end]),
+    compactPoints([start, startLead, { x: advisoryRail, y: startLead.y }, { x: advisoryRail, y: endLead.y }, endLead, end]),
+  ].filter((points) => validEndpointDirections(points, fromSide, toSide) && routeClear(points, context, connector.from.node, connector.to.node)) : [];
+  const reservedRouteKeys = new Set([...hierarchyRoutes, ...advisoryRoutes].map(pointsKey));
+  const candidates = connector.variant === "advisory"
+    ? board.width <= 480 ? advisoryRoutes : [...advisoryRoutes, ...routeCandidates(start, end, fromSide, toSide, board.width, board.height, padding, stableRouteSeed(connector.id), context.channels)]
+    : hierarchyRoutes.length && board.width <= 480
+      ? hierarchyRoutes
+      : [...hierarchyRoutes, ...routeCandidates(start, end, fromSide, toSide, board.width, board.height, padding, stableRouteSeed(connector.id), context.channels)];
   const options = candidates.flatMap((points): RouteOption[] => {
     if (sharedFrame && points.some((point) => !containsPoint(sharedFrame.bounds, point))) return [];
-    if (!routeClear(points, context, connector.from.node, connector.to.node)) return [];
+    if (!reservedRouteKeys.has(pointsKey(points)) && !routeClear(points, context, connector.from.node, connector.to.node)) return [];
     const channels = channelsForRoute(points, context.channels);
-    if (!routeCovered(points, channels)) return [];
-    const labels = connector.label ? connectorLabelCandidates(connector.label, points, context.envelopes, context.elements, sharedFrame?.bounds ?? board, context.tokens).slice(0, MAX_LABEL_OPTIONS) : [undefined];
+    if (!reservedRouteKeys.has(pointsKey(points)) && !routeCovered(points, channels)) return [];
+    const labelCandidates = connector.label ? connectorLabelCandidates(connector.label, points, context.envelopes, context.elements, sharedFrame?.bounds ?? board, context.tokens) : [];
+    if (connector.variant === "advisory") labelCandidates.sort((first, second) => labelEndpointDistance(first, start, end) - labelEndpointDistance(second, start, end));
+    const labels = connector.label ? labelCandidates.slice(0, MAX_LABEL_OPTIONS) : [undefined];
     if (!labels.length) return [];
     const length = routeLength(points);
     const bends = Math.max(0, points.length - 2);
@@ -668,13 +739,15 @@ function routeTask(connector: Connector, context: PlacementContext, board: Board
         ...(label ? { label } : {}), ...(connector.variant ? { variant: connector.variant } : {}),
         ...(connector.tone ? { tone: connector.tone } : {}), ...(connector.style ? { style: connector.style } : {}),
         ...(effectiveRole ? { role: effectiveRole } : {}),
+        ...(bundleId ? { bundleId } : {}),
         ...(context.feedbackConnectorIds.has(connector.id) ? { feedback: true } : {}),
         channelIds: [...new Set(channels.map(({ id }) => id))],
       };
       const pathSignature = pointsKey(points);
       const roleMultiplier = effectiveRole === "primary" ? 1.6 : effectiveRole === "supporting" ? 0.8 : 1;
       const feedbackPenalty = context.feedbackConnectorIds.has(connector.id) && !channels.some(({ id }) => id.startsWith("channel.outer.")) ? 1_000 : 0;
-      return { connector: solved, channels, cost: length + bends * 18 * roleMultiplier + Math.max(0, length / Math.max(1, directLength) - 1) * 90 * roleMultiplier + labelIndex * 2 + feedbackPenalty, pathSignature, signature: `${pathSignature}:${label ? `${label.x},${label.y}` : "none"}` };
+      const advisoryPenalty = connector.variant === "advisory" && !reservedRouteKeys.has(pathSignature) && !channels.some(({ id }) => id.startsWith("channel.outer.")) ? 1_500 : 0;
+      return { connector: solved, channels, cost: length + bends * 18 * roleMultiplier + Math.max(0, length / Math.max(1, directLength) - 1) * 90 * roleMultiplier + labelIndex * 2 + feedbackPenalty + advisoryPenalty, pathSignature, signature: `${pathSignature}:${label ? `${label.x},${label.y}` : "none"}` };
     });
   });
   const deduped = dedupeRouteOptions(options);
@@ -772,7 +845,7 @@ function validEndpointDirections(points: BoardPoint[], from: AnchorName, to: Anc
 }
 
 function routeClear(points: BoardPoint[], context: PlacementContext, from: string, to: string) {
-  return points.slice(1).every((point, index) => context.envelopes.every((envelope) => belongsToContext(envelope.owner, from, context) || belongsToContext(envelope.owner, to, context) || !segmentIntersects(points[index]!, point, envelope)));
+  return points.slice(1).every((point, index) => context.envelopes.every((envelope) => sharesEndpointContext(envelope.owner, from, context) || sharesEndpointContext(envelope.owner, to, context) || !segmentIntersects(points[index]!, point, envelope)));
 }
 
 function channelsForRoute(points: BoardPoint[], channels: RouteChannel[]) {
@@ -840,6 +913,7 @@ function orthogonalSegmentsCross(a: BoardPoint, b: BoardPoint, c: BoardPoint, d:
 }
 
 function routesConflict(first: BoardConnector, second: BoardConnector) {
+  if (first.bundleId && first.bundleId === second.bundleId) return false;
   for (let a = 1; a < first.points.length; a += 1) for (let b = 1; b < second.points.length; b += 1) {
     const firstStart = first.points[a - 1]!;
     const firstEnd = first.points[a]!;
@@ -883,6 +957,7 @@ function sharedEndpoint(first: BoardConnector, second: BoardConnector) {
 
 function routeLength(points: BoardPoint[]) { return points.slice(1).reduce((total, point, index) => total + distance(points[index]!, point), 0); }
 function pointsKey(points: BoardPoint[]) { return points.map(({ x, y }) => `${x},${y}`).join(";"); }
+function labelEndpointDistance(label: BoardRect, start: BoardPoint, end: BoardPoint) { const point = center(label); return Math.min(distance(point, start), distance(point, end)); }
 function stableRouteSeed(id: string) { return [...id].reduce((total, character) => (total * 31 + character.charCodeAt(0)) >>> 0, 0) % 8; }
 function dedupeRouteOptions(options: RouteOption[]) { const seen = new Set<string>(); return options.sort((a, b) => a.cost - b.cost || a.signature.localeCompare(b.signature)).filter(({ signature }) => !seen.has(signature) && !!seen.add(signature)); }
 
@@ -1074,10 +1149,16 @@ function labelBounds(node: VisualNode, bounds: BoardRect, theme: LiveryTheme, to
   if (node.kind === "frame") {
     const fontSize = visualNumber(node.style?.fontSize ?? recipe.typography?.fontSize, tokens, tokenNumber(tokens, "type.label", 14));
     const lineHeight = Math.max(visualNumber(recipe.typography?.lineHeight, tokens, 20), Math.ceil(fontSize * 1.1));
-    const subtitleHeight = node.subtitle ? Math.max(tokenNumber(tokens, "type.caption", 10) * 1.35, 14) + 4 : 0;
-    return { x: bounds.x + paddingX, y: bounds.y + (geometry?.paddingY ?? 14), width: Math.max(1, bounds.width - paddingX * 2), height: lineHeight + subtitleHeight };
+    const width = Math.max(1, bounds.width - paddingX * 2);
+    const fontWeight = Number(resolveVisualValue(node.style?.fontWeight ?? recipe.typography?.fontWeight, tokens) ?? 720);
+    const labelHeight = measureVisualTextBlock(node.label ?? node.id, width, { fontSize, fontWeight, lineHeight }).height;
+    const subtitleFontSize = tokenNumber(tokens, "type.caption", 10);
+    const subtitleLineHeight = Math.max(Math.ceil(subtitleFontSize * 1.35), 14);
+    const subtitleHeight = node.subtitle ? measureVisualTextBlock(node.subtitle, width, { fontSize: subtitleFontSize, fontWeight: 500, lineHeight: subtitleLineHeight }).height + 4 : 0;
+    return { x: bounds.x + paddingX, y: bounds.y + (geometry?.paddingY ?? 14), width, height: labelHeight + subtitleHeight };
   }
-  const detailOffset = hasComponentDetail(recipe) ? (geometry?.detailWidth ?? 24) + (geometry?.labelGap ?? 10) : 0;
+  const detailWidth = componentDetailWidth(node, recipe);
+  const detailOffset = detailWidth ? detailWidth + (geometry?.labelGap ?? 10) : 0;
   const x = bounds.x + paddingX + detailOffset;
   const width = Math.max(1, bounds.x + bounds.width - paddingX - x);
   const fontSize = visualNumber(node.style?.fontSize ?? recipe.typography?.fontSize, tokens, tokenNumber(tokens, "type.body", 13));
@@ -1088,7 +1169,12 @@ function labelBounds(node: VisualNode, bounds: BoardRect, theme: LiveryTheme, to
   const subtitleLineHeight = Math.max(Math.ceil(subtitleFontSize * 1.35), 14);
   const subtitleHeight = node.subtitle ? measureVisualTextBlock(node.subtitle, width, { fontSize: subtitleFontSize, fontWeight: 500, lineHeight: subtitleLineHeight }).height + 4 : 0;
   const totalHeight = height + subtitleHeight;
+  if (stringItems(node.props?.items).length) return { x, y: bounds.y + (geometry?.paddingY ?? 14), width, height: totalHeight };
   return { x, y: bounds.y + (bounds.height - totalHeight) / 2, width, height: totalHeight };
+}
+
+function stringItems(value: VisualValue | undefined): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
 function connectorLabelCandidates(text: string, points: BoardPoint[], envelopes: CollisionEnvelope[], elements: SolvedElement[], board: BoardRect, tokens: TokenOverrides) {
@@ -1283,12 +1369,21 @@ function flowDirection(node: VisualNode, strategy: Strategy) {
   return "auto" as const;
 }
 
+function hierarchyDirection(node: VisualNode, strategy: Strategy) {
+  const requested = node.layout?.direction;
+  if (requested === undefined) return "down" as const;
+  if (requested !== "auto") return requested;
+  if (strategy === "flow_right") return "right" as const;
+  if (strategy === "flow_down") return "down" as const;
+  return "auto" as const;
+}
+
 function rankGapFor(node: VisualNode, tokens: TokenOverrides, fallback: number) {
   return Math.max(fallback, visualNumber(node.layout?.rankGap, tokens, tokenNumber(tokens, "space.xl", 48)));
 }
 
 function hasFlowLayout(node: VisualNode): boolean {
-  return node.layout?.kind === "flow" || Boolean(node.children?.some(hasFlowLayout));
+  return node.layout?.kind === "flow" || node.layout?.kind === "hierarchy" || Boolean(node.children?.some(hasFlowLayout));
 }
 
 function validateFlowResources(root: VisualNode, connectors: Connector[]): LayoutDiagnostic | undefined {
@@ -1309,6 +1404,47 @@ function validateFlowResources(root: VisualNode, connectors: Connector[]): Layou
   return visit(root);
 }
 
+function validateHierarchyResources(root: VisualNode, connectors: Connector[]): LayoutDiagnostic | undefined {
+  for (const connector of connectors) {
+    if (connector.role === "supporting" || connector.variant === "advisory") continue;
+    const source = findVisualNode(root, connector.from.node);
+    if (source?.kind === "frame" && containsVisualNode(source, connector.to.node) && source.id !== connector.to.node) {
+      return issue("layout.hierarchy_frame_descendant_edge", `Structural connector ${connector.id} cannot report from frame ${source.id} to its own descendant ${connector.to.node}.`, [connector.id, source.id, connector.to.node]);
+    }
+  }
+  const visit = (node: VisualNode): LayoutDiagnostic | undefined => {
+    if (node.layout?.kind === "hierarchy") {
+      const items = (node.children ?? []).map((child) => ({ node: child, width: 1, height: 1 }));
+      const visibleCount = countNodes(node) - 1;
+      if (visibleCount > 96) return issue("layout.resource_limit", `Hierarchy ${node.id} contains ${visibleCount} visible elements; limit is 96.`, [node.id]);
+      const ids = collectSolvedIds(node);
+      const localConnectors = connectors.filter(({ from, to }) => ids.has(from.node) && ids.has(to.node));
+      if (localConnectors.length > 192) return issue("layout.resource_limit", `Hierarchy ${node.id} contains ${localConnectors.length} connectors; limit is 192.`, [node.id]);
+      const topology = hierarchyTopology(items, localConnectors);
+      if (topology.cyclic) return issue("layout.hierarchy_cycle", `Hierarchy ${node.id} contains a structural cycle. Mark contextual relationships advisory or supporting.`, [node.id]);
+      if (topology.multipleParents.length) {
+        const [child, connectorIds] = topology.multipleParents[0]!;
+        return issue("layout.hierarchy_multiple_parents", `Hierarchy child ${items[child]!.node.id} has multiple structural parents. Mark additional relationships advisory or supporting.`, connectorIds);
+      }
+    }
+    for (const child of node.children ?? []) {
+      const diagnostic = visit(child);
+      if (diagnostic) return diagnostic;
+    }
+    return undefined;
+  };
+  return visit(root);
+}
+
+function findVisualNode(node: VisualNode, id: string): VisualNode | undefined {
+  if (node.id === id) return node;
+  for (const child of node.children ?? []) {
+    const found = findVisualNode(child, id);
+    if (found) return found;
+  }
+  return undefined;
+}
+
 function routingReserve(connectors: Connector[], tokens: TokenOverrides) {
   if (!connectors.length) return 0;
   const labelWidth = connectors.reduce((total, connector) => total + (connector.label ? measureVisualText(connector.label, { fontSize: tokenNumber(tokens, "type.caption", 10), fontWeight: 600 }) + 16 : 0), 0);
@@ -1323,6 +1459,27 @@ function routingGutterExpansion(strategy: Strategy, connectorCount: number) {
   return 0;
 }
 function hasComponentDetail(recipe: ReturnType<typeof resolveComponentRecipe>) { return Boolean(recipe.detail && recipe.detail.glyph !== "none" && recipe.shape !== "storage"); }
+function componentDetailWidth(node: VisualNode, recipe: ReturnType<typeof resolveComponentRecipe>) {
+  if (recipe.shape === "storage") return 0;
+  if (hasComponentDetail(recipe)) return recipe.geometry?.detailWidth ?? 24;
+  return typeof node.props?.icon === "string" ? Math.max(24, recipe.geometry?.detailWidth ?? 0) : 0;
+}
+
+function frameHeaderHeight(node: VisualNode, width: number, theme: LiveryTheme, tokens: TokenOverrides) {
+  if (node.kind !== "frame" || !node.label) return 0;
+  const recipe = resolveComponentRecipe(node.kind, node.variant, theme);
+  const paddingX = recipe.geometry?.paddingX ?? 20;
+  const textWidth = Math.max(1, width - paddingX * 2);
+  const fontSize = visualNumber(node.style?.fontSize ?? recipe.typography?.fontSize, tokens, tokenNumber(tokens, "type.label", 14));
+  const lineHeight = Math.max(visualNumber(recipe.typography?.lineHeight, tokens, 20), Math.ceil(fontSize * 1.1));
+  const fontWeight = Number(resolveVisualValue(node.style?.fontWeight ?? recipe.typography?.fontWeight, tokens) ?? 720);
+  const labelHeight = measureVisualTextBlock(node.label, textWidth, { fontSize, fontWeight, lineHeight }).height;
+  if (!node.subtitle) return labelHeight + 10;
+  const subtitleFontSize = tokenNumber(tokens, "type.caption", 10);
+  const subtitleLineHeight = Math.max(Math.ceil(subtitleFontSize * 1.35), 14);
+  const subtitleHeight = measureVisualTextBlock(node.subtitle, textWidth, { fontSize: subtitleFontSize, fontWeight: 500, lineHeight: subtitleLineHeight }).height + 4;
+  return labelHeight + subtitleHeight + 6;
+}
 function endpointClearance(node: VisualNode, targetId: string, inherited = CLEARANCE): number {
   const canvas = node.kind === "canvas" || node.layout?.kind === "canvas";
   const clearance = canvas ? CLEARANCE + numericProp(node, "bleed", 0) : inherited;
@@ -1337,6 +1494,7 @@ function issue(code: LayoutDiagnostic["code"], message: string, elementIds?: str
 function dedupeDiagnostics(diagnostics: LayoutDiagnostic[]) { const seen = new Set<string>(); return diagnostics.filter(({ code, elementIds }) => { const key = `${code}:${elementIds?.join(",") ?? ""}`; return !seen.has(key) && !!seen.add(key); }); }
 function belongsTo(elementId: string, ownerId: string, elements: SolvedElement[]) { let current = elements.find(({ id }) => id === elementId); while (current) { if (current.id === ownerId) return true; current = current.parent ? elements.find(({ id }) => id === current!.parent) : undefined; } return false; }
 function belongsToContext(elementId: string, ownerId: string, context: PlacementContext) { return belongsTo(elementId, ownerId, context.elements) || context.canvases.some((canvas) => canvas.owner === elementId && canvas.primitives.some(({ id }) => id === ownerId)); }
+function sharesEndpointContext(first: string, second: string, context: PlacementContext) { return belongsToContext(first, second, context) || belongsToContext(second, first, context); }
 
 function validateCanvasResources(root: VisualNode): LayoutDiagnostic | undefined {
   const visit = (node: VisualNode, insideCanvas: boolean, depth: number): LayoutDiagnostic | undefined => {

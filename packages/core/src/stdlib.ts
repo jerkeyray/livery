@@ -7,7 +7,7 @@ const technicalComponents = [
   "person", "team", "service", "api", "database", "cache", "objectStore", "warehouse",
   "queue", "topic", "stream", "event", "browser", "mobile", "terminal", "server",
   "agent", "model", "tool", "worker", "file", "document", "code", "table", "note",
-  "callout", "badge", "legend", "boundary", "barChart", "lineChart", "areaChart", "progress",
+  "callout", "badge", "card", "list", "legend", "boundary", "barChart", "lineChart", "areaChart", "progress",
 ] as const;
 
 const componentMetadata: Record<(typeof technicalComponents)[number], {
@@ -42,6 +42,8 @@ const componentMetadata: Record<(typeof technicalComponents)[number], {
   note: { category: "content", description: "A short contextual note." },
   callout: { category: "content", description: "An annotation connected to visual content." },
   badge: { category: "content", description: "A compact status or category badge." },
+  card: { category: "content", description: "A generic editorial card without a technical glyph." },
+  list: { category: "content", description: "A bounded editorial list of descriptive leaves." },
   legend: { category: "content", description: "A legend explaining visual encodings." },
   boundary: { category: "content", description: "A labeled grouping boundary." },
   barChart: { category: "chart", description: "A basic bar chart.", status: "experimental" },
@@ -64,11 +66,13 @@ export function instantiateStandardComponent(
   const styleKeys = new Set(["fill", "stroke", "strokeWidth", "color", "iconColor", "radius", "opacity", "fontSize", "fontWeight"]);
   const style = Object.fromEntries(Object.entries(props).filter(([key]) => styleKeys.has(key)));
   const componentProps = Object.fromEntries(Object.entries(props).filter(([key]) => !styleKeys.has(key) && !["subtitle", "variant", "tone"].includes(key)));
+  const items = Array.isArray(props.items) ? props.items.filter((item): item is string => typeof item === "string") : undefined;
   return {
     id,
     kind: `lib.${name}`,
     label: typeof props.label === "string" ? props.label : humanize(name),
     ...(typeof props.subtitle === "string" ? { subtitle: props.subtitle } : {}),
+    ...(items?.length ? { description: items.join(", ") } : {}),
     ...(typeof props.variant === "string" ? { variant: props.variant } : {}),
     ...(typeof props.tone === "string" && ["neutral", "info", "success", "warning", "danger"].includes(props.tone) ? { tone: props.tone as "neutral" | "info" | "success" | "warning" | "danger" } : {}),
     ...(Object.keys(style).length ? { style } : {}),
@@ -103,6 +107,7 @@ function component(name: string): ComponentDefinition {
       { name: "fontWeight", type: "number", required: false },
       { name: "width", type: "length", required: false },
       { name: "height", type: "length", required: false },
+      ...(["list", "legend"].includes(name) ? [{ name: "items", type: "list" as const, required: true }] : []),
     ],
     root: {
       id: "root",

@@ -1,6 +1,6 @@
 import type { Diagnostic } from "./diagnostics.js";
 import type { SemanticTone } from "./artifact.js";
-import type { ConnectorRole, VisualStyle, VisualValue } from "./visual.js";
+import type { ConnectorRole, LayoutKind, VisualStyle, VisualValue } from "./visual.js";
 
 export type BoardPoint = { x: number; y: number };
 export type BoardRect = { x: number; y: number; width: number; height: number };
@@ -62,6 +62,7 @@ export type SolvedElement = {
   style?: VisualStyle;
   pins: SolvedPin[];
   props?: Record<string, VisualValue>;
+  layoutKind?: LayoutKind;
 };
 
 export type ConnectorLabel = BoardRect & { text: string };
@@ -74,9 +75,10 @@ export type BoardConnector = {
   toPin: string;
   points: BoardPoint[];
   label?: ConnectorLabel;
-  variant?: "directional" | "bidirectional" | "async" | "data";
+  variant?: "directional" | "bidirectional" | "async" | "data" | "advisory";
   tone?: SemanticTone;
   role?: ConnectorRole;
+  bundleId?: string;
   feedback?: boolean;
   style?: VisualStyle;
   channelIds: string[];
@@ -156,7 +158,10 @@ export type LayoutViolationCode =
   | "layout.route_congestion"
   | "layout.poor_density"
   | "layout.broken_primary_continuity"
-  | "layout.invalid_reading_order";
+  | "layout.invalid_reading_order"
+  | "layout.hierarchy_frame_descendant_edge"
+  | "layout.hierarchy_cycle"
+  | "layout.hierarchy_multiple_parents";
 
 export type LayoutDiagnostic = Diagnostic & {
   code: LayoutViolationCode | "layout.no_valid_candidate" | "layout.resource_limit" | "layout.routing_exhausted";

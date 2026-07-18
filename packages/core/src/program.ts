@@ -109,7 +109,7 @@ export function formatVisualDocument(document: VisualDocument) {
   for (const connector of document.connectors) {
     const from = `${connector.from.node}.${connector.from.anchor ?? "right"}`;
     const to = `${connector.to.node}.${connector.to.anchor ?? "left"}`;
-    const properties = [...(connector.label ? [`label: \"${escapeString(connector.label)}\"`] : []), ...(connector.variant ? [`variant: ${formatValue(connector.variant)}`] : []), ...(connector.role && connector.role !== "auto" ? [`role: ${formatValue(connector.role)}`] : []), ...(connector.tone && connector.tone !== "neutral" ? [`tone: ${formatValue(connector.tone)}`] : []), ...formatProperties(connector.style)];
+    const properties = [...(connector.label ? [`label: \"${escapeString(connector.label)}\"`] : []), ...(connector.variant ? [`variant: ${formatValue(connector.variant)}`] : []), ...(connector.role && connector.role !== "auto" ? [`role: ${formatValue(connector.role)}`] : []), ...(connector.bundleId ? [`bundleId: ${formatValue(connector.bundleId)}`] : []), ...(connector.tone && connector.tone !== "neutral" ? [`tone: ${formatValue(connector.tone)}`] : []), ...formatProperties(connector.style)];
     lines.push(`  ${connector.id} = connect(${from}, ${to}${properties.length ? `, ${properties.join(", ")}` : ""})`);
   }
   lines.push("", `  ${formatLayout(document.root.layout, (document.root.children ?? []).map(({ id }) => id))}`);
@@ -414,7 +414,7 @@ function expandBinding(
     if (call.name === "repeat") validateRepeatTemplate(binding.id, call, context.diagnostics);
     if (call.name === "image") validateImageSource(binding.id, call.named.src, context.diagnostics, binding.span);
     if (call.name === "icon" && typeof call.named.name !== "string") context.diagnostics.push(diagnostic("semantic.unknown_icon", `Icon ${binding.id} requires a name.`, binding.span));
-    if (call.name === "frame" && call.named.layout === "flow") validateFlowOptions("flow", call.named, context.diagnostics, binding.span);
+    if (call.name === "frame" && (call.named.layout === "flow" || call.named.layout === "hierarchy")) validateFlowOptions(call.named.layout, call.named, context.diagnostics, binding.span);
     const styleKeys = new Set(["fill", "stroke", "strokeWidth", "radius", "opacity", "color", "iconColor", "fontSize", "fontWeight"]);
     const style = Object.fromEntries(Object.entries(call.named).filter(([key]) => styleKeys.has(key)));
     const structuralKeys = new Set(call.name === "frame" ? ["subtitle", "layout", "gap", "rankGap", "direction", "maxCandidates", "columns", "align", "distribute"] : []);
@@ -518,6 +518,13 @@ function validateStandardComponentCall(
   const definition = standardLibrary[name];
   const contract = standardComponentCallContract(definition, call.name);
   validateContractCall(call, contract, callContext, diagnostics);
+  if ((name === "list" || name === "legend") && Array.isArray(call.named.items)) {
+    const maximum = name === "legend" ? 8 : 12;
+    const supportedLegendItems = new Set(["directional", "bidirectional", "async", "data", "advisory", "neutral", "info", "success", "warning", "danger"]);
+    if (call.named.items.length < 1 || call.named.items.length > maximum || call.named.items.some((item) => typeof item !== "string" || name === "legend" && !supportedLegendItems.has(item))) {
+      diagnostics.push(diagnostic(name === "legend" ? "semantic.invalid_legend_items" : "semantic.invalid_list_items", `${name} items must contain 1–${maximum} strings.`, call.span));
+    }
+  }
 }
 
 function validateRepeatTemplate(id: string, call: Call, diagnostics: Diagnostic[]) {
@@ -679,6 +686,8 @@ function expandNestedBindings(binding: Binding, values: Record<string, VisualVal
 }
 
 function matchesParameterType(value: VisualValue, type: ComponentParameter["type"]) {
+  if (type === "list") return Array.isArray(value) && value.length > 0 && value.length <= 12 && value.every((item) => typeof item === "string");
+  if (Array.isArray(value)) return false;
   if (type === "tone") return typeof value === "string" && ["neutral", "info", "success", "warning", "danger"].includes(value);
   if (type === "paint") return typeof value === "string" && isSafePaint(value);
   if (type === "length") return (typeof value === "number" && Number.isFinite(value) && value >= 0) || (typeof value === "string" && value.startsWith("$"));
@@ -717,17 +726,18 @@ function connectorFromBinding(binding: Binding, diagnostics: Diagnostic[]): Conn
   const tone = binding.call.named.tone;
   const variant = binding.call.named.variant;
   const role = binding.call.named.role;
-  if (variant !== undefined && (typeof variant !== "string" || !["directional", "bidirectional", "async", "data"].includes(variant))) diagnostics.push(diagnostic("semantic.invalid_connector_variant", `Connector ${binding.id} has invalid variant ${String(variant)}.`, binding.span));
+  if (variant !== undefined && (typeof variant !== "string" || !["directional", "bidirectional", "async", "data", "advisory"].includes(variant))) diagnostics.push(diagnostic("semantic.invalid_connector_variant", `Connector ${binding.id} has invalid variant ${String(variant)}.`, binding.span));
   if (role !== undefined && (typeof role !== "string" || !["auto", "primary", "secondary", "supporting"].includes(role))) diagnostics.push(diagnostic("semantic.invalid_connector_role", `Connector ${binding.id} has invalid role ${String(role)}.`, binding.span));
   const styleKeys = new Set(["fill", "stroke", "strokeWidth", "radius", "opacity", "color"]);
   const style = Object.fromEntries(Object.entries(binding.call.named).filter(([key]) => styleKeys.has(key)));
-  return { id: binding.id, from: from ?? { node: "invalid" }, to: to ?? { node: "invalid" }, ...(typeof binding.call.named.label === "string" ? { label: binding.call.named.label } : {}), ...(typeof tone === "string" && ["neutral", "info", "success", "warning", "danger"].includes(tone) ? { tone: tone as "neutral" | "info" | "success" | "warning" | "danger" } : {}), ...(typeof variant === "string" && ["directional", "bidirectional", "async", "data"].includes(variant) ? { variant: variant as "directional" | "bidirectional" | "async" | "data" } : {}), ...(typeof role === "string" && ["auto", "primary", "secondary", "supporting"].includes(role) ? { role: role as "auto" | "primary" | "secondary" | "supporting" } : {}), ...(Object.keys(style).length ? { style } : {}) };
+  const resolvedRole = variant === "advisory" && role === undefined ? "supporting" : role;
+  return { id: binding.id, from: from ?? { node: "invalid" }, to: to ?? { node: "invalid" }, ...(typeof binding.call.named.label === "string" ? { label: binding.call.named.label } : {}), ...(typeof tone === "string" && ["neutral", "info", "success", "warning", "danger"].includes(tone) ? { tone: tone as "neutral" | "info" | "success" | "warning" | "danger" } : {}), ...(typeof variant === "string" && ["directional", "bidirectional", "async", "data", "advisory"].includes(variant) ? { variant: variant as "directional" | "bidirectional" | "async" | "data" | "advisory" } : {}), ...(typeof resolvedRole === "string" && ["auto", "primary", "secondary", "supporting"].includes(resolvedRole) ? { role: resolvedRole as "auto" | "primary" | "secondary" | "supporting" } : {}), ...(typeof binding.call.named.bundleId === "string" ? { bundleId: binding.call.named.bundleId } : {}), ...(Object.keys(style).length ? { style } : {}) };
 }
 
 function validateFlowOptions(kind: LayoutKind, named: Record<string, VisualValue>, diagnostics: Diagnostic[], span?: ParsedBinding["span"]) {
-  if (kind !== "flow") return;
+  if (kind !== "flow" && kind !== "hierarchy") return;
   if (typeof named.maxCandidates === "number" && (!Number.isInteger(named.maxCandidates) || named.maxCandidates < 1 || named.maxCandidates > 12)) {
-    diagnostics.push(diagnostic("semantic.invalid_flow_candidate_limit", "Flow maxCandidates must be an integer from 1 to 12.", span));
+    diagnostics.push(diagnostic(kind === "hierarchy" ? "semantic.invalid_hierarchy_candidate_limit" : "semantic.invalid_flow_candidate_limit", `${kind === "hierarchy" ? "Hierarchy" : "Flow"} maxCandidates must be an integer from 1 to 12.`, span));
   }
 }
 
@@ -800,7 +810,8 @@ function legacyAction(action: string): "show" | "hide" | "focus" | "trace" {
   return "show";
 }
 
-function formatValue(value: VisualValue) {
+function formatValue(value: VisualValue): string {
+  if (Array.isArray(value)) return `[${value.map((item) => formatValue(item)).join(", ")}]`;
   if (typeof value === "string" && value.startsWith("$space.")) return value.slice(7);
   return typeof value === "string" ? `\"${escapeString(value)}\"` : String(value);
 }

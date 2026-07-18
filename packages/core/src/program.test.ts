@@ -169,9 +169,35 @@ figure arithmetic {
   it("exposes the complete visual parameter contract on every standard component", () => {
     const expected = ["label", "subtitle", "icon", "variant", "tone", "fill", "stroke", "strokeWidth", "color", "iconColor", "radius", "opacity", "fontSize", "fontWeight", "width", "height"];
     for (const component of Object.values(standardLibrary)) {
-      expect(component.parameters.map(({ name }) => name), component.name).toEqual(expected);
+      expect(component.parameters.map(({ name }) => name), component.name).toEqual([
+        ...expected,
+        ...(["list", "legend"].includes(component.name) ? ["items"] : []),
+      ]);
       expect(component.variants, component.name).toEqual(["default", "muted", "emphasis", "soft", "solid", "ghost"]);
     }
+  });
+
+  it("compiles hierarchy layouts, advisory connectors, and bounded editorial lists", () => {
+    const result = compileVisual(`figure governance {
+      board = card("Board", subtitle: "Trustees")
+      president = card("President")
+      schools = list("Schools", items: ["Science", "Arts", "Business"])
+      reporting = connect(board.bottom, president.top, role: primary, bundleId: executive)
+      counsel = connect(board.right, schools.left, variant: advisory)
+      hierarchy(board, president, schools, direction: down, gap: lg, rankGap: xl)
+    }`);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.document?.root.layout).toMatchObject({ kind: "hierarchy", direction: "down" });
+    expect(result.document?.connectors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "reporting", bundleId: "executive" }),
+      expect.objectContaining({ id: "counsel", variant: "advisory", role: "supporting" }),
+    ]));
+    expect(formatVisualDocument(result.document!)).toContain('items: ["Science", "Arts", "Business"]');
+  });
+
+  it("rejects unbounded editorial list values", () => {
+    const result = compileVisual(`figure invalid { values = list("Too many", items: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13"]) row(values) }`);
+    expect(result.diagnostics.map(({ code }) => code)).toContain("semantic.invalid_list_items");
   });
 
   it("rejects unsafe paints on primitives and standard components", () => {

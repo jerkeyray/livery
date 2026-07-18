@@ -22,7 +22,7 @@ export function validateBoardScene(scene: BoardScene): ValidationReport {
 
   for (const [id, rect] of allRects(scene)) {
     if (!finiteRect(rect)) diagnostics.push(issue("layout.non_finite_geometry", `${id} has non-finite geometry.`, [id]));
-    else if (!containsRect(sceneBounds, rect)) diagnostics.push(issue("layout.out_of_bounds", `${id} extends outside the board.`, [id]));
+    else if (!containsRect(sceneBounds, rect)) diagnostics.push(issue("layout.out_of_bounds", `${id} extends outside the ${scene.board.width}×${scene.board.height} board at (${Math.round(rect.x)}, ${Math.round(rect.y)}, ${Math.round(rect.width)}, ${Math.round(rect.height)}).`, [id]));
   }
 
   const components = scene.envelopes.filter(({ kind }) => kind === "component" || kind === "canvas");
@@ -42,7 +42,8 @@ export function validateBoardScene(scene: BoardScene): ValidationReport {
     if (element.kind === "frame") {
       const descendantCount = scene.elements.filter(({ id }) => id !== element.id && belongsTo(id, element.id, scene)).length;
       const aspectRatio = Math.max(element.bounds.width / Math.max(1, element.bounds.height), element.bounds.height / Math.max(1, element.bounds.width));
-      if (descendantCount >= 5 && aspectRatio > 3.2) {
+      const hierarchyReflow = element.layoutKind === "hierarchy";
+      if (!hierarchyReflow && descendantCount >= 5 && aspectRatio > 3.2) {
         diagnostics.push(issue("layout.excessive_aspect_ratio", `Frame ${element.id} is too tall or wide for ${descendantCount} nested elements; split it into compact stages or short rows.`, [element.id]));
       }
     }
@@ -177,7 +178,7 @@ function validateConnector(
   const segments = connector.points.slice(1).map((point, index) => [connector.points[index]!, point] as const);
   const routeLength = segments.reduce((total, [from, to]) => total + manhattan(from, to), 0);
   const directLength = manhattan(connector.points[0]!, connector.points.at(-1)!);
-  if (!connector.feedback && directLength > 0 && routeLength - directLength > 120 && routeLength / directLength > 4) {
+  if (!connector.feedback && connector.variant !== "advisory" && !connector.bundleId?.startsWith("hierarchy.") && directLength > 0 && routeLength - directLength > 120 && routeLength / directLength > 4) {
     diagnostics.push(issue("layout.excessive_route_detour", `${connector.id} takes an excessive detour; reflow the endpoints or use responsive anchors.`, [connector.id]));
   }
   for (const [from, to] of segments) {
@@ -293,6 +294,7 @@ function connectorInteractions(connectors: BoardConnector[]) {
   for (let first = 0; first < connectors.length; first += 1) for (let second = first + 1; second < connectors.length; second += 1) {
     const a = connectors[first]!;
     const b = connectors[second]!;
+    if (a.bundleId && a.bundleId === b.bundleId) continue;
     let crossing = false;
     let overlap = false;
     for (let ai = 1; ai < a.points.length; ai += 1) for (let bi = 1; bi < b.points.length; bi += 1) {

@@ -19,7 +19,8 @@ export type LanguageValueType =
   | "length"
   | "paint"
   | "tone"
-  | "identifier";
+  | "identifier"
+  | "list";
 
 export type LanguageParameterContract = {
   name: string;
@@ -43,7 +44,7 @@ export type LanguageCallContract = {
 export const TONE_VALUES = ["neutral", "info", "success", "warning", "danger"] as const;
 export const ALIGN_VALUES = ["start", "center", "end", "stretch"] as const;
 export const DISTRIBUTE_VALUES = ["start", "center", "end", "between", "around"] as const;
-export const CONNECTOR_VARIANTS = ["directional", "bidirectional", "async", "data"] as const;
+export const CONNECTOR_VARIANTS = ["directional", "bidirectional", "async", "data", "advisory"] as const;
 export const CONNECTOR_ROLES = ["auto", "primary", "secondary", "supporting"] as const;
 export const TIMELINE_DURATIONS = ["fast", "normal", "slow"] as const;
 export const ICON_NAMES = Object.freeze(Object.keys(canonicalGlyphs).sort());
@@ -169,7 +170,7 @@ export const CORE_LANGUAGE_CALLS: readonly LanguageCallContract[] = [
   primitive("frame", "Create a labeled visual boundary with an internal layout.", [{ name: "label", type: "string" }], [
     { name: "label", type: "string" },
     { name: "subtitle", type: "string" },
-    { name: "layout", type: "identifier", values: ["row", "column", "grid", "flow", "stack", "overlay"] },
+    { name: "layout", type: "identifier", values: ["row", "column", "grid", "flow", "hierarchy", "stack", "overlay"] },
     { name: "columns", type: "number" },
     { name: "gap", type: "length" },
     { name: "rankGap", type: "length" },
@@ -222,6 +223,12 @@ export const CORE_LANGUAGE_CALLS: readonly LanguageCallContract[] = [
     { name: "rankGap", type: "length" },
     { name: "maxCandidates", type: "number" },
   ]),
+  layout("hierarchy", "Arrange a reporting tree or taxonomy with deterministic tidy-tree placement.", [
+    ...layoutSizeParameters,
+    { name: "direction", type: "string", values: ["auto", "right", "down"] },
+    { name: "rankGap", type: "length" },
+    { name: "maxCandidates", type: "number" },
+  ]),
   layout("stack", "Stack children in one aligned region.", [
     { name: "width", type: "length" },
     { name: "height", type: "length" },
@@ -262,6 +269,7 @@ export const CORE_LANGUAGE_CALLS: readonly LanguageCallContract[] = [
       { name: "variant", type: "string", values: CONNECTOR_VARIANTS },
       { name: "tone", type: "tone", values: TONE_VALUES },
       { name: "role", type: "identifier", values: CONNECTOR_ROLES },
+      { name: "bundleId", type: "identifier" },
       { name: "stroke", type: "paint" },
       { name: "strokeWidth", type: "length" },
       { name: "opacity", type: "number" },
@@ -394,6 +402,8 @@ export function standardComponentCallContract(component: ComponentDefinition, na
 }
 
 export function isLanguageValue(value: VisualValue, parameter: LanguageParameterContract): boolean {
+  if (parameter.type === "list") return Array.isArray(value) && value.every((item) => typeof item === "string");
+  if (Array.isArray(value)) return false;
   if (parameter.values && !parameter.values.includes(String(value))) return false;
   switch (parameter.type) {
     case "number":

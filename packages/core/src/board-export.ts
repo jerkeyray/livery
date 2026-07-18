@@ -50,8 +50,8 @@ export function boardSceneToSvg(scene: BoardScene, options: BoardSvgOptions = {}
     const { stroke, strokeWidth, opacity } = connectorStyle(connector, options.state, tokens, options.theme ?? canonicalTheme);
     const variant = connector.variant ?? "directional";
     const markerStart = variant === "bidirectional" ? ` marker-start="url(#${connectorMarkerId(markerId, connector.id)})"` : "";
-    const markerEnd = variant === "data" ? "" : ` marker-end="url(#${connectorMarkerId(markerId, connector.id)})"`;
-    const dash = variant === "async" ? ' stroke-dasharray="5 4"' : variant === "data" ? ' stroke-dasharray="2 3"' : "";
+    const markerEnd = variant === "data" || variant === "advisory" ? "" : ` marker-end="url(#${connectorMarkerId(markerId, connector.id)})"`;
+    const dash = variant === "async" ? ' stroke-dasharray="5 4"' : variant === "data" ? ' stroke-dasharray="2 3"' : variant === "advisory" ? ' stroke-dasharray="1 5"' : "";
     lines.push(`    <g data-livery-connector="${escapeXml(connector.id)}"${stateAttributes(connector.id, options.state, opacity)} data-livery-variant="${variant}">`);
     lines.push(`      <path data-livery-id="${escapeXml(connector.id)}" d="${pathData(connector.points)}" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"${dash}${markerStart}${markerEnd}/>`);
     if (connector.label) {
@@ -98,7 +98,7 @@ function renderElement(element: SolvedElement, tokens: TokenOverrides, shadowId:
   const transform = elementTransformValue(properties, element.visualBounds);
   const baseOpacity = finiteNumber(resolveVisualValue(surfaceStyle.opacity, tokens));
   const lines = [`    <g data-livery-id="${escapeXml(element.id)}"${transform ? ` transform="${transform}"` : ""}${stateAttributes(element.id, state, baseOpacity)}${surface}>`];
-  if (element.subtitle) lines.push(`      <title>${escapeXml(`${element.label ?? element.id}: ${element.subtitle}`)}</title>`);
+  if (element.subtitle || element.description) lines.push(`      <title>${escapeXml([element.label ?? element.id, element.subtitle, element.description].filter(Boolean).join(": "))}</title>`);
   if (element.kind === "text") {
     // Text is emitted below without an implicit surface.
   } else if (element.kind === "image" && typeof element.props?.src === "string") {
@@ -146,19 +146,30 @@ function renderElement(element: SolvedElement, tokens: TokenOverrides, shadowId:
       subtitleLines.forEach((line, index) => lines.push(`        <tspan x="${labelX}" dy="${index === 0 ? 0 : subtitleLineHeight}">${escapeXml(line)}</tspan>`));
       lines.push("      </text>");
     }
+    const items = Array.isArray(element.props?.items) ? element.props.items.filter((item): item is string => typeof item === "string") : [];
+    if (items.length) {
+      const itemFontSize = Number(tokens["type.caption"] ?? 10);
+      const itemLineHeight = Math.max(14, Math.ceil(itemFontSize * 1.45));
+      const itemY = labelBounds.y + textLines.length * lineHeight + (element.subtitle ? itemLineHeight : 0) + 10;
+      const itemColor = resolveVisualValue(surfaceStyle.color, tokens) ?? tokens["color.muted"];
+      lines.push(`      <text x="${labelBounds.x}" y="${itemY}" font-family="${escapeXml(String(tokens["type.fontFamily"]))}" font-size="${itemFontSize}" font-weight="500" fill="${itemColor}">`);
+      items.forEach((item, index) => lines.push(`        <tspan x="${labelBounds.x}" dy="${index === 0 ? 0 : itemLineHeight}">• ${escapeXml(item)}</tspan>`));
+      lines.push("      </text>");
+    }
   }
   lines.push("    </g>");
   return lines;
 }
 
 function componentDetails(element: SolvedElement, tokens: TokenOverrides, recipe: ComponentRecipe, style: VisualStyle, icons?: IconRegistry) {
-  const glyph = typeof element.props?.icon === "string" ? element.props.icon : recipe.detail?.glyph;
+  const authoredIcon = typeof element.props?.icon === "string";
+  const glyph = authoredIcon ? element.props!.icon as string : recipe.detail?.glyph;
   const paths = canonicalGlyph(glyph, icons);
   if (!paths?.length) return [];
   const { x, y, height } = element.visualBounds;
   const size = recipe.detail?.size ?? 18;
-  const detailWidth = recipe.geometry?.detailWidth ?? 24;
-  const iconX = x + 14 + (detailWidth - size) / 2;
+  const detailWidth = authoredIcon && recipe.detail?.glyph === "none" ? Math.max(24, recipe.geometry?.detailWidth ?? 0) : recipe.geometry?.detailWidth ?? 24;
+  const iconX = x + (recipe.geometry?.paddingX ?? 16) + (detailWidth - size) / 2;
   const iconY = y + (height - size) / 2;
   const scale = size / 24;
   const stroke = resolveVisualValue(style.iconColor as string | number | undefined, tokens) ?? tokens["color.muted"];

@@ -19,7 +19,7 @@ describe("language intelligence", () => {
     });
     expect(catalog.calls.find(({ name }) => name === "connect")).toMatchObject({
       category: "connector",
-      named: expect.arrayContaining([expect.objectContaining({ name: "variant", values: ["directional", "bidirectional", "async", "data"] })]),
+      named: expect.arrayContaining([expect.objectContaining({ name: "variant", values: ["directional", "bidirectional", "async", "data", "advisory"] })]),
     });
     expect(catalog.calls.find(({ name }) => name === "morph")).toMatchObject({ status: "unsupported" });
     expect(catalog.tokens).toContain("color.accent");

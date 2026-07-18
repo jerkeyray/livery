@@ -1,0 +1,10 @@
+figure newspaper("Editorial structure") {
+  editor = card("Editor in Chief")
+  news = frame("News", layout: row) { national = card("National") local = card("Local") }
+  opinion = frame("Opinion", layout: row) { editorials = card("Editorials") columns = card("Columns") }
+  culture = frame("Culture", layout: row) { arts = card("Arts") reviews = card("Reviews") }
+  n = connect(editor.bottom, news.top, role: primary)
+  o = connect(editor.bottom, opinion.top, role: primary)
+  c = connect(editor.bottom, culture.top, role: primary)
+  hierarchy(editor, news, opinion, culture, direction: down)
+}

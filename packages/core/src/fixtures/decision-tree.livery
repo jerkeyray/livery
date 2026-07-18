@@ -1,0 +1,12 @@
+figure decision_tree("Launch decision") {
+  ready = card("Release ready?")
+  quality = card("Quality passed?")
+  launch = card("Launch", tone: success)
+  repair = card("Repair", tone: warning)
+  wait = card("Wait", variant: muted)
+  yes = connect(ready.bottom, quality.top, label: "yes", role: primary)
+  no = connect(ready.bottom, wait.top, label: "no", role: secondary)
+  pass = connect(quality.bottom, launch.top, label: "yes", role: primary)
+  fail = connect(quality.bottom, repair.top, label: "no", role: secondary)
+  hierarchy(ready, quality, launch, repair, wait, direction: down)
+}

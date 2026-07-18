@@ -60,7 +60,7 @@ export function parseVisualProgram(source: string): { program?: ParsedVisualProg
 type TokenKind = "identifier" | "string" | "number" | "symbol" | "arrow" | "eof";
 type Token = { kind: TokenKind; value: string; raw: string; span: SourceSpan };
 
-const layoutNames = new Set<LayoutKind>(["row", "column", "stack", "grid", "flow", "overlay", "canvas"]);
+const layoutNames = new Set<LayoutKind>(["row", "column", "stack", "grid", "flow", "hierarchy", "overlay", "canvas"]);
 
 class VisualParser {
   private index = 0;
@@ -362,13 +362,25 @@ class VisualParser {
   }
 
   private parseValueUntil(stops: Set<string>): VisualValue {
+    if (this.atSymbol("[")) {
+      this.advance();
+      const values: Array<string | number | boolean> = [];
+      while (!this.at("eof") && !this.atSymbol("]")) {
+        const value = this.parseValueUntil(new Set([",", "]"]));
+        if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") values.push(value);
+        else this.error("syntax.nested_list", "Nested list values are not supported.");
+        if (!this.matchSymbol(",")) break;
+      }
+      this.expectSymbol("]", "Expected ] after list values.");
+      return values;
+    }
     const start = this.index;
     let depth = 0;
     while (!this.at("eof")) {
       const token = this.current();
       if (depth === 0 && stops.has(token.value)) break;
-      if (token.value === "(") depth += 1;
-      if (token.value === ")") depth -= 1;
+      if (token.value === "(" || token.value === "[") depth += 1;
+      if (token.value === ")" || token.value === "]") depth -= 1;
       this.advance();
     }
     const tokens = this.tokens.slice(start, this.index);
@@ -515,7 +527,7 @@ function tokenize(source: string, diagnostics: Diagnostic[]): Token[] {
       push("number", raw, raw, start);
       continue;
     }
-    if ("(){}:,=. +*/-".includes(character) && character !== " ") {
+    if ("(){}[]:,=. +*/-".includes(character) && character !== " ") {
       const raw = advance(); push("symbol", raw, raw, start); continue;
     }
     advance();

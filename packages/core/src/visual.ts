@@ -1,12 +1,13 @@
 import type { SemanticTone } from "./artifact.js";
 
 export type PrimitiveKind = "text" | "box" | "circle" | "line" | "path" | "image" | "icon" | "group" | "frame" | "canvas" | "repeat";
-export type LayoutKind = "free" | "row" | "column" | "stack" | "grid" | "flow" | "overlay" | "canvas";
+export type LayoutKind = "free" | "row" | "column" | "stack" | "grid" | "flow" | "hierarchy" | "overlay" | "canvas";
 export type FlowDirection = "auto" | "right" | "down";
 export type ConnectorRole = "auto" | "primary" | "secondary" | "supporting";
 export type AnchorName = "top" | "right" | "bottom" | "left" | "center";
 export type TokenReference = `$${string}`;
-export type VisualValue = string | number | boolean | TokenReference;
+export type VisualScalar = string | number | boolean | TokenReference;
+export type VisualValue = VisualScalar | readonly VisualScalar[];
 
 export type VisualStyle = {
   fill?: VisualValue;
@@ -55,9 +56,10 @@ export type Connector = {
   from: { node: string; anchor?: AnchorName };
   to: { node: string; anchor?: AnchorName };
   label?: string;
-  variant?: "directional" | "bidirectional" | "async" | "data";
+  variant?: "directional" | "bidirectional" | "async" | "data" | "advisory";
   tone?: SemanticTone;
   role?: ConnectorRole;
+  bundleId?: string;
   style?: VisualStyle;
 };
 
@@ -89,7 +91,7 @@ export type VisualDocument = {
 
 export type ComponentParameter = {
   name: string;
-  type: "string" | "number" | "boolean" | "tone" | "paint" | "length" | "identifier";
+  type: "string" | "number" | "boolean" | "tone" | "paint" | "length" | "identifier" | "list";
   required: boolean;
   default?: VisualValue;
 };

@@ -1,0 +1,10 @@
+figure corporate_org("Company organization") {
+  board = card("Board")
+  ceo = card("CEO")
+  product = frame("Product", layout: row) { design = card("Design") engineering = card("Engineering") }
+  revenue = frame("Revenue", layout: row) { sales = card("Sales") marketing = card("Marketing") }
+  appoint = connect(board.bottom, ceo.top, role: primary)
+  p = connect(ceo.bottom, product.top, role: primary)
+  r = connect(ceo.bottom, revenue.top, role: primary)
+  hierarchy(board, ceo, product, revenue, direction: down)
+}

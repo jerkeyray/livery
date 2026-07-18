@@ -30,6 +30,22 @@ describe("canonical visual runtime", () => {
     expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: "compat.legacy_source", severity: "warning" }));
   });
 
+  it("renders editorial lists and arrowless dotted advisory relationships", () => {
+    const result = render(`figure editorial("Governance") {
+      board = card("Board")
+      president = card("President")
+      schools = list("Schools", items: ["Science", "Arts", "Business"])
+      reporting = connect(board.bottom, president.top, role: primary)
+      advice = connect(schools.right, president.left, label: "advises", variant: advisory)
+      hierarchy(board, president, schools, direction: down)
+    }`, { width: 720 });
+    expect(result.diagnostics).toEqual([]);
+    expect(result.svg).toContain("• Science");
+    expect(result.svg).toContain('data-livery-variant="advisory"');
+    expect(result.svg).toContain('stroke-dasharray="1 5"');
+    expect(result.svg).not.toMatch(/data-livery-id="advice"[^>]*marker-end/);
+  });
+
   it("exports SVG and JSON from the same solved visual scene", () => {
     const svg = exportVisual(visualSource, { format: "svg", width: 480 });
     const json = exportVisual(visualSource, { format: "json", width: 480 });

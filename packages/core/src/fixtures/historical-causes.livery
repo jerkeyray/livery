@@ -1,0 +1,13 @@
+figure historical_causes("Causes and effects") {
+  conditions = card("Long-term conditions")
+  trigger = card("Immediate trigger")
+  event = card("Historical event", variant: emphasis)
+  political = list("Political", items: ["Institutions", "Power"])
+  economic = list("Economic", items: ["Trade", "Resources"])
+  p = connect(conditions.bottom, political.top, role: secondary)
+  e = connect(conditions.bottom, economic.top, role: secondary)
+  t = connect(trigger.bottom, event.top, role: primary)
+  pc = connect(political.bottom, event.top, role: supporting)
+  ec = connect(economic.bottom, event.top, role: supporting)
+  hierarchy(conditions, trigger, political, economic, event, direction: down)
+}

@@ -1,9 +1,11 @@
 import { z } from "zod";
 
-const visualValueSchema = z.union([z.string(), z.number(), z.boolean()]);
-const styleSchema = z.record(z.string(), visualValueSchema);
+const visualScalarSchema = z.union([z.string(), z.number(), z.boolean()]);
+const visualValueSchema = z.union([visualScalarSchema, z.array(visualScalarSchema).max(12)]);
+const styleValueSchema = visualScalarSchema;
+const styleSchema = z.record(z.string(), styleValueSchema);
 const layoutSchema = z.object({
-  kind: z.enum(["free", "row", "column", "stack", "grid", "flow", "overlay", "canvas"]),
+  kind: z.enum(["free", "row", "column", "stack", "grid", "flow", "hierarchy", "overlay", "canvas"]),
   gap: visualValueSchema.optional(),
   columns: z.number().int().positive().optional(),
   align: z.enum(["start", "center", "end", "stretch"]).optional(),
@@ -27,7 +29,7 @@ export const visualNodeSchema: z.ZodType = z.lazy(() => z.object({
   tone: z.enum(["neutral", "info", "success", "warning", "danger"]).optional(),
   layout: layoutSchema.optional(),
   style: styleSchema.optional(),
-  props: styleSchema.optional(),
+  props: z.record(z.string(), visualValueSchema).optional(),
   children: z.array(visualNodeSchema).optional(),
   anchors: z.array(z.enum(["top", "right", "bottom", "left", "center"])).optional(),
 }));
@@ -56,9 +58,10 @@ export const visualDocumentSchema = z.object({
     from: targetSchema,
     to: targetSchema,
     label: z.string().optional(),
-    variant: z.enum(["directional", "bidirectional", "async", "data"]).optional(),
+    variant: z.enum(["directional", "bidirectional", "async", "data", "advisory"]).optional(),
     tone: z.enum(["neutral", "info", "success", "warning", "danger"]).optional(),
     role: z.enum(["auto", "primary", "secondary", "supporting"]).optional(),
+    bundleId: z.string().min(1).optional(),
     style: styleSchema.optional(),
   })).default([]),
   timelines: z.array(z.object({
