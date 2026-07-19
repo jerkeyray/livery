@@ -136,6 +136,7 @@ function buildCandidate(document: VisualDocument, width: number, strategy: Strat
     return 18 + 12 + endpointPadding * 2;
   })) + routingGutterExpansion(strategy, document.connectors.length);
   const context: PlacementContext = { elements: [], envelopes: [], channels: [], bounds: new Map(), minimumGap, rootColumnGap, rootRowGap, canvases: [], connectors: document.connectors, feedbackConnectorIds: new Set(), inferredPrimaryConnectorIds: new Set(), inferredBundleIds: new Map(), theme, tokens };
+  inferCompoundFeedback(document.root, document.connectors, width).forEach((id) => context.feedbackConnectorIds.add(id));
   const rootSize = measure(document.root, availableWidth, strategy, minimumGap, true, rootColumnGap, rootRowGap, theme, tokens, document.connectors);
   const rootWidth = Math.min(rootSize.width, availableWidth);
   const rootX = padding + (availableWidth - rootWidth) / 2;
@@ -433,10 +434,19 @@ function measure(
     });
   }
   if (kind === "grid") {
-    const cellWidth = Math.max(...children.map(({ width }) => width), 0);
-    const columns = gridColumns(node, strategy, maxWidth, children.length, cellWidth, columnGap);
-    const rowHeights = gridRowHeights(children, columns);
-    const intrinsicWidth = Math.min(columns, children.length) * cellWidth + columnGap * Math.max(0, Math.min(columns, children.length) - 1);
+    let gridChildren = children;
+    let cellWidth = Math.max(...gridChildren.map(({ width }) => width), 0);
+    let columns = gridColumns(node, strategy, innerMaxWidth, gridChildren.length, cellWidth, columnGap);
+    let gridGap = columns > 1 ? Math.min(columnGap, Math.max(0, (innerMaxWidth - cellWidth * columns) / (columns - 1))) : 0;
+    const availableCellWidth = Math.max(1, (innerMaxWidth - gridGap * Math.max(0, columns - 1)) / columns);
+    if (cellWidth > availableCellWidth) {
+      gridChildren = node.children.map((child) => measure(child, availableCellWidth, strategy, minimumGap, false, rootColumnGap, rootRowGap, theme, tokens, connectors));
+      cellWidth = Math.max(...gridChildren.map(({ width }) => width), 0);
+      columns = gridColumns(node, strategy, innerMaxWidth, gridChildren.length, cellWidth, columnGap);
+      gridGap = columns > 1 ? Math.min(columnGap, Math.max(0, (innerMaxWidth - cellWidth * columns) / (columns - 1))) : 0;
+    }
+    const rowHeights = gridRowHeights(gridChildren, columns);
+    const intrinsicWidth = Math.min(columns, children.length) * cellWidth + gridGap * Math.max(0, Math.min(columns, children.length) - 1);
     const distributedWidth = root && node.layout?.distribute && node.layout.distribute !== "start" ? maxWidth : intrinsicWidth;
     return withFrame({
       width: Math.min(maxWidth, visualNumber(node.layout?.width ?? node.props?.width, tokens, distributedWidth)),
@@ -516,7 +526,7 @@ function place(node: VisualNode, x: number, y: number, width: number, height: nu
   const localMinimumGap = Math.max(context.minimumGap, requiredLocalConnectorGap(node, context.connectors, context.tokens));
   const columnGap = Math.max(root ? context.rootColumnGap : localMinimumGap, declaredGap);
   const rowGap = Math.max(root ? context.rootRowGap : localMinimumGap, declaredGap);
-  const sizes = node.children.map((child) => measure(child, contentWidth, strategy, context.minimumGap, false, context.rootColumnGap, context.rootRowGap, context.theme, context.tokens, context.connectors));
+  let sizes = node.children.map((child) => measure(child, contentWidth, strategy, context.minimumGap, false, context.rootColumnGap, context.rootRowGap, context.theme, context.tokens, context.connectors));
   if (node.layout?.kind === "flow") {
     const plan = planFlow(node.children.map((child, index) => ({ node: child, ...sizes[index]! })), context.connectors, {
       direction: flowDirection(node, strategy),
@@ -587,8 +597,18 @@ function place(node: VisualNode, x: number, y: number, width: number, height: nu
     return;
   }
   const kind = effectiveLayout(node.layout?.kind ?? "row", strategy, root, sizes, contentWidth, columnGap);
-  const cellWidth = kind === "grid" ? Math.max(...sizes.map(({ width }) => width), 0) : 0;
-  const columns = kind === "grid" ? gridColumns(node, strategy, contentWidth, sizes.length, cellWidth, columnGap) : 1;
+  let cellWidth = kind === "grid" ? Math.max(...sizes.map(({ width }) => width), 0) : 0;
+  let columns = kind === "grid" ? gridColumns(node, strategy, contentWidth, sizes.length, cellWidth, columnGap) : 1;
+  let gridGap = kind === "grid" && columns > 1 ? Math.min(columnGap, Math.max(0, (contentWidth - cellWidth * columns) / (columns - 1))) : 0;
+  if (kind === "grid") {
+    const availableCellWidth = Math.max(1, (contentWidth - gridGap * Math.max(0, columns - 1)) / columns);
+    if (cellWidth > availableCellWidth) {
+      sizes = node.children.map((child) => measure(child, availableCellWidth, strategy, context.minimumGap, false, context.rootColumnGap, context.rootRowGap, context.theme, context.tokens, context.connectors));
+      cellWidth = Math.max(...sizes.map(({ width }) => width), 0);
+      columns = gridColumns(node, strategy, contentWidth, sizes.length, cellWidth, columnGap);
+      gridGap = columns > 1 ? Math.min(columnGap, Math.max(0, (contentWidth - cellWidth * columns) / (columns - 1))) : 0;
+    }
+  }
   const rowHeights = kind === "grid" ? gridRowHeights(sizes, columns) : [];
   const layoutAlign = node.layout?.align ?? "center";
   const gridHorizontalAlign = node.layout?.align ?? "center";
@@ -597,7 +617,7 @@ function place(node: VisualNode, x: number, y: number, width: number, height: nu
   const rowDistribution = distribution(contentWidth, sizes.map(({ width: childWidth }) => childWidth), columnGap, layoutDistribute);
   const columnDistribution = distribution(contentHeight, sizes.map(({ height: childHeight }) => childHeight), rowGap, layoutDistribute);
   const gridColumnCount = Math.min(columns, sizes.length);
-  const gridDistribution = distribution(contentWidth, Array.from({ length: gridColumnCount }, () => cellWidth), columnGap, layoutDistribute);
+  const gridDistribution = distribution(contentWidth, Array.from({ length: gridColumnCount }, () => cellWidth), gridGap, layoutDistribute);
   let cursorX = contentX + rowDistribution.offset;
   let cursorY = contentY + columnDistribution.offset;
   node.children.forEach((child, index) => {
@@ -668,7 +688,10 @@ function routeConnectors(connectors: Connector[], context: PlacementContext, wid
     optionLimit,
   ));
   const unroutable = tasks.filter(({ options }) => options.length === 0);
-  if (unroutable.length) return { ok: false, diagnostics: unroutable.map(({ id }) => issue("layout.routing_exhausted", `No valid route and label placement is available for connector ${id}.`, [id])) };
+  if (unroutable.length) return { ok: false, diagnostics: unroutable.map(({ id }) => {
+    const connector = connectors.find((candidate) => candidate.id === id)!;
+    return issue("layout.routing_exhausted", `No valid route and label placement is available for ${describeConnector(connector)}.`, [id]);
+  }) };
   const pinDemand = new Map<string, number>();
   for (const task of tasks) for (const pin of [task.options[0]!.connector.fromPin, task.options[0]!.connector.toPin]) pinDemand.set(pin, (pinDemand.get(pin) ?? 0) + 1);
   for (const task of tasks) task.pinDemand = Math.max(pinDemand.get(task.options[0]!.connector.fromPin) ?? 0, pinDemand.get(task.options[0]!.connector.toPin) ?? 0);
@@ -698,7 +721,10 @@ function routeConnectors(connectors: Connector[], context: PlacementContext, wid
       next.push({ routes, labels: option.connector.label ? [...state.labels, option.connector.label] : state.labels, channelUse, cost: state.cost + option.cost + congestion * 80 + lookahead.cost, signature });
     }
     beam = retainRoutingStateDiversity(next, beamWidth);
-    if (!beam.length) return { ok: false, diagnostics: [issue("layout.routing_exhausted", `No crossing-free route set exists after allocating connector ${task.id}.`, connectors.map(({ id }) => id))] };
+    if (!beam.length) {
+      const connector = connectors.find(({ id }) => id === task.id)!;
+      return { ok: false, diagnostics: [issue("layout.routing_exhausted", `No crossing-free route set exists after allocating ${describeConnector(connector)}.`, connectors.map(({ id }) => id))] };
+    }
   }
   const selected = beam[0]!;
   for (const channel of context.channels) channel.used = selected.channelUse.get(channel.id) ?? 0;
@@ -848,7 +874,7 @@ function routeTask(connector: Connector, context: PlacementContext, board: Board
       };
       const pathSignature = pointsKey(points);
       const roleMultiplier = effectiveRole === "primary" ? 1.6 : effectiveRole === "supporting" ? 0.8 : 1;
-      const feedbackPenalty = context.feedbackConnectorIds.has(connector.id) && !channels.some(({ id }) => id.startsWith("channel.outer.")) ? 1_000 : 0;
+      const feedbackPenalty = context.feedbackConnectorIds.has(connector.id) && channels.some(({ id }) => id.startsWith("channel.outer.")) ? 1_000 : 0;
       const advisoryPenalty = connector.variant === "advisory" && !reservedRouteKeys.has(pathSignature) && !channels.some(({ id }) => id.startsWith("channel.outer.")) ? 1_500 : 0;
       return { connector: solved, channels, cost: length + bends * 18 * roleMultiplier + Math.max(0, length / Math.max(1, directLength) - 1) * 90 * roleMultiplier + labelIndex * 2 + feedbackPenalty + advisoryPenalty, pathSignature, signature: `${pathSignature}:${label ? `${label.x},${label.y}` : "none"}` };
     });
@@ -1156,11 +1182,12 @@ function directionFor(side: AnchorName): BoardPoint {
 
 function responsiveAnchor(anchor: AnchorName | undefined, fallback: AnchorName) {
   if (!anchor || anchor === "center") return fallback;
-  return anchorAxis(anchor) === anchorAxis(fallback) ? anchor : fallback;
+  return anchor === fallback ? anchor : fallback;
 }
 
-function anchorAxis(anchor: AnchorName) {
-  return anchor === "left" || anchor === "right" ? "horizontal" : "vertical";
+function describeConnector(connector: Connector) {
+  const relationship = `${connector.from.node} → ${connector.to.node}`;
+  return connector.label ? `connector “${connector.label}” (${relationship})` : `connector ${relationship}`;
 }
 
 function requiredLocalConnectorGap(node: VisualNode, connectors: Connector[], tokens: TokenOverrides) {
@@ -1177,6 +1204,25 @@ function requiredLocalConnectorGap(node: VisualNode, connectors: Connector[], to
 
 function containsVisualNode(node: VisualNode, id: string): boolean {
   return node.id === id || Boolean(node.children?.some((child) => containsVisualNode(child, id)));
+}
+
+function inferCompoundFeedback(root: VisualNode, connectors: Connector[], maxWidth: number) {
+  const children = root.children ?? [];
+  if (children.length < 2) return new Set<string>();
+  const owners = new Map<string, number>();
+  children.forEach((child, index) => collectVisualIds(child).forEach((id) => owners.set(id, index)));
+  const crossConnectors = connectors.filter(({ from, to }) => owners.get(from.node) !== undefined && owners.get(to.node) !== undefined && owners.get(from.node) !== owners.get(to.node));
+  if (!crossConnectors.length) return new Set<string>();
+  return planFlow(children.map((node) => ({ node, width: 1, height: 1 })), crossConnectors, {
+    direction: "auto",
+    gap: 1,
+    rankGap: 1,
+    maxWidth,
+  }).feedbackConnectorIds;
+}
+
+function collectVisualIds(node: VisualNode): string[] {
+  return [node.id, ...(node.children?.flatMap(collectVisualIds) ?? [])];
 }
 
 function innermostSharedFrame(from: string, to: string, elements: SolvedElement[]) {

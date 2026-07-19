@@ -45,10 +45,10 @@ export function planFlow(
     const toComponent = graph.componentByNode[edge.to]!;
     return fromComponent === toComponent ? edge.to <= edge.from : ranks[toComponent]! < ranks[fromComponent]!;
   }).map(({ connector }) => connector.id));
-  const rightSize = flowSize(items, orderedRanks, "right", options.gap, options.rankGap);
+  const rightSize = flowSize(items, orderedRanks, "right", options.gap, options.rankGap, primaryNodeIds);
   const direction = resolveDirection(options.direction, options.forceDown, rightSize.width, rightSize.height, options.maxWidth);
-  const size = direction === "right" ? rightSize : flowSize(items, orderedRanks, "down", options.gap, options.rankGap);
-  const placements = placeRanks(items, orderedRanks, direction, options.gap, options.rankGap, size, primaryNodeIds);
+  const size = direction === "right" ? rightSize : flowSize(items, orderedRanks, "down", options.gap, options.rankGap, primaryNodeIds);
+  const placements = placeRanks(items, orderedRanks, direction, options.gap, options.rankGap, primaryNodeIds);
   return { direction, ...size, placements, feedbackConnectorIds, primaryNodeIds, primaryConnectorIds };
 }
 
@@ -182,9 +182,18 @@ function primarySpine(graph: ComponentGraph, ranks: number[]) {
   return path.reverse();
 }
 
-function flowSize(items: FlowItem[], ranks: number[][], direction: "right" | "down", gap: number, rankGap: number) {
+function flowSize(items: FlowItem[], ranks: number[][], direction: "right" | "down", gap: number, rankGap: number, primaryNodeIds: Set<string>) {
   const primary = ranks.map((rank) => direction === "right" ? Math.max(...rank.map((index) => items[index]!.width), 0) : Math.max(...rank.map((index) => items[index]!.height), 0));
-  const cross = ranks.map((rank) => rank.reduce((total, index) => total + (direction === "right" ? items[index]!.height : items[index]!.width), 0) + gap * Math.max(0, rank.length - 1));
+  const spineCrossSize = flowSpineCrossSize(items, ranks, direction, primaryNodeIds);
+  const centerSpine = shouldCenterFlowSpine(items, ranks, primaryNodeIds);
+  const cross = ranks.map((sourceRank) => {
+    const rank = orderedRank(items, sourceRank, primaryNodeIds);
+    const spine = rank[0];
+    const satellites = rank.slice(1);
+    return (centerSpine || spine === undefined ? spineCrossSize : crossSize(items[spine]!, direction))
+      + satellites.reduce((total, index) => total + crossSize(items[index]!, direction), 0)
+      + gap * satellites.length;
+  });
   return direction === "right"
     ? { width: primary.reduce((sum, value) => sum + value, 0) + rankGap * Math.max(0, ranks.length - 1), height: Math.max(...cross, 0) }
     : { width: Math.max(...cross, 0), height: primary.reduce((sum, value) => sum + value, 0) + rankGap * Math.max(0, ranks.length - 1) };
@@ -202,28 +211,59 @@ function placeRanks(
   direction: "right" | "down",
   gap: number,
   rankGap: number,
-  size: { width: number; height: number },
   primaryNodeIds: Set<string>,
 ): FlowPlacement[] {
   const placements: FlowPlacement[] = [];
+  const spineCrossSize = flowSpineCrossSize(items, ranks, direction, primaryNodeIds);
+  const centerSpine = shouldCenterFlowSpine(items, ranks, primaryNodeIds);
   let primaryCursor = 0;
   ranks.forEach((sourceRank, rankIndex) => {
-    const rank = [...sourceRank].sort((a, b) => {
-      const aPrimary = primaryNodeIds.has(items[a]!.node.id) ? 0 : 1;
-      const bPrimary = primaryNodeIds.has(items[b]!.node.id) ? 0 : 1;
-      return aPrimary - bPrimary || a - b;
-    });
+    const rank = orderedRank(items, sourceRank, primaryNodeIds);
     const primarySize = Math.max(...rank.map((index) => direction === "right" ? items[index]!.width : items[index]!.height), 0);
-    // Align the primary spine to one stable top/left edge. Branches then sit
-    // below/right of their invoking rank instead of vertically recentering the
-    // entire diagram and making the main path snake.
-    let crossCursor = 0;
-    for (const index of rank) {
+    // Center the first (normally primary) item in a shared spine band so side
+    // pins remain exactly collinear even when card heights differ. Satellites
+    // still begin after that band, keeping branches below/right of the spine.
+    const [spine, ...satellites] = rank;
+    let rankSpineCrossSize = spineCrossSize;
+    if (spine !== undefined) {
+      const item = items[spine]!;
+      rankSpineCrossSize = centerSpine ? spineCrossSize : crossSize(item, direction);
+      const spineOffset = centerSpine ? (spineCrossSize - crossSize(item, direction)) / 2 : 0;
+      placements.push({ index: spine, rank: rankIndex, x: direction === "right" ? primaryCursor + (primarySize - item.width) / 2 : spineOffset, y: direction === "right" ? spineOffset : primaryCursor + (primarySize - item.height) / 2 });
+    }
+    let crossCursor = rankSpineCrossSize + (satellites.length ? gap : 0);
+    for (const index of satellites) {
       const item = items[index]!;
       placements.push({ index, rank: rankIndex, x: direction === "right" ? primaryCursor + (primarySize - item.width) / 2 : crossCursor, y: direction === "right" ? crossCursor : primaryCursor + (primarySize - item.height) / 2 });
-      crossCursor += (direction === "right" ? item.height : item.width) + gap;
+      crossCursor += crossSize(item, direction) + gap;
     }
     primaryCursor += primarySize + rankGap;
   });
   return placements.sort((a, b) => a.index - b.index);
+}
+
+function orderedRank(items: FlowItem[], sourceRank: number[], primaryNodeIds: Set<string>) {
+  return [...sourceRank].sort((a, b) => {
+    const aPrimary = primaryNodeIds.has(items[a]!.node.id) ? 0 : 1;
+    const bPrimary = primaryNodeIds.has(items[b]!.node.id) ? 0 : 1;
+    return aPrimary - bPrimary || a - b;
+  });
+}
+
+function flowSpineCrossSize(items: FlowItem[], ranks: number[][], direction: "right" | "down", primaryNodeIds: Set<string>) {
+  return Math.max(...ranks.map((rank) => {
+    const spine = orderedRank(items, rank, primaryNodeIds)[0];
+    return spine === undefined ? 0 : crossSize(items[spine]!, direction);
+  }), 0);
+}
+
+function shouldCenterFlowSpine(items: FlowItem[], ranks: number[][], primaryNodeIds: Set<string>) {
+  return ranks.every((rank) => {
+    const spine = orderedRank(items, rank, primaryNodeIds)[0];
+    return spine === undefined || !items[spine]!.node.children?.length;
+  });
+}
+
+function crossSize(item: FlowItem, direction: "right" | "down") {
+  return direction === "right" ? item.height : item.width;
 }

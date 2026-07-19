@@ -46,6 +46,26 @@ describe("canonical visual runtime", () => {
     expect(result.svg).not.toMatch(/data-livery-id="advice"[^>]*marker-end/);
   });
 
+  it("keeps unequal-height cards on a perfectly straight primary spine", () => {
+    const result = render(`figure research("AI research") {
+      user = person("User", variant: muted)
+      agent = agent("Research Agent", subtitle: "Plans and reasons", variant: soft, tone: info)
+      evidence = note("Evidence", variant: soft, tone: success)
+      answer = card("Cited Answer", subtitle: "Evidence checked", variant: solid)
+      request = connect(user.right, agent.left, label: "request", role: primary)
+      synthesize = connect(agent.right, evidence.left, label: "synthesize", role: primary)
+      response = connect(evidence.right, answer.left, label: "answer", role: primary)
+      flow(user, agent, evidence, answer, direction: right, gap: $space.md, rankGap: $space.lg)
+    }`, { width: 900 });
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.scene).toBeDefined();
+    for (const connector of result.scene!.connectors) {
+      expect(new Set(connector.points.map(({ y }) => y)).size, connector.id).toBe(1);
+      expect(connector.points).toHaveLength(2);
+    }
+  });
+
   it("exports SVG and JSON from the same solved visual scene", () => {
     const svg = exportVisual(visualSource, { format: "svg", width: 480 });
     const json = exportVisual(visualSource, { format: "json", width: 480 });

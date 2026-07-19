@@ -117,7 +117,7 @@ describe("solvePinboard", () => {
     expect(result.report.metrics.crossingCount).toBe(0);
   });
 
-  it("routes a cyclic native flow through reserved outer channels", () => {
+  it("keeps a cyclic native flow on local channels", () => {
     const compiled = compileVisual(`figure cycle {
       a = service("A")
       b = service("B")
@@ -130,7 +130,9 @@ describe("solvePinboard", () => {
     const result = solvePinboard(compiled.document!, { width: 900 });
     expect(result.ok, result.ok ? undefined : result.diagnostics.map(({ code }) => code).join(", ")).toBe(true);
     if (!result.ok) return;
-    expect(result.scene.connectors.find(({ id }) => id === "ca")?.channelIds.some((id) => id.startsWith("channel.outer."))).toBe(true);
+    const feedback = result.scene.connectors.find(({ id }) => id === "ca");
+    expect(feedback?.feedback).toBe(true);
+    expect(feedback?.channelIds.some((id) => id.startsWith("channel.outer."))).toBe(false);
   });
 
   it.each([320, 480, 720, 1024])("returns only validated scenes at %ipx", (width) => {
@@ -366,6 +368,86 @@ figure motion {
     if (!result.ok) return;
     expect(result.scene.connectors[0]).toMatchObject({ fromPin: "source.bottom", toPin: "target.top" });
   });
+
+  it("corrects authored pins that face away from the solved relationship", () => {
+    const compiled = compileVisual(`figure corrected_pins {
+ source = service("Source")
+ target = service("Target")
+ edge = source.left -> target.right("dispatch")
+ row(source, target, gap: xl)
+}`);
+    const result = solvePinboard(compiled.document!, { width: 560 });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.scene.connectors[0]).toMatchObject({ fromPin: "source.right", toPin: "target.left" });
+  });
+
+  it("keeps nested-grid measurement consistent with compact placement", () => {
+    const compiled = compileVisual(`figure nested_grid {
+ left = frame("Left", layout: grid, columns: 2, padding: sm) {
+  a = service("A")
+  b = service("B")
+  c = service("C")
+ }
+ right = frame("Right", layout: grid, columns: 2, padding: sm) {
+  d = service("D")
+  e = service("E")
+  f = service("F")
+ }
+ grid(left, right, columns: 2, gap: sm)
+}`);
+    const result = solvePinboard(compiled.document!, { width: 480 });
+    expect(result.ok, result.ok ? undefined : result.diagnostics.map(({ message }) => message).join(" ")).toBe(true);
+    if (!result.ok) return;
+    expect(result.report.diagnostics.map(({ code }) => code)).not.toContain("layout.component_collision");
+  });
+
+  it("routes a dense two-by-two checkout architecture without dropping reverse telemetry", () => {
+    const compiled = compileVisual(`figure resilient_checkout("Resilient checkout") {
+ ingress = frame("Ingress", layout: grid, columns: 2, gap: xs, padding: sm) {
+  customer = person("Customer", variant: muted)
+  gateway = service("Edge Gateway", variant: muted)
+  auth = service("Auth Service", variant: muted)
+ }
+ transaction = frame("Transaction", layout: grid, columns: 2, gap: xs, padding: sm) {
+  checkout = api("Checkout API", subtitle: "Creates order", variant: soft, tone: info)
+  payment = service("Payment Service", subtitle: "Authorizes funds", variant: muted)
+  orders = database("Orders DB", variant: muted)
+ }
+ operations = frame("Operations", layout: row, gap: xs, padding: sm) {
+  alerts = service("Alert Manager", variant: soft, tone: warning)
+  telemetry = list("Telemetry", items: ["Logs", "Metrics", "Traces"], variant: muted)
+ }
+ fulfillment = frame("Fulfillment", layout: grid, columns: 2, gap: xs, padding: sm) {
+  events = queue("Event Bus", variant: soft, tone: info)
+  inventory = worker("Inventory Worker", subtitle: "Reserves stock", variant: muted)
+  shipping = worker("Shipping Worker", subtitle: "Books carrier", variant: muted)
+  receipt = document("Receipt", variant: soft, tone: success)
+ }
+ connect(ingress.customer.right, ingress.gateway.left, role: primary)
+ connect(ingress.gateway.right, ingress.auth.left, role: primary)
+ connect(ingress.auth.right, transaction.checkout.left, role: primary, bundleId: auth)
+ connect(transaction.checkout.right, transaction.payment.left, role: primary)
+ connect(transaction.payment.bottom, fulfillment.events.top, role: primary, bundleId: payment)
+ connect(fulfillment.events.right, fulfillment.inventory.left, role: primary)
+ connect(fulfillment.inventory.bottom, fulfillment.shipping.top, role: primary)
+ connect(fulfillment.shipping.right, fulfillment.receipt.left, role: primary)
+ connect(ingress.auth.bottom, transaction.orders.left, label: "session", role: supporting, bundleId: auth)
+ connect(transaction.checkout.bottom, transaction.orders.top, label: "write", role: supporting, bundleId: orders)
+ connect(transaction.payment.bottom, transaction.orders.right, label: "payment", role: supporting, bundleId: orders)
+ connect(ingress.gateway.bottom, operations.telemetry.left, label: "traffic", role: supporting, bundleId: telemetry)
+ connect(transaction.payment.bottom, operations.telemetry.top, label: "latency", role: supporting, bundleId: payment)
+ connect(fulfillment.shipping.bottom, operations.telemetry.right, label: "delivery", role: supporting, bundleId: telemetry)
+ connect(operations.telemetry.right, operations.alerts.left, label: "threshold", role: supporting)
+ connect(operations.alerts.right, fulfillment.events.left, label: "replay", role: secondary)
+ grid(ingress, transaction, operations, fulfillment, columns: 2, gap: sm)
+}`);
+    const result = solvePinboard(compiled.document!, { width: 900, maxCandidates: 3 });
+    expect(result.ok, result.ok ? undefined : result.diagnostics.map(({ message }) => message).join(" ")).toBe(true);
+    if (!result.ok) return;
+    expect(result.scene.connectors).toHaveLength(16);
+    expect(result.report.metrics.crossingCount).toBe(0);
+  }, 30000);
 
   it("adapts mismatched pins and contains routes inside a vertically stacked frame", () => {
     const compiled = compileVisual(`figure deploy("Safe deploy") {

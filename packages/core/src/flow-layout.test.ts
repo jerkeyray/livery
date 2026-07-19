@@ -53,6 +53,28 @@ describe("native flow planner", () => {
     expect(byId.get("data")!.y).toBeGreaterThan(0);
   });
 
+  it("centers unequal primary cards on one straight connector axis", () => {
+    const input = [
+      { node: node("user"), width: 120, height: 88 },
+      { node: node("agent"), width: 160, height: 136 },
+      { node: node("evidence"), width: 150, height: 104 },
+      { node: node("answer"), width: 140, height: 120 },
+      { node: node("tools"), width: 150, height: 112 },
+    ];
+    const plan = planFlow(input, [
+      edge("request", "user", "agent", "primary"),
+      edge("synthesize", "agent", "evidence", "primary"),
+      edge("answer", "evidence", "answer", "primary"),
+      edge("research", "agent", "tools", "supporting"),
+      edge("findings", "tools", "evidence", "supporting"),
+    ], { direction: "right", gap: 24, rankGap: 48, maxWidth: 900 });
+
+    const byId = new Map(plan.placements.map((placement) => [input[placement.index]!.node.id, placement]));
+    const centerY = (id: string) => byId.get(id)!.y + input.find(({ node: item }) => item.id === id)!.height / 2;
+    expect(["user", "agent", "evidence", "answer"].map(centerY)).toEqual([68, 68, 68, 68]);
+    expect(byId.get("tools")!.y).toBeGreaterThan(136);
+  });
+
   it.each([12, 24, 48])("keeps a %i-node topology solve bounded", (count) => {
     const input = items(...Array.from({ length: count }, (_, index) => `n${index}`));
     const connectors = Array.from({ length: count - 1 }, (_, index) => edge(`e${index}`, `n${index}`, `n${index + 1}`, "primary"));
