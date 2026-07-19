@@ -388,7 +388,7 @@ function measure(
   const localMinimumGap = Math.max(minimumGap, requiredLocalConnectorGap(node, connectors, tokens));
   const columnGap = Math.max(root ? rootColumnGap : localMinimumGap, declaredGap);
   const rowGap = Math.max(root ? rootRowGap : localMinimumGap, declaredGap);
-  const children = node.children.map((child) => measure(child, innerMaxWidth, strategy, minimumGap, false, rootColumnGap, rootRowGap, theme, tokens, connectors));
+  let children = node.children.map((child) => measure(child, innerMaxWidth, strategy, minimumGap, false, rootColumnGap, rootRowGap, theme, tokens, connectors));
   const kind = effectiveLayout(node.layout?.kind ?? "row", strategy, root, children, innerMaxWidth, columnGap);
   const withFrame = (size: Size): Size => {
     if (!frame) return size;
@@ -410,6 +410,10 @@ function measure(
     });
   }
   if (node.layout?.kind === "hierarchy") {
+    const compactWidth = compactHierarchyItemWidth(node, connectors, innerMaxWidth, rowGap, children);
+    if (compactWidth !== undefined) {
+      children = node.children.map((child) => measure(child, compactWidth, strategy, minimumGap, false, rootColumnGap, rootRowGap, theme, tokens, connectors));
+    }
     const hierarchyWidth = !root && node.kind === "frame" && maxWidth >= 600
       ? Math.min(innerMaxWidth, Math.max(240, maxWidth * 0.42))
       : innerMaxWidth;
@@ -547,6 +551,10 @@ function place(node: VisualNode, x: number, y: number, width: number, height: nu
     return;
   }
   if (node.layout?.kind === "hierarchy") {
+    const compactWidth = compactHierarchyItemWidth(node, context.connectors, contentWidth, rowGap, sizes);
+    if (compactWidth !== undefined) {
+      sizes = node.children.map((child) => measure(child, compactWidth, strategy, context.minimumGap, false, context.rootColumnGap, context.rootRowGap, context.theme, context.tokens, context.connectors));
+    }
     const plan = planHierarchy(node.children.map((child, index) => ({ node: child, ...sizes[index]! })), context.connectors, {
       direction: hierarchyDirection(node, strategy),
       gap: rowGap,
@@ -1204,6 +1212,25 @@ function requiredLocalConnectorGap(node: VisualNode, connectors: Connector[], to
 
 function containsVisualNode(node: VisualNode, id: string): boolean {
   return node.id === id || Boolean(node.children?.some((child) => containsVisualNode(child, id)));
+}
+
+function compactHierarchyItemWidth(node: VisualNode, connectors: Connector[], availableWidth: number, gap: number, sizes: Size[]) {
+  const children = node.children ?? [];
+  if (children.length < 2 || children.some((child) => child.children?.length || child.kind === "frame")) return undefined;
+  const owners = new Map<string, number>();
+  children.forEach((child, index) => collectVisualIds(child).forEach((id) => owners.set(id, index)));
+  const outgoing = new Set<number>();
+  for (const connector of connectors) {
+    if (connector.role === "supporting" || connector.variant === "advisory") continue;
+    const from = owners.get(connector.from.node);
+    const to = owners.get(connector.to.node);
+    if (from !== undefined && to !== undefined && from !== to) outgoing.add(from);
+  }
+  const leafSlots = children.reduce((count, _, index) => count + (outgoing.has(index) ? 0 : 1), 0);
+  if (leafSlots < 2) return undefined;
+  const width = Math.floor((availableWidth - gap * (leafSlots - 1)) / leafSlots);
+  const currentMaximum = Math.max(...sizes.map(({ width: itemWidth }) => itemWidth), 0);
+  return width >= 96 && width < currentMaximum ? width : undefined;
 }
 
 function inferCompoundFeedback(root: VisualNode, connectors: Connector[], maxWidth: number) {

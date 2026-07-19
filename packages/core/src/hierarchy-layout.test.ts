@@ -18,6 +18,41 @@ describe("native hierarchy layout", () => {
     expect(plan.placements.map(({ index }) => index)).toEqual([0, 1, 2]);
   });
 
+  it("keeps wide balanced-tree siblings on their semantic ranks at 900px", () => {
+    const compiled = compileVisual(`figure b_tree("B-tree") {
+      rootNode = card("[20 | 40]", subtitle: "separator keys")
+      left = card("[10]", subtitle: "internal")
+      middle = card("[30]", subtitle: "internal")
+      right = card("[50 | 60]", subtitle: "internal")
+      l1 = card("[5 | 8]", subtitle: "leaf · same depth")
+      l2 = card("[12 | 15]", subtitle: "leaf · same depth")
+      m1 = card("[22 | 28]", subtitle: "leaf · same depth")
+      m2 = card("[35 | 38]", subtitle: "leaf · same depth")
+      r1 = card("[45 | 48]", subtitle: "leaf · same depth")
+      r2 = card("[55 | 58]", subtitle: "leaf · same depth")
+      r3 = card("[62 | 68]", subtitle: "leaf · same depth")
+      a = connect(rootNode.bottom, left.top, role: primary)
+      b = connect(rootNode.bottom, middle.top, role: primary)
+      c = connect(rootNode.bottom, right.top, role: primary)
+      d = connect(left.bottom, l1.top, role: primary)
+      e = connect(left.bottom, l2.top, role: primary)
+      f = connect(middle.bottom, m1.top, role: primary)
+      g = connect(middle.bottom, m2.top, role: primary)
+      h = connect(right.bottom, r1.top, role: primary)
+      i = connect(right.bottom, r2.top, role: primary)
+      j = connect(right.bottom, r3.top, role: primary)
+      hierarchy(rootNode, left, middle, right, l1, l2, m1, m2, r1, r2, r3, direction: down, gap: xs, rankGap: lg)
+    }`);
+    expect(compiled.diagnostics).toEqual([]);
+    const result = solvePinboard(compiled.document!, { width: 900 });
+    expect(result.ok, result.ok ? undefined : result.diagnostics.map(({ message }) => message).join(" ")).toBe(true);
+    if (!result.ok) return;
+    const y = (id: string) => result.scene.elements.find((element) => element.id === id)!.bounds.y;
+    expect(new Set(["left", "middle", "right"].map(y))).toHaveLength(1);
+    expect(new Set(["l1", "l2", "m1", "m2", "r1", "r2", "r3"].map(y))).toHaveLength(1);
+    expect(result.report.metrics.crossingCount).toBe(0);
+  });
+
   it("compiles and renders the complete university governance fixture at target widths", async () => {
     const source = await readFixture("university-governance");
     const compiled = compileVisual(source);

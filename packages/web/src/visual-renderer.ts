@@ -60,6 +60,7 @@ export function mountLiveryVisual(container: HTMLElement, source: string, option
   let identity: string | undefined;
   let revision: LiveryVisualRevision = { status: "empty", source, diagnostics: [] };
   let destroyed = false;
+  const revisionCache = new Map<string, { revision: LiveryVisualRevision; svg: string; identity: string }>();
 
   const parseSvg = (svg: string) => {
     const Parser = container.ownerDocument.defaultView?.DOMParser ?? DOMParser;
@@ -81,6 +82,17 @@ export function mountLiveryVisual(container: HTMLElement, source: string, option
       identity = undefined;
       container.replaceChildren();
       return publish({ status: "empty", source: nextSource, diagnostics: [] });
+    }
+    const cached = revisionCache.get(nextSource);
+    if (cached) {
+      const nextRendered = parseSvg(cached.svg);
+      if (rendered && identity === cached.identity) syncElementTree(rendered, nextRendered);
+      else {
+        rendered = nextRendered;
+        container.replaceChildren(rendered);
+      }
+      identity = cached.identity;
+      return publish(cached.revision);
     }
     const result = renderProgram(nextSource, {
       ...options,
@@ -105,14 +117,18 @@ export function mountLiveryVisual(container: HTMLElement, source: string, option
       container.replaceChildren(rendered);
     }
     identity = nextIdentity;
-    return publish({ status: "ready", source: nextSource, diagnostics: result.diagnostics, document: result.document, scene: result.scene });
+    const nextRevision = { status: "ready" as const, source: nextSource, diagnostics: result.diagnostics, document: result.document, scene: result.scene };
+    revisionCache.set(nextSource, { revision: nextRevision, svg: result.svg, identity: nextIdentity });
+    if (revisionCache.size > 20) revisionCache.delete(revisionCache.keys().next().value!);
+    return publish(nextRevision);
   };
 
   const initial = renderRevision(source);
 
   const setState = (stateId: string) => {
-    if (!rendered || !revision.scene || !revision.document) return;
     const nextStateId = stateId || undefined;
+    if (nextStateId === currentStateId) return;
+    if (!rendered || !revision.scene || !revision.document) return;
     const timeline = revision.document.timelines.find(({ id }) => id === options.timeline) ?? revision.document.timelines[0];
     const state = timeline && nextStateId ? computeTimelineState(timeline, nextStateId, revision.scene) : undefined;
     const next = parseSvg(boardSceneToSvg(revision.scene, {
@@ -128,6 +144,7 @@ export function mountLiveryVisual(container: HTMLElement, source: string, option
     syncElementTree(rendered, next);
     animatePresentation(rendered, before, duration);
     currentStateId = nextStateId;
+    revisionCache.clear();
   };
 
   const applyTheme = (theme: LiveryTheme | undefined) => {
@@ -135,6 +152,7 @@ export function mountLiveryVisual(container: HTMLElement, source: string, option
     if (nextTheme === currentTheme) return;
     const canRepaint = layoutThemeSignature(currentTheme) === layoutThemeSignature(nextTheme);
     currentTheme = nextTheme;
+    revisionCache.clear();
     if (!rendered || !revision.scene || !revision.document) return;
     if (!canRepaint) {
       renderRevision(currentSource);
@@ -161,6 +179,7 @@ export function mountLiveryVisual(container: HTMLElement, source: string, option
       const width = normalizedWidth(observedWidth);
       if (!destroyed && width !== currentWidth) {
         currentWidth = width;
+        revisionCache.clear();
         renderRevision(currentSource);
       }
     })

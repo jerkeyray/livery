@@ -64,6 +64,20 @@ describe("retained visual runtime", () => {
     expect(onRevision).toHaveBeenCalledTimes(1);
   });
 
+  it("reuses a successful revision when navigating back to it", () => {
+    const host = document.createElement("div");
+    const instance = mountLiveryVisual(host, source("First"), { width: 480 });
+    const firstScene = instance.revision.scene;
+    instance.setState("");
+
+    instance.update(source("Second"));
+    const restored = instance.update(source("First"));
+
+    expect(restored.status).toBe("ready");
+    expect(restored.scene).toBe(firstScene);
+    expect(host.textContent).toContain("First");
+  });
+
   it("re-solves responsive instances when observed width changes", () => {
     let callback: ResizeObserverCallback | undefined;
     class TestResizeObserver {
