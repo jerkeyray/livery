@@ -142,10 +142,16 @@ function buildCandidate(document: VisualDocument, width: number, strategy: Strat
   const rootX = padding + (availableWidth - rootWidth) / 2;
   const routeReserve = routingReserve(document.connectors, tokens);
   const constraintReserve = document.constraints.reduce((total, constraint) => total + constraintSpacing(constraint), 0);
-  const height = Math.ceil(Math.max(120, rootSize.height) + padding * 2 + routeReserve + constraintReserve);
+  let height = Math.ceil(Math.max(120, rootSize.height) + padding * 2 + routeReserve + constraintReserve);
   place(document.root, rootX, padding, rootWidth, rootSize.height, undefined, context, strategy, true);
   for (let pass = 0; pass < 8; pass += 1) applyConstraints(document.constraints, context);
   declareConstraintOverlaps(document.constraints, context);
+  height = Math.max(height, Math.ceil(Math.max(
+    ...context.elements.map(({ visualBounds }) => visualBounds.y + visualBounds.height),
+    ...context.canvases.flatMap(({ primitives }) => primitives.map(({ visualBounds }) => visualBounds.y + visualBounds.height)),
+    ...context.envelopes.map(({ y, height: envelopeHeight }) => y + envelopeHeight),
+    padding + 72,
+  ) + padding));
   context.channels.push(...buildChannels(context.envelopes, width, height, padding));
   const routing = routeConnectors(document.connectors, context, width, height, padding);
   const connectors = routing.ok ? routing.connectors : [];
