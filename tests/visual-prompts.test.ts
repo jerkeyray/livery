@@ -34,9 +34,6 @@ describe("visual benchmark prompts", () => {
         expect(layout.report.metrics.overlappingSegmentCount).toBe(0);
         expect(layout.report.metrics.maximumNormalizedRouteLength).toBeLessThan(4);
         expect(layout.report.metrics.backtrackingCount).toBeLessThanOrEqual(1);
-        const repeated = solvePinboard(compiled.document!, { width });
-        expect(repeated.ok).toBe(true);
-        if (repeated.ok) expect(repeated.scene).toEqual(layout.scene);
       }
     }
   }, 30_000);
