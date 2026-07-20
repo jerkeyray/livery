@@ -4,7 +4,7 @@ import { act, createElement, StrictMode } from "react";
 import { createRoot, hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { canonicalTheme, midnightTheme } from "@jerkeyray/core";
+import { canonicalTheme, midnightTheme } from "@liveryscript/core";
 import { LiveryChatVisual } from "./chat-visual.js";
 
 const validSource = `figure demo("Demo") {

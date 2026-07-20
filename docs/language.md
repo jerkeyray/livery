@@ -85,11 +85,11 @@ timeline checkout {
 ## APIs
 
 ```ts
-import { compileProgram, exportVisual, render } from "@jerkeyray/core";
+import { compileProgram, exportVisual, render } from "liveryscript";
 
 const compiled = compileProgram(source);
 const rendered = render(source, { width: 720, state: "complete" });
 const exported = exportVisual(source, { format: "svg", width: 720 });
 ```
 
-Use `exportVisualPng` from `@jerkeyray/export-node` for PNG output, `mountLiveryVisual` from `@jerkeyray/web` in framework-independent browser code, and `LiveryVisual` from `@jerkeyray/react` in React applications.
+Use `exportVisualPng` from `liveryscript/node` for PNG output, `mountLiveryVisual` from `liveryscript/web` in framework-independent browser code, and `LiveryVisual` from `liveryscript/react` in React applications.

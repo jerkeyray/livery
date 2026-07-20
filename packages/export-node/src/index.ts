@@ -8,7 +8,7 @@ import {
   type VisualRenderOptions,
   assertSvgResourcesAllowed,
   type ResourcePolicy,
-} from "@jerkeyray/core";
+} from "@liveryscript/core";
 
 export type PngRasterOptions = {
   background?: string;

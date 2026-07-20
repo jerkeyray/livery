@@ -24,15 +24,15 @@
       },
     },
     "apps/docs": {
-      "name": "@jerkeyray/docs",
+      "name": "@liveryscript/docs",
       "version": "0.1.0-alpha.0",
       "dependencies": {
-        "@jerkeyray/core": "workspace:*",
+        "@liveryscript/core": "workspace:*",
         "vitepress": "^1.6.4",
       },
     },
     "apps/playground": {
-      "name": "@jerkeyray/playground",
+      "name": "@liveryscript/playground",
       "version": "0.0.0",
       "dependencies": {
         "@codemirror/autocomplete": "^6.20.3",
@@ -42,10 +42,10 @@
         "@codemirror/view": "^6.43.6",
         "@fontsource/ibm-plex-mono": "^5.2.7",
         "@fontsource/inter": "^5.2.8",
-        "@jerkeyray/core": "workspace:*",
-        "@jerkeyray/react": "workspace:*",
-        "@jerkeyray/web": "workspace:*",
         "@lezer/highlight": "^1.2.3",
+        "@liveryscript/core": "workspace:*",
+        "@liveryscript/react": "workspace:*",
+        "@liveryscript/web": "workspace:*",
         "codemirror": "^6.0.2",
         "lucide-react": "^1.24.0",
         "react": "^19.0.0",
@@ -57,37 +57,67 @@
       },
     },
     "packages/cli": {
-      "name": "@jerkeyray/cli",
+      "name": "@liveryscript/cli",
       "version": "0.1.0-alpha.0",
       "bin": {
         "livery": "./dist/cli.mjs",
       },
       "dependencies": {
-        "@jerkeyray/core": "workspace:*",
-        "@jerkeyray/export-node": "workspace:*",
+        "@liveryscript/core": "0.1.0-alpha.0",
+        "@liveryscript/export-node": "0.1.0-alpha.0",
       },
     },
     "packages/core": {
-      "name": "@jerkeyray/core",
+      "name": "@liveryscript/core",
       "version": "0.1.0-alpha.0",
       "dependencies": {
         "zod": "^4.4.3",
       },
     },
     "packages/export-node": {
-      "name": "@jerkeyray/export-node",
+      "name": "@liveryscript/export-node",
       "version": "0.1.0-alpha.0",
       "dependencies": {
-        "@jerkeyray/core": "workspace:*",
+        "@liveryscript/core": "0.1.0-alpha.0",
         "@resvg/resvg-js": "2.6.2",
       },
     },
+    "packages/liveryscript": {
+      "name": "liveryscript",
+      "version": "0.1.0-alpha.0",
+      "bin": {
+        "livery": "./dist/cli.mjs",
+      },
+      "dependencies": {
+        "zod": "^4.4.3",
+      },
+      "devDependencies": {
+        "@liveryscript/cli": "workspace:*",
+        "@liveryscript/core": "workspace:*",
+        "@liveryscript/export-node": "workspace:*",
+        "@liveryscript/react": "workspace:*",
+        "@liveryscript/web": "workspace:*",
+        "@resvg/resvg-js": "2.6.2",
+        "react": "^19.0.0",
+        "react-dom": "^19.0.0",
+      },
+      "peerDependencies": {
+        "@resvg/resvg-js": "2.6.2",
+        "react": ">=18",
+        "react-dom": ">=18",
+      },
+      "optionalPeers": [
+        "@resvg/resvg-js",
+        "react",
+        "react-dom",
+      ],
+    },
     "packages/react": {
-      "name": "@jerkeyray/react",
+      "name": "@liveryscript/react",
       "version": "0.1.0-alpha.0",
       "dependencies": {
-        "@jerkeyray/core": "0.1.0-alpha.0",
-        "@jerkeyray/web": "0.1.0-alpha.0",
+        "@liveryscript/core": "0.1.0-alpha.0",
+        "@liveryscript/web": "0.1.0-alpha.0",
       },
       "devDependencies": {
         "react": "^19.0.0",
@@ -99,10 +129,10 @@
       },
     },
     "packages/web": {
-      "name": "@jerkeyray/web",
+      "name": "@liveryscript/web",
       "version": "0.1.0-alpha.0",
       "dependencies": {
-        "@jerkeyray/core": "0.1.0-alpha.0",
+        "@liveryscript/core": "0.1.0-alpha.0",
       },
     },
   },
@@ -287,20 +317,6 @@
 
     "@inquirer/external-editor": ["@inquirer/external-editor@1.0.3", "", { "dependencies": { "chardet": "^2.1.1", "iconv-lite": "^0.7.0" }, "peerDependencies": { "@types/node": ">=18" }, "optionalPeers": ["@types/node"] }, "sha512-RWbSrDiYmO4LbejWY7ttpxczuwQyZLBUyygsA9Nsv95hpzUWwnNTVQmAq3xuh7vNwCp07UTmE5i11XAEExx4RA=="],
 
-    "@jerkeyray/cli": ["@jerkeyray/cli@workspace:packages/cli"],
-
-    "@jerkeyray/core": ["@jerkeyray/core@workspace:packages/core"],
-
-    "@jerkeyray/docs": ["@jerkeyray/docs@workspace:apps/docs"],
-
-    "@jerkeyray/export-node": ["@jerkeyray/export-node@workspace:packages/export-node"],
-
-    "@jerkeyray/playground": ["@jerkeyray/playground@workspace:apps/playground"],
-
-    "@jerkeyray/react": ["@jerkeyray/react@workspace:packages/react"],
-
-    "@jerkeyray/web": ["@jerkeyray/web@workspace:packages/web"],
-
     "@jridgewell/resolve-uri": ["@jridgewell/resolve-uri@3.1.2", "", {}, "sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw=="],
 
     "@jridgewell/sourcemap-codec": ["@jridgewell/sourcemap-codec@1.5.5", "", {}, "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og=="],
@@ -312,6 +328,20 @@
     "@lezer/highlight": ["@lezer/highlight@1.2.3", "", { "dependencies": { "@lezer/common": "^1.3.0" } }, "sha512-qXdH7UqTvGfdVBINrgKhDsVTJTxactNNxLk7+UMwZhU13lMHaOBlJe9Vqp907ya56Y3+ed2tlqzys7jDkTmW0g=="],
 
     "@lezer/lr": ["@lezer/lr@1.4.10", "", { "dependencies": { "@lezer/common": "^1.0.0" } }, "sha512-rnCpTIBafOx4mRp43xOxDJbFipJm/c0cia/V5TiGlhmMa+wsSdoGmUN3w5Bqrks/09Q/D4tNAmWaT8p6NRi77A=="],
+
+    "@liveryscript/cli": ["@liveryscript/cli@workspace:packages/cli"],
+
+    "@liveryscript/core": ["@liveryscript/core@workspace:packages/core"],
+
+    "@liveryscript/docs": ["@liveryscript/docs@workspace:apps/docs"],
+
+    "@liveryscript/export-node": ["@liveryscript/export-node@workspace:packages/export-node"],
+
+    "@liveryscript/playground": ["@liveryscript/playground@workspace:apps/playground"],
+
+    "@liveryscript/react": ["@liveryscript/react@workspace:packages/react"],
+
+    "@liveryscript/web": ["@liveryscript/web@workspace:packages/web"],
 
     "@loaderkit/resolve": ["@loaderkit/resolve@1.0.6", "", { "dependencies": { "@braidai/lang": "^1.0.0" } }, "sha512-G8FdIoF5CypfwmD9rl8BXod5HDn8JqB0CCNBXDTaRZ+yRYhARrrSToX1zg1zy9jX3zLqigsELwhT4gNtkdQAUg=="],
 
@@ -822,6 +852,8 @@
     "lightningcss-win32-x64-msvc": ["lightningcss-win32-x64-msvc@1.32.0", "", { "os": "win32", "cpu": "x64" }, "sha512-Amq9B/SoZYdDi1kFrojnoqPLxYhQ4Wo5XiL8EVJrVsB8ARoC1PWW6VGtT0WKCemjy8aC+louJnjS7U18x3b06Q=="],
 
     "lilconfig": ["lilconfig@3.1.3", "", {}, "sha512-/vlFKAoH5Cgt3Ie+JLhRbwOsCQePABiU3tJ1egGvyQ+33R/vcwM2Zl2QR/LzjsBeItPt3oSVXapn+m4nQDvpzw=="],
+
+    "liveryscript": ["liveryscript@workspace:packages/liveryscript"],
 
     "locate-path": ["locate-path@5.0.0", "", { "dependencies": { "p-locate": "^4.1.0" } }, "sha512-t7hw9pI+WvuwNJXwk5zVHpyhIqzg2qTlklJOf0mVxGSbe3Fp2VieZcduNYjaLDoy6p9uGpQEGWG87WpMKlNq8g=="],
 

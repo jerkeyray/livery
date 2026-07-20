@@ -1,5 +1,5 @@
 {
-  "name": "@jerkeyray/docs",
+  "name": "@liveryscript/docs",
   "version": "0.1.0-alpha.0",
   "private": true,
   "type": "module",
@@ -9,7 +9,7 @@
     "typecheck": "bun ../../scripts/check-docs.ts"
   },
   "dependencies": {
-    "@jerkeyray/core": "workspace:*",
+    "@liveryscript/core": "workspace:*",
     "vitepress": "^1.6.4"
   }
 }

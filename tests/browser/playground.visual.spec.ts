@@ -7,7 +7,7 @@ test("desktop studio and timeline states remain visually coherent", async ({ pag
   const figure = page.getByRole("img", { name: /Checkout request/ });
   await expect(figure).toBeVisible();
   await expect(figure).toHaveAttribute("viewBox", "0 0 760 280");
-  await expect(figure.locator("title")).toHaveCount(0);
+  await expect(figure.locator("title")).toHaveText("Checkout request");
   await expectNoViewportOverflow(page);
   await expect(page).toHaveScreenshot("playground-desktop.png", { animations: "disabled" });
 
@@ -33,7 +33,7 @@ test("desktop studio and timeline states remain visually coherent", async ({ pag
   await expect(figure.locator('[data-livery-id="payment"]')).toHaveAttribute("opacity", "0");
 
   await page.getByRole("button", { name: "complete", exact: true }).click();
-  await expect(figure.locator('[data-livery-connector="persist"] path')).toHaveAttribute("stroke", "#15803d");
+  await expect(figure.locator('[data-livery-connector="persist"] path')).toHaveAttribute("stroke", "#49755c");
 });
 
 test("chat output reflows without clipping", async ({ page }) => {
@@ -70,7 +70,7 @@ test("dark mode persists while preserving the exported canvas", async ({ page })
   await page.goto("/");
   await page.getByRole("button", { name: "Use dark mode" }).click();
   await expect(page.locator(".studio")).toHaveAttribute("data-theme", "dark");
-  await expect(page.getByRole("img", { name: "Checkout request" }).locator(":scope > rect")).toHaveAttribute("fill", "#f8fafc");
+  await expect(page.getByRole("img", { name: "Checkout request" }).locator(":scope > rect")).toHaveAttribute("fill", "#f8f9fa");
   await expect(page).toHaveScreenshot("playground-dark.png", { animations: "disabled" });
   await page.reload();
   await expect(page.getByRole("button", { name: "Use light mode" })).toBeVisible();

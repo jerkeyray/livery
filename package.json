@@ -12,13 +12,13 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "bun run --filter '@jerkeyray/*' build",
-    "dev": "bun run --filter @jerkeyray/playground dev",
+    "build": "bun run --filter '@liveryscript/*' build && bun run --filter liveryscript build",
+    "dev": "bun run --filter @liveryscript/playground dev",
     "test": "vitest run",
     "test:visual": "playwright test",
     "test:packages": "bun run build && bun scripts/smoke-packages.ts",
     "test:watch": "vitest",
-    "typecheck": "tsc -p tsconfig.json && bun run --filter '@jerkeyray/*' typecheck",
+    "typecheck": "tsc -p tsconfig.json && bun run --filter '@liveryscript/*' typecheck && bun run --filter liveryscript typecheck",
     "bench:agent": "tsx scripts/benchmark-agent.ts",
     "bench:tokens": "tsx scripts/benchmark-tokens.ts",
     "eval:agent": "tsx scripts/evaluate-agents.ts",
@@ -26,8 +26,9 @@
     "changeset": "changeset",
     "version:packages": "changeset version",
     "release:packages": "changeset publish --tag alpha",
-    "lint:packages": "publint packages/core packages/web packages/react packages/export-node packages/cli && attw --profile esm-only --pack packages/core && attw --profile esm-only --exclude-entrypoints ./styles.css --pack packages/web && attw --profile esm-only --exclude-entrypoints ./styles.css --pack packages/react && attw --profile esm-only --pack packages/export-node && attw --profile esm-only --pack packages/cli",
-    "verify:release": "bun run typecheck && bun run test && bun run eval:agent && bun run docs:check && bun run build && bun run lint:packages && bun scripts/smoke-packages.ts"
+    "changeset:status": "changeset status",
+    "lint:packages": "publint packages/liveryscript && attw --profile esm-only --exclude-entrypoints ./styles.css --pack packages/liveryscript",
+    "verify:release": "bun run changeset:status && bun run typecheck && bun run test && bun run eval:agent && bun run docs:check && bun run build && bun run lint:packages && bun scripts/smoke-packages.ts"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",

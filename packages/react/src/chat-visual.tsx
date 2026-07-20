@@ -1,4 +1,4 @@
-import type { LiveryVisualRevision } from "@jerkeyray/web";
+import type { LiveryVisualRevision } from "@liveryscript/web";
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import { LiveryVisual, type LiveryVisualProps } from "./visual.js";
 

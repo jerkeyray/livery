@@ -1,0 +1,69 @@
+{
+  "name": "liveryscript",
+  "version": "0.1.0-alpha.0",
+  "description": "Validated programmable visuals for agents, React, browsers, Node, and the command line.",
+  "license": "MIT",
+  "author": "Aditya Srivastava",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jerkeyray/livery.git",
+    "directory": "packages/liveryscript"
+  },
+  "homepage": "https://livery.jerkeyray.com",
+  "bugs": { "url": "https://github.com/jerkeyray/livery/issues" },
+  "keywords": ["agents", "diagrams", "visualization", "dsl", "react", "svg"],
+  "type": "module",
+  "sideEffects": ["**/*.css"],
+  "bin": {
+    "livery": "./dist/cli.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./web": {
+      "types": "./dist/web.d.mts",
+      "import": "./dist/web.mjs"
+    },
+    "./react": {
+      "types": "./dist/react.d.mts",
+      "import": "./dist/react.mjs"
+    },
+    "./node": {
+      "types": "./dist/node.d.mts",
+      "import": "./dist/node.mjs"
+    },
+    "./styles.css": "./dist/style.css"
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "engines": { "node": ">=22" },
+  "publishConfig": { "access": "public", "provenance": true, "tag": "alpha" },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "@resvg/resvg-js": "2.6.2",
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "@resvg/resvg-js": { "optional": true },
+    "react": { "optional": true },
+    "react-dom": { "optional": true }
+  },
+  "devDependencies": {
+    "@liveryscript/cli": "workspace:*",
+    "@liveryscript/core": "workspace:*",
+    "@liveryscript/export-node": "workspace:*",
+    "@liveryscript/react": "workspace:*",
+    "@liveryscript/web": "workspace:*",
+    "@resvg/resvg-js": "2.6.2",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}

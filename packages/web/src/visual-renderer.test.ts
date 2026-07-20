@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { describe, expect, it, vi } from "vitest";
-import { canonicalTheme, midnightTheme } from "@jerkeyray/core";
+import { canonicalTheme, midnightTheme } from "@liveryscript/core";
 import { mountLiveryVisual } from "./visual-renderer.js";
 
 const source = (label = "API") => `figure demo("Demo") {

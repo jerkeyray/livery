@@ -1,6 +1,7 @@
 {
-  "name": "@jerkeyray/react",
+  "name": "@liveryscript/react",
   "version": "0.1.0-alpha.0",
+  "private": true,
   "description": "React renderer for token-efficient Livery diagrams and visual stories.",
   "license": "MIT",
   "author": "Aditya Srivastava",
@@ -19,14 +20,13 @@
   },
   "files": ["dist", "README.md", "LICENSE"],
   "engines": { "node": ">=22" },
-  "publishConfig": { "access": "public" },
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@jerkeyray/core": "0.1.0-alpha.0",
-    "@jerkeyray/web": "0.1.0-alpha.0"
+    "@liveryscript/core": "0.1.0-alpha.0",
+    "@liveryscript/web": "0.1.0-alpha.0"
   },
   "peerDependencies": {
     "react": ">=18",

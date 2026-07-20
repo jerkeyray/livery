@@ -1,9 +1,9 @@
-# @jerkeyray/export-node
+# @liveryscript/export-node
 
-Optional PNG export for Node.js and Bun, powered by resvg. Core SVG and JSON exports remain available from `@jerkeyray/core` without this native dependency.
+Optional PNG export for Node.js and Bun, powered by resvg. Core SVG and JSON exports remain available from `@liveryscript/core` without this native dependency.
 
 ```ts
-import { exportVisualPng } from "@jerkeyray/export-node";
+import { exportVisualPng } from "@liveryscript/export-node";
 
 const result = exportVisualPng(`figure hello("Hello") {
   note = box("Portable PNG", fill: "#f8fafc")

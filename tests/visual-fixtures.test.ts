@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { compileVisual, solvePinboard } from "@jerkeyray/core";
+import { compileVisual, solvePinboard } from "@liveryscript/core";
 
 describe("programmable visual fixtures", () => {
   for (const file of readdirSync(resolve("fixtures/visual")).sort()) {

@@ -5,7 +5,7 @@ import {
   compileVisual,
   computeTimelineState,
   solvePinboard,
-} from "@jerkeyray/core";
+} from "@liveryscript/core";
 import { describe, expect, it } from "vitest";
 
 const proofFixtures = [

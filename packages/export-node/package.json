@@ -1,6 +1,7 @@
 {
-  "name": "@jerkeyray/export-node",
+  "name": "@liveryscript/export-node",
   "version": "0.1.0-alpha.0",
+  "private": true,
   "description": "Optional Node and Bun PNG export adapter for Livery visuals.",
   "license": "MIT",
   "author": "Aditya Srivastava",
@@ -18,13 +19,12 @@
   },
   "files": ["dist", "README.md", "LICENSE"],
   "engines": { "node": ">=22" },
-  "publishConfig": { "access": "public" },
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@jerkeyray/core": "0.1.0-alpha.0",
+    "@liveryscript/core": "0.1.0-alpha.0",
     "@resvg/resvg-js": "2.6.2"
   }
 }

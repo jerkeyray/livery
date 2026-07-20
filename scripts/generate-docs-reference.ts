@@ -1,7 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { getLanguageCatalog } from "@jerkeyray/core";
+import { getLanguageCatalog } from "@liveryscript/core";
 
 const catalog = getLanguageCatalog();
 const formatParameter = (parameter: (typeof catalog.calls)[number]["named"][number]) => {

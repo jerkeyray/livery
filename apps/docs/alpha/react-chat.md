@@ -3,7 +3,7 @@
 `LiveryChatVisual` retains the last valid figure while tokens stream and shows your fallback only when completed source is invalid.
 
 ```tsx
-import { LiveryChatVisual } from "@jerkeyray/react";
+import { LiveryChatVisual } from "liveryscript/react";
 
 <LiveryChatVisual
   source={streamedSource}

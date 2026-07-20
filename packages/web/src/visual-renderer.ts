@@ -10,7 +10,7 @@ import {
   type ResourcePolicy,
   type TokenOverrides,
   type VisualDocument,
-} from "@jerkeyray/core";
+} from "@liveryscript/core";
 
 export type LiveryVisualOptions = {
   theme?: LiveryTheme;

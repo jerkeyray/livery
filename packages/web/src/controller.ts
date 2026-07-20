@@ -1,4 +1,4 @@
-import { CompilerSession, type CompileRevision, type LiveryArtifact, type LiverySource } from "@jerkeyray/core";
+import { CompilerSession, type CompileRevision, type LiveryArtifact, type LiverySource } from "@liveryscript/core";
 
 export type LiveryControllerOptions = {
   retainLastValid?: boolean;

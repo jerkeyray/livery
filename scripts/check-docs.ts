@@ -1,7 +1,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { compileProgram } from "@jerkeyray/core";
+import { compileProgram } from "@liveryscript/core";
 
 const repositoryRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const root = path.join(repositoryRoot, "apps/docs");

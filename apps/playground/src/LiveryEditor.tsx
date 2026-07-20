@@ -5,7 +5,7 @@ import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { basicSetup } from "codemirror";
 import { useLayoutEffect, useRef } from "react";
-import { applyDiagnosticFix, getLanguageCatalog, type Diagnostic } from "@jerkeyray/core";
+import { applyDiagnosticFix, getLanguageCatalog, type Diagnostic } from "@liveryscript/core";
 import { tags } from "@lezer/highlight";
 
 const catalog = getLanguageCatalog();

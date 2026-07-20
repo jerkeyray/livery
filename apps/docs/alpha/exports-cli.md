@@ -1,8 +1,8 @@
 # Exports and CLI
 
 ```ts
-import { exportVisual } from "@jerkeyray/core";
-import { exportVisualPng } from "@jerkeyray/export-node";
+import { exportVisual } from "liveryscript";
+import { exportVisualPng } from "liveryscript/node";
 
 const svg = exportVisual(source, { format: "svg", width: 720 });
 const png = exportVisualPng(source, { width: 720, scale: 2 });

@@ -1,10 +1,10 @@
-# @jerkeyray/react
+# @liveryscript/react
 
 React wrapper for the retained Livery visual renderer. Controlled timeline state changes preserve stable SVG nodes.
 
 ```tsx
-import { LiveryVisual } from "@jerkeyray/react";
-import "@jerkeyray/react/styles.css";
+import { LiveryVisual } from "@liveryscript/react";
+import "@liveryscript/react/styles.css";
 
 export function Visual() {
   return <LiveryVisual source={`figure hello("Hello") {

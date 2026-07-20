@@ -1,4 +1,4 @@
-import type { LayoutAdapter, LayoutRequest, LiveryArtifact, Scene } from "@jerkeyray/core";
+import type { LayoutAdapter, LayoutRequest, LiveryArtifact, Scene } from "@liveryscript/core";
 
 export type LayoutControllerRevision = {
   adapterId: string;

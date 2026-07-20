@@ -1,6 +1,7 @@
 {
-  "name": "@jerkeyray/core",
+  "name": "@liveryscript/core",
   "version": "0.1.0-alpha.0",
+  "private": true,
   "description": "Compiler, layout contracts, headless rendering, and portable exports for Livery visuals.",
   "license": "MIT",
   "author": "Aditya Srivastava",
@@ -18,7 +19,6 @@
   },
   "files": ["dist", "README.md", "LICENSE"],
   "engines": { "node": ">=22" },
-  "publishConfig": { "access": "public" },
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json"

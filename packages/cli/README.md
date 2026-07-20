@@ -1,4 +1,4 @@
-# @jerkeyray/cli
+# @liveryscript/cli
 
 Command-line renderer for Livery source files. It emits SVG, deterministic JSON, or PNG and supports stdin for agent and CI workflows.
 

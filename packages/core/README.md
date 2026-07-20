@@ -1,9 +1,9 @@
-# @jerkeyray/core
+# @liveryscript/core
 
 Compiler, validated pinboard layout, timeline evaluation, and deterministic SVG/JSON exports for the Livery programmable visual language. This package has no framework dependency.
 
 ```ts
-import { exportVisual, render } from "@jerkeyray/core";
+import { exportVisual, render } from "@liveryscript/core";
 
 const source = `figure hello("Hello") {
   user = person("Builder")

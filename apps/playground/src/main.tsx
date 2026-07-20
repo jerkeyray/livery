@@ -1,8 +1,8 @@
 import { StrictMode, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { compileVisual, formatVisualDocument, render } from "@jerkeyray/core";
-import { LiveryVisual } from "@jerkeyray/react";
-import { mountLiveryVisual, type LiveryVisualInstance } from "@jerkeyray/web";
+import { compileVisual, formatVisualDocument, render } from "@liveryscript/core";
+import { LiveryVisual } from "@liveryscript/react";
+import { mountLiveryVisual, type LiveryVisualInstance } from "@liveryscript/web";
 import { AlignLeft, Bug, Check, ChevronLeft, ChevronRight, Code2, Copy, Download, Eye, Library, Maximize2, Minus, Moon, PanelLeftClose, PanelLeftOpen, Pause, Play, Plus, Settings2, Sun, TriangleAlert } from "lucide-react";
 
 import "@fontsource/inter/latin-400.css";
@@ -10,8 +10,8 @@ import "@fontsource/inter/latin-600.css";
 import "@fontsource/inter/latin-700.css";
 import "@fontsource/ibm-plex-mono/latin-400.css";
 import "@fontsource/ibm-plex-mono/latin-600.css";
-import "@jerkeyray/web/styles.css";
-import "@jerkeyray/react/styles.css";
+import "@liveryscript/web/styles.css";
+import "@liveryscript/react/styles.css";
 import "./styles.css";
 import { LiveryEditor } from "./LiveryEditor.js";
 import agentTraceSource from "../../../fixtures/visual/agent-trace.livery?raw";

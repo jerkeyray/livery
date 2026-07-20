@@ -1,4 +1,4 @@
-@import "@jerkeyray/web/styles.css";
+@import "@liveryscript/web/styles.css";
 
 .livery-chat-visual { display: grid; min-width: 0; gap: 8px; }
 .livery-chat-visual-stage[hidden] { display: none; }

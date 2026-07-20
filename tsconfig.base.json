@@ -15,11 +15,11 @@
     "noImplicitOverride": true,
     "noUncheckedIndexedAccess": true,
     "paths": {
-      "@jerkeyray/core": ["packages/core/src/index.ts"],
-      "@jerkeyray/export-node": ["packages/export-node/src/index.ts"],
-      "@jerkeyray/react": ["packages/react/src/index.ts"],
-      "@jerkeyray/web": ["packages/web/src/index.ts"],
-      "@jerkeyray/web/*": ["packages/web/src/*.ts"]
+      "@liveryscript/core": ["packages/core/src/index.ts"],
+      "@liveryscript/export-node": ["packages/export-node/src/index.ts"],
+      "@liveryscript/react": ["packages/react/src/index.ts"],
+      "@liveryscript/web": ["packages/web/src/index.ts"],
+      "@liveryscript/web/*": ["packages/web/src/*.ts"]
     },
     "resolveJsonModule": true,
     "skipLibCheck": true,

@@ -8,8 +8,7 @@ import {
   type BuiltInThemeName,
   type Diagnostic,
   type HeadlessExportFormat,
-} from "@jerkeyray/core";
-import { exportVisualPng } from "@jerkeyray/export-node";
+} from "@liveryscript/core";
 
 export type CliOptions = {
   format: HeadlessExportFormat | "png";
@@ -145,7 +144,7 @@ export async function runCli(argv: string[], io: CliIo = nodeIo): Promise<number
       return 0;
     }
     const result = options.format === "png"
-      ? exportVisualPng(source, {
+      ? (await loadPngExporter())(source, {
           ...(options.outputWidth !== undefined ? { outputWidth: options.outputWidth } : {}),
           ...(options.scale !== undefined ? { scale: options.scale } : {}),
           theme: getBuiltInTheme(options.theme),
@@ -167,6 +166,19 @@ export async function runCli(argv: string[], io: CliIo = nodeIo): Promise<number
   } catch (error) {
     io.stderr(`${errorMessage(error)}\n`);
     return 1;
+  }
+}
+
+async function loadPngExporter() {
+  try {
+    const { exportVisualPng } = await import("@liveryscript/export-node");
+    return exportVisualPng;
+  } catch (error) {
+    const message = errorMessage(error);
+    if (message.includes("@resvg/resvg-js") || message.includes("Cannot find package") || message.includes("Cannot find module")) {
+      throw new Error("PNG export requires the optional @resvg/resvg-js package. Install it with `bun add @resvg/resvg-js`.");
+    }
+    throw error;
   }
 }
 

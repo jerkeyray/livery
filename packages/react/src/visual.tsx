@@ -3,7 +3,7 @@ import {
   type LiveryVisualInstance,
   type LiveryVisualOptions,
   type LiveryVisualRevision,
-} from "@jerkeyray/web";
+} from "@liveryscript/web";
 import { useEffect, useRef } from "react";
 
 export type LiveryVisualProps = Omit<LiveryVisualOptions, "onDiagnostics" | "onRevision"> & {

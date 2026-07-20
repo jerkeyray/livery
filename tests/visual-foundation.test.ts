@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blackoutTheme, blueprintTheme, editorialTheme, midnightTheme, monochromeTheme, paperTheme, render } from "@jerkeyray/core";
+import { blackoutTheme, blueprintTheme, editorialTheme, midnightTheme, monochromeTheme, paperTheme, render } from "@liveryscript/core";
 
 const source = `figure foundation("Visual foundation") {
   normal = service("Default", subtitle: "Neutral")

@@ -3,7 +3,7 @@
 Use the generated guide rather than maintaining a copied grammar prompt:
 
 ```ts
-import { createAgentGuide, createRepairPrompt } from "@jerkeyray/core";
+import { createAgentGuide, createRepairPrompt } from "liveryscript";
 
 const guide = createAgentGuide({ mode: "compact" });
 const repair = createRepairPrompt(source, diagnostics);

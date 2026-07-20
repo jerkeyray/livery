@@ -1,4 +1,4 @@
-import { compile, fastFlowLayoutAdapter, type LayoutAdapter, type Scene } from "@jerkeyray/core";
+import { compile, fastFlowLayoutAdapter, type LayoutAdapter, type Scene } from "@liveryscript/core";
 import { describe, expect, it, vi } from "vitest";
 
 import { LayoutController } from "./layout-controller.js";

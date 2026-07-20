@@ -3,12 +3,13 @@
 Install the React package and its runtime CSS:
 
 ```sh
-bun add @jerkeyray/react
+# after npm publication is verified
+bun add liveryscript
 ```
 
 ```tsx
-import { LiveryVisual } from "@jerkeyray/react";
-import "@jerkeyray/react/styles.css";
+import { LiveryVisual } from "liveryscript/react";
+import "liveryscript/styles.css";
 
 export function Figure({ source }: { source: string }) {
   return <LiveryVisual source={source} />;

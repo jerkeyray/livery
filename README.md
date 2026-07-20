@@ -17,9 +17,9 @@
 </p>
 
 <p>
-  <a href="https://jerkeyray.github.io/livery/">Documentation</a> &middot;
-  <a href="https://jerkeyray.github.io/livery/alpha/language">Language guide</a> &middot;
-  <a href="https://jerkeyray.github.io/livery/alpha/gallery">Gallery</a>
+  <a href="https://livery.jerkeyray.com/docs">Documentation</a> &middot;
+  <a href="https://livery.jerkeyray.com/docs/language">Language guide</a> &middot;
+  <a href="https://livery.jerkeyray.com/studio">Studio</a>
 </p>
 
 </div>
@@ -54,23 +54,26 @@ If no valid scene can be produced, Livery returns typed diagnostics instead of d
 - **Agent tooling:** a machine-readable language catalog, compact generation guide, structured diagnostics, and deterministic repair edits.
 - **Sandboxed evaluation:** bounded expansion and resource policies with remote images disabled by default.
 
-## Install
+## Public preview
 
-For React applications:
+LiveryScript is not yet published to npm. Try the hosted [Studio](https://livery.jerkeyray.com/studio), or run the current source checkout:
 
 ```sh
-bun add @jerkeyray/react
+git clone https://github.com/jerkeyray/livery.git
+cd livery
+bun install
+bun run build
 ```
 
-Livery is currently a public alpha. The single-file language is frozen for the alpha cycle, while runtime APIs may receive additive changes.
+Once `npm view liveryscript` confirms the alpha is available, installation will be `bun add liveryscript`. PNG additionally requires `bun add @resvg/resvg-js`. Until then, package installation commands are preview documentation rather than a registry availability claim.
 
 ## React quickstart
 
 `LiveryChatVisual` is the opinionated path for streamed agent output. It debounces compilation, retains the last valid scene during generation, responds to container width, and adds accessible timeline controls when states exist.
 
 ```tsx
-import { LiveryChatVisual } from "@jerkeyray/react";
-import "@jerkeyray/react/styles.css";
+import { LiveryChatVisual } from "liveryscript/react";
+import "liveryscript/styles.css";
 
 export function AssistantVisual({
   source,
@@ -92,8 +95,8 @@ export function AssistantVisual({
 Use `LiveryVisual` for a lower-level controlled renderer:
 
 ```tsx
-import { LiveryVisual } from "@jerkeyray/react";
-import "@jerkeyray/react/styles.css";
+import { LiveryVisual } from "liveryscript/react";
+import "liveryscript/styles.css";
 
 export function Figure({ source }: { source: string }) {
   return <LiveryVisual source={source} width={720} />;
@@ -140,10 +143,10 @@ Components such as `database` and `service` are library conveniences, not compil
 
 ## Headless rendering
 
-`@jerkeyray/core` compiles, validates, renders, and exports without a framework dependency:
+The LiveryScript root compiles, validates, renders, and exports without a framework dependency:
 
 ```ts
-import { exportVisual, render } from "@jerkeyray/core";
+import { exportVisual, render } from "liveryscript";
 
 const result = render(source, { width: 720 });
 
@@ -159,30 +162,29 @@ const exported = exportVisual(source, {
 const svg = exported.output;
 ```
 
-Node and Bun PNG export is available through `@jerkeyray/export-node`. The CLI can render `.livery` files to SVG, PNG, or deterministic scene JSON.
+Node and Bun PNG export is available through `liveryscript/node`. The `livery` CLI renders `.livery` files to SVG, PNG, or deterministic scene JSON. PNG support loads lazily and requires the optional `@resvg/resvg-js` package; SVG and JSON do not.
 
-## Packages
+## One package, focused entry points
 
-| Package | Purpose |
+| Entry point | Purpose |
 | --- | --- |
-| `@jerkeyray/core` | Language parser, compiler, pinboard solver, validation, themes, timelines, and portable exports |
-| `@jerkeyray/web` | Framework-independent retained browser runtime |
-| `@jerkeyray/react` | React renderer and chat-oriented streaming component |
-| `@jerkeyray/export-node` | Optional Node and Bun PNG export adapter |
-| `@jerkeyray/cli` | Command-line validation and export |
+| `liveryscript` | Language parser, compiler, pinboard solver, validation, themes, timelines, catalog, agent helpers, and portable exports |
+| `liveryscript/web` | Framework-independent retained browser runtime |
+| `liveryscript/react` | React renderer and chat-oriented streaming component |
+| `liveryscript/node` | Optional Node and Bun PNG export adapter |
+| `liveryscript/styles.css` | Combined Web and React runtime styles |
+| `livery` | Command-line validation and SVG, JSON, or optional PNG export |
 
-All public packages are versioned together.
+The implementation remains separated into private workspaces, but consumers install only `liveryscript`.
 
 ## Documentation
 
-- [Quickstart](https://jerkeyray.github.io/livery/alpha/quickstart)
-- [React chat integration](https://jerkeyray.github.io/livery/alpha/react-chat)
-- [Agent prompting](https://jerkeyray.github.io/livery/alpha/agent-prompting)
-- [Language reference](https://jerkeyray.github.io/livery/alpha/language)
-- [Canvas and primitives](https://jerkeyray.github.io/livery/alpha/canvas)
-- [Timelines](https://jerkeyray.github.io/livery/alpha/timelines)
-- [Limits and security](https://jerkeyray.github.io/livery/alpha/limits-security)
-- [Exports and CLI](https://jerkeyray.github.io/livery/alpha/exports-cli)
+- [Start](https://livery.jerkeyray.com/docs/start)
+- [Language reference](https://livery.jerkeyray.com/docs/language)
+- [SDKs and tooling](https://livery.jerkeyray.com/docs/sdks)
+- [Generate with agents](https://livery.jerkeyray.com/docs/agents)
+- [Architecture](https://livery.jerkeyray.com/docs/architecture)
+- [Operations and release status](https://livery.jerkeyray.com/docs/operations)
 
 ## Development
 
@@ -206,7 +208,7 @@ bun run test:packages
 
 ## Status
 
-Livery is pre-1.0 and aimed first at independent React and chat application builders. The current alpha prioritizes deterministic static and state-based visuals. Imports, third-party component packages, additional themes, and advanced motion remain intentionally deferred.
+Livery is pre-1.0 and currently a public preview. The source and hosted Studio are ready for evaluation; the npm alpha remains pending until trusted publication and clean npm/Bun installs are verified. The current alpha prioritizes deterministic static and state-based visuals. Imports, third-party component packages, additional themes, and advanced motion remain intentionally deferred.
 
 ## License
 

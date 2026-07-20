@@ -1,6 +1,7 @@
 {
-  "name": "@jerkeyray/cli",
+  "name": "@liveryscript/cli",
   "version": "0.1.0-alpha.0",
+  "private": true,
   "description": "Command-line renderer for Livery DSL files, SVG, JSON, and PNG.",
   "license": "MIT",
   "author": "Aditya Srivastava",
@@ -20,13 +21,12 @@
   },
   "files": ["dist", "README.md", "LICENSE"],
   "engines": { "node": ">=22" },
-  "publishConfig": { "access": "public" },
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@jerkeyray/core": "0.1.0-alpha.0",
-    "@jerkeyray/export-node": "0.1.0-alpha.0"
+    "@liveryscript/core": "0.1.0-alpha.0",
+    "@liveryscript/export-node": "0.1.0-alpha.0"
   }
 }

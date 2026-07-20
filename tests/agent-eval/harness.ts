@@ -3,7 +3,7 @@ import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { pathToFileURL } from "node:url";
 import { encode } from "gpt-tokenizer";
-import { compileProgram, createAgentGuide, createRepairPrompt, render, type VisualDocument, type VisualNode } from "@jerkeyray/core";
+import { compileProgram, createAgentGuide, createRepairPrompt, render, type VisualDocument, type VisualNode } from "@liveryscript/core";
 import { agentEvalCases, type AgentEvalCase, type AgentSemanticAssertions } from "./cases.js";
 
 export type AgentEvalAdapter = {
