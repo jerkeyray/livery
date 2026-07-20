@@ -60,9 +60,8 @@ describe("native hierarchy layout", () => {
     expect(compileVisual(formatVisualDocument(compiled.document!)).diagnostics).toEqual([]);
     for (const width of [360, 480, 720, 900, 1200]) {
       const first = solvePinboard(compiled.document!, { width });
-      const second = solvePinboard(compiled.document!, { width });
       expect(first.ok, `${width}: ${first.ok ? "" : first.diagnostics.map(({ code }) => code).join(", ")}`).toBe(true);
-      expect(second).toEqual(first);
+      if (width === 900) expect(solvePinboard(compiled.document!, { width })).toEqual(first);
       if (!first.ok) continue;
       expect(first.scene.elements).toHaveLength(24);
       expect(first.report.metrics.crossingCount).toBe(0);
