@@ -15,6 +15,7 @@
     "noImplicitOverride": true,
     "noUncheckedIndexedAccess": true,
     "paths": {
+      "@liveryscript/cli": ["packages/cli/src/index.ts"],
       "@liveryscript/core": ["packages/core/src/index.ts"],
       "@liveryscript/export-node": ["packages/export-node/src/index.ts"],
       "@liveryscript/react": ["packages/react/src/index.ts"],
