@@ -3,8 +3,8 @@ import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { pathToFileURL } from "node:url";
 import { encode } from "gpt-tokenizer";
-import { compileProgram, createAgentGuide, createRepairPrompt, render, type VisualDocument, type VisualNode } from "@liveryscript/core";
-import { agentEvalCases, type AgentEvalCase, type AgentSemanticAssertions } from "./cases.js";
+import { compileProgram, createAgentGuide, createRepairPrompt, render, renderVisualPlan, visualPlanSchema, type VisualDocument, type VisualNode } from "@liveryscript/core";
+import { agentEvalCases, agentPlanEvalCases, type AgentEvalCase, type AgentSemanticAssertions } from "./cases.js";
 
 export type AgentEvalAdapter = {
   id: string;
@@ -28,9 +28,11 @@ export type AgentEvalRecord = {
 
 export type AgentEvalReport = {
   records: AgentEvalRecord[];
+  planRecords: Array<{ id: string; valid: boolean; rendered: boolean; responsive: boolean; diagnostics: string[] }>;
   guideTokens: number;
   checkoutTokens: number;
   rates: { firstPass: number; repaired: number; responsive: number; semantic: number };
+  planRates: { valid: number; rendered: number; responsive: number };
   passed: boolean;
 };
 
@@ -54,12 +56,34 @@ export async function evaluateAgentCases(adapter?: AgentEvalAdapter): Promise<Ag
   };
   const checkoutTokens = encode(await readFile(path.resolve("fixtures/comparisons/checkout.livery"), "utf8")).length;
   const guideTokens = encode(guide).length;
+  const planRecords = agentPlanEvalCases.map(({ id, plan }) => {
+    const valid = visualPlanSchema.safeParse(plan).success;
+    const standard = renderVisualPlan(plan, { width: 720 });
+    const compact = renderVisualPlan(plan, { width: 320 });
+    return {
+      id,
+      valid,
+      rendered: Boolean(standard.svg),
+      responsive: Boolean(standard.svg && compact.svg),
+      diagnostics: [...new Set([...standard.diagnostics, ...compact.diagnostics].map(({ code }) => code))],
+    };
+  });
+  const planCount = planRecords.length || 1;
+  const planRates = {
+    valid: planRecords.filter(({ valid }) => valid).length / planCount,
+    rendered: planRecords.filter(({ rendered }) => rendered).length / planCount,
+    responsive: planRecords.filter(({ responsive }) => responsive).length / planCount,
+  };
   return {
     records,
+    planRecords,
     guideTokens,
     checkoutTokens,
     rates,
-    passed: rates.firstPass >= 0.9 && rates.repaired === 1 && rates.responsive === 1 && rates.semantic === 1 && guideTokens < 300 && checkoutTokens <= 88,
+    planRates,
+    passed: rates.firstPass >= 0.9 && rates.repaired === 1 && rates.responsive === 1 && rates.semantic === 1
+      && planRates.valid === 1 && planRates.rendered === 1 && planRates.responsive === 1
+      && guideTokens < 300 && checkoutTokens <= 88,
   };
 }
 

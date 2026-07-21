@@ -28,6 +28,7 @@ export * from "./visual-layout.js";
 export * from "./visual-export.js";
 export * from "./timeline.js";
 export * from "./visual-schema.js";
+export * from "./visual-plan.js";
 export * from "./board.js";
 export * from "./board-validator.js";
 export * from "./pinboard.js";

@@ -103,6 +103,7 @@ function component(name: string): ComponentDefinition {
     parameters: [
       { name: "label", type: "string", required: false },
       { name: "subtitle", type: "string", required: false },
+      { name: "annotations", type: "list", required: false, itemType: "string", maxItems: 5 },
       { name: "icon", type: "identifier", required: false },
       { name: "variant", type: "string", required: false },
       { name: "tone", type: "tone", required: false, default: "neutral" },
@@ -171,6 +172,7 @@ function componentDetailRows(props: Record<string, VisualValue>): string[] {
     ? props[key].flatMap((value) => isRecord(value) ? [formatRecord(value)] : typeof value === "string" ? [value] : [])
     : [];
   return [
+    ...records("annotations"),
     ...records("items"),
     ...records("fields"),
     ...records("methods"),

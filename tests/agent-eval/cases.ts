@@ -1,3 +1,5 @@
+import type { VisualPlan } from "@liveryscript/core";
+
 export type AgentSemanticAssertions = {
   labels?: string[];
   componentKinds?: string[];
@@ -64,5 +66,69 @@ export const agentEvalCases: AgentEvalCase[] = [
     ...scientific("repair-incomplete", "Repair an incomplete orbital figure once and preserve its scientific semantics."),
     fixture: "tests/agent-eval/outputs/incomplete-orbit.livery",
     repairFixture: "fixtures/visual/scientific-motion.livery",
+  },
+];
+
+export type AgentPlanEvalCase = { id: string; prompt: string; plan: VisualPlan };
+
+export const agentPlanEvalCases: AgentPlanEvalCase[] = [
+  {
+    id: "plan-token-bucket",
+    prompt: "Explain a token bucket with capacity 10, refill 2/s, accepted requests, and HTTP 429 rejection.",
+    plan: {
+      type: "livery.plan", version: "0.1", id: "token_bucket", family: "explainer", direction: "right",
+      nodes: [
+        { id: "requests", label: "Incoming requests", kind: "client" },
+        { id: "bucket", label: "Token bucket", kind: "process", emphasis: true },
+        { id: "accepted", label: "Accepted", kind: "outcome", status: "success" },
+        { id: "service", label: "API service", kind: "service" },
+        { id: "rejected", label: "Rejected", kind: "outcome", status: "danger" },
+      ],
+      edges: [
+        { id: "arrive", from: "requests", to: "bucket", kind: "flow" },
+        { id: "allow", from: "bucket", to: "accepted", label: "consume 1 token", kind: "flow" },
+        { id: "continue", from: "accepted", to: "service", kind: "flow" },
+        { id: "deny", from: "bucket", to: "rejected", label: "empty", kind: "branch" },
+      ],
+      annotations: [
+        { id: "capacity", target: "bucket", text: "Capacity: 10 tokens", kind: "constraint" },
+        { id: "refill", target: "bucket", text: "Refill: 2 tokens per second", kind: "behavior" },
+        { id: "burst", target: "bucket", text: "Burst capacity: 10 requests", kind: "behavior" },
+        { id: "status", target: "rejected", text: "HTTP 429", kind: "fact" },
+      ],
+      groups: [],
+    },
+  },
+  {
+    id: "plan-cache-read-through",
+    prompt: "Explain cache read-through with hit, miss, origin read, fill, and response paths.",
+    plan: {
+      type: "livery.plan", version: "0.1", id: "cache_read", family: "process", direction: "auto",
+      nodes: [
+        { id: "request", label: "Read request", kind: "client" },
+        { id: "cache", label: "Cache lookup", kind: "datastore" },
+        { id: "hit", label: "Cache hit", kind: "outcome", status: "success" },
+        { id: "origin", label: "Origin read", kind: "datastore" },
+        { id: "response", label: "Response", kind: "outcome" },
+      ],
+      edges: [
+        { id: "lookup", from: "request", to: "cache", kind: "flow" },
+        { id: "hit_path", from: "cache", to: "hit", label: "hit", kind: "flow" },
+        { id: "hit_response", from: "hit", to: "response", kind: "flow" },
+        { id: "miss", from: "cache", to: "origin", label: "miss", kind: "branch" },
+        { id: "fill", from: "origin", to: "response", label: "fill cache", kind: "branch" },
+      ],
+      annotations: [], groups: [],
+    },
+  },
+  {
+    id: "plan-incident-response",
+    prompt: "Create an incident-response explainer covering detect, triage, mitigate, recover, and learn.",
+    plan: {
+      type: "livery.plan", version: "0.1", id: "incident_response", family: "process", direction: "auto",
+      nodes: ["Detect", "Triage", "Mitigate", "Recover", "Learn"].map((label) => ({ id: label.toLowerCase(), label, kind: "process" as const })),
+      edges: ["detect", "triage", "mitigate", "recover"].map((from, index) => ({ id: `step_${index + 1}`, from, to: ["triage", "mitigate", "recover", "learn"][index]!, kind: "flow" as const })),
+      annotations: [], groups: [],
+    },
   },
 ];

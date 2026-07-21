@@ -20,7 +20,7 @@ import type {
 import type { AnchorName, Connector, LayoutKind, Timeline, VisualConstraint, VisualDocument, VisualNode, VisualValue } from "./visual.js";
 import { componentDetailRows } from "./component-details.js";
 import { canonicalTheme, resolveComponentRecipe, resolveTheme, resolveVisualValue, type LiveryTheme, type TokenOverrides } from "./theme.js";
-import { measureVisualText, measureVisualTextBlock } from "./text-metrics.js";
+import { measureVisualText, measureVisualTextBlock, wrapVisualText } from "./text-metrics.js";
 import { planFlow } from "./flow-layout.js";
 import { hierarchyTopology, planHierarchy } from "./hierarchy-layout.js";
 
@@ -53,6 +53,7 @@ const PADDING = 24;
 const COMPACT_PADDING = 16;
 const DEFAULT_GAP = 32;
 const MIN_GAP = 24;
+const MAX_ROOT_COLUMN_GAP = 92;
 const CLEARANCE = 6;
 const NODE_HEIGHT = 72;
 const MAX_ELEMENTS = 512;
@@ -128,7 +129,7 @@ function buildCandidate(document: VisualDocument, width: number, strategy: Strat
   const rootColumnGap = Math.max(gapFor(document.root.layout?.gap, tokens), ...document.connectors.map((connector) => {
     if (!connector.label) return MIN_GAP;
     const endpointPadding = Math.max(endpointClearance(document.root, connector.from.node), endpointClearance(document.root, connector.to.node));
-    return measureVisualText(connector.label, { fontSize: tokenNumber(tokens, "type.caption", 10), fontWeight: 600 }) + 14 + endpointPadding * 2;
+    return Math.min(MAX_ROOT_COLUMN_GAP, measureVisualText(connector.label, { fontSize: tokenNumber(tokens, "type.caption", 10), fontWeight: 600 }) + 14 + endpointPadding * 2);
   }));
   const rootRowGap = Math.max(gapFor(document.root.layout?.gap, tokens), ...document.connectors.map((connector) => {
     if (!connector.label) return MIN_GAP;
@@ -380,7 +381,13 @@ function measure(
     const labelHeight = measureVisualTextBlock(label, textWidth, { fontSize, fontWeight, lineHeight }).height;
     const subtitleLineHeight = Math.max(Math.ceil(subtitleFontSize * 1.35), 14);
     const subtitleHeight = node.subtitle ? measureVisualTextBlock(node.subtitle, textWidth, { fontSize: subtitleFontSize, fontWeight: subtitleWeight, lineHeight: subtitleLineHeight }).height + 4 : 0;
-    const detailHeight = detailRows.length ? detailRows.length * Math.max(14, Math.ceil(tokenNumber(tokens, "type.caption", 10) * 1.45)) + 8 : 0;
+    const detailLineHeight = Math.max(14, Math.ceil(tokenNumber(tokens, "type.caption", 10) * 1.45));
+    const detailLineCount = detailRows.reduce((count, row) => count + wrapVisualText(
+      `${row.bullet ? "• " : ""}${row.text}`,
+      textWidth,
+      { fontSize: subtitleFontSize, fontWeight: 500 },
+    ).length, 0);
+    const detailHeight = detailLineCount ? detailLineCount * detailLineHeight + 8 : 0;
     const contentHeight = labelHeight + subtitleHeight + detailHeight + (geometry?.paddingY ?? 14) * 2;
     return { width, height: node.layout?.height ?? authoredHeight ?? Math.max(geometry?.minHeight ?? NODE_HEIGHT, contentHeight) };
   }

@@ -5,6 +5,7 @@ export type ComponentDetailRow = { text: string; bullet: boolean };
 export function componentDetailRows(kind: string, props: Readonly<Record<string, VisualValue>> | undefined): ComponentDetailRow[] {
   if (!props) return [];
   const rows: ComponentDetailRow[] = [];
+  appendList(rows, props.annotations, false);
   appendList(rows, props.items, kind === "lib.list" || kind === "lib.legend");
   appendRecords(rows, props.fields, "field");
   appendRecords(rows, props.methods, "method");

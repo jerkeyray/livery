@@ -105,6 +105,35 @@ export function Figure({ source }: { source: string }) {
 
 ## The language
 
+For common connected visuals, agents can submit a small semantic plan instead of authoring the language directly. Livery validates the references, chooses standard components and responsive layout, and returns both the rendered result and canonical editable source:
+
+```ts
+import { renderVisualPlan, type VisualPlan } from "liveryscript";
+
+const plan: VisualPlan = {
+  type: "livery.plan",
+  version: "0.1",
+  id: "request_path",
+  family: "process",
+  direction: "auto",
+  nodes: [
+    { id: "client", label: "Client", kind: "client" },
+    { id: "api", label: "API", kind: "api" },
+  ],
+  edges: [{ id: "request", from: "client", to: "api", kind: "flow" }],
+  annotations: [{ id: "protocol", target: "api", text: "HTTPS", kind: "fact" }],
+  groups: [],
+};
+
+const result = renderVisualPlan(plan, { width: 720 });
+console.log(result.source); // canonical Livery DSL for editing or storage
+console.log(result.quality); // deterministic geometry-based quality report
+```
+
+Use the plan API for architecture, process, and explainer diagrams. Short annotations stay inside their subject component, the dominant flow is placed first, and responsive candidates are scored for continuity, density, detours, and annotation distance. The textual DSL remains the precise path for custom components, canvases, timelines, schemas, interactions, and other specialized visuals.
+
+## Textual DSL
+
 This figure uses standard-library components, stable connection anchors, coordinate-free macro layout, and named timeline states:
 
 ```livery

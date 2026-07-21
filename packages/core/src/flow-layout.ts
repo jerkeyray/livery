@@ -134,7 +134,7 @@ function assignRanks(graph: ComponentGraph) {
       // Supporting edges are local satellites, not another step in the reading
       // progression. Keep them beside their invoking rank while primary,
       // secondary, and automatic relationships advance the flow.
-      const progression = edge.weight === roleWeight("supporting") ? 0 : 1;
+      const progression = edge.weight <= roleWeight("supporting") ? 0 : 1;
       ranks[target] = Math.max(ranks[target]!, ranks[component]! + progression);
       indegree[target]! -= 1;
       if (indegree[target] === 0) queue.push(target);

@@ -137,10 +137,12 @@ function renderElement(element: SolvedElement, tokens: TokenOverrides, shadowId:
     lines.push(`      <text x="${labelX}" y="${labelBounds.y + fontSize}" text-anchor="${textAnchor}" font-family="${escapeXml(String(tokens["type.fontFamily"]))}" font-size="${fontSize}" font-weight="${fontWeight}" fill="${color}">`);
     textLines.forEach((line, index) => lines.push(`        <tspan x="${labelX}" dy="${index === 0 ? 0 : lineHeight}">${escapeXml(line)}</tspan>`));
     lines.push("      </text>");
-    if (element.subtitle) {
-      const subtitleFontSize = Number(tokens["type.caption"] ?? 10);
-      const subtitleLineHeight = Math.max(Math.ceil(subtitleFontSize * 1.35), 14);
-      const subtitleLines = wrapVisualText(element.subtitle, labelBounds.width, { fontSize: subtitleFontSize, fontWeight: 500 });
+    const subtitleFontSize = Number(tokens["type.caption"] ?? 10);
+    const subtitleLineHeight = Math.max(Math.ceil(subtitleFontSize * 1.35), 14);
+    const subtitleLines = element.subtitle
+      ? wrapVisualText(element.subtitle, labelBounds.width, { fontSize: subtitleFontSize, fontWeight: 500 })
+      : [];
+    if (subtitleLines.length) {
       const subtitleY = labelBounds.y + textLines.length * lineHeight + 4;
       const subtitleColor = resolveVisualValue(surfaceStyle.color, tokens) ?? tokens["color.muted"];
       lines.push(`      <text x="${labelX}" y="${subtitleY + subtitleFontSize}" text-anchor="${textAnchor}" font-family="${escapeXml(String(tokens["type.fontFamily"]))}" font-size="${subtitleFontSize}" font-weight="500" fill="${subtitleColor}">`);
@@ -151,10 +153,16 @@ function renderElement(element: SolvedElement, tokens: TokenOverrides, shadowId:
     if (detailRows.length) {
       const itemFontSize = Number(tokens["type.caption"] ?? 10);
       const itemLineHeight = Math.max(14, Math.ceil(itemFontSize * 1.45));
-      const itemY = labelBounds.y + textLines.length * lineHeight + (element.subtitle ? itemLineHeight : 0) + 10;
+      const detailLines = detailRows.flatMap((item) => wrapVisualText(
+        `${item.bullet ? "• " : ""}${item.text}`,
+        labelBounds.width,
+        { fontSize: itemFontSize, fontWeight: 500 },
+      ));
+      const itemY = labelBounds.y + textLines.length * lineHeight
+        + (subtitleLines.length ? 4 + subtitleLines.length * subtitleLineHeight : 0) + 10;
       const itemColor = resolveVisualValue(surfaceStyle.color, tokens) ?? tokens["color.muted"];
       lines.push(`      <text x="${labelBounds.x}" y="${itemY}" font-family="${escapeXml(String(tokens["type.fontFamily"]))}" font-size="${itemFontSize}" font-weight="500" fill="${itemColor}">`);
-      detailRows.forEach((item, index) => lines.push(`        <tspan x="${labelBounds.x}" dy="${index === 0 ? 0 : itemLineHeight}">${item.bullet ? "• " : ""}${escapeXml(item.text)}</tspan>`));
+      detailLines.forEach((line, index) => lines.push(`        <tspan x="${labelBounds.x}" dy="${index === 0 ? 0 : itemLineHeight}">${escapeXml(line)}</tspan>`));
       lines.push("      </text>");
     }
   }
